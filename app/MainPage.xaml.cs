@@ -99,7 +99,7 @@ public partial class MainPage : ContentPage
 
         // Sync row definitions (grow or shrink as needed)
         while (StationsGrid.RowDefinitions.Count < rows)
-            StationsGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(380) });
+            StationsGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Star });
         while (StationsGrid.RowDefinitions.Count > rows)
             StationsGrid.RowDefinitions.RemoveAt(StationsGrid.RowDefinitions.Count - 1);
 

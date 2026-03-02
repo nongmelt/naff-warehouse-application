@@ -6,12 +6,12 @@ namespace app.Services;
 public static class AppSettings
 {
     private const string KeyVideoFolder = "settings.video_folder";
-    private const string KeyWebhookUrl  = "settings.webhook_url";
+    private const string KeyWebhookUrl = "settings.webhook_url";
 
     public static readonly string DefaultVideoFolder =
         Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-            "NAFFWarehouse Videos"
+            "Warehouse Videos"
         );
 
     public const string DefaultWebhookUrl =

@@ -136,9 +136,7 @@
         </Grid>
 
         <!-- ── Dynamic Station Grid ── -->
-        <ScrollView Grid.Row="1" BackgroundColor="#f3f4f6">
-            <Grid x:Name="StationsGrid"/>
-        </ScrollView>
+        <Grid x:Name="StationsGrid" Grid.Row="1" BackgroundColor="#f3f4f6"/>
 
     </Grid>
 

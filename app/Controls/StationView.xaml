@@ -10,10 +10,10 @@
             Margin="4"
             StrokeShape="RoundRectangle 8">
 
-        <Grid RowDefinitions="*, Auto">
+        <Grid RowDefinitions="*, Auto, Auto">
 
-            <!-- ── Camera area (tap here to select this station) ── -->
-            <Grid Grid.Row="0" BackgroundColor="#111827" MinimumHeightRequest="180">
+            <!-- ── Row 0: Camera area (tap here to select this station) ── -->
+            <Grid Grid.Row="0" BackgroundColor="#111827">
                 <Grid.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnCameraAreaTapped"/>
                 </Grid.GestureRecognizers>
@@ -39,6 +39,34 @@
                                     HorizontalOptions="FillAndExpand"
                                     VerticalOptions="FillAndExpand"/>
 
+                <!-- Red border overlay while recording -->
+                <Border x:Name="RecordingBorder"
+                        IsVisible="False"
+                        Stroke="#ef4444"
+                        StrokeThickness="3"
+                        StrokeShape="Rectangle"
+                        BackgroundColor="Transparent"
+                        HorizontalOptions="FillAndExpand"
+                        VerticalOptions="FillAndExpand"
+                        InputTransparent="True"/>
+
+                <!-- Barcode badge — top-right overlay, visible while recording -->
+                <Border x:Name="BarcodeBadge"
+                        BackgroundColor="#CC000000"
+                        StrokeShape="RoundRectangle 6"
+                        StrokeThickness="0"
+                        Padding="12,6"
+                        HorizontalOptions="End"
+                        VerticalOptions="Start"
+                        Margin="0,8,8,0"
+                        IsVisible="False">
+                    <Label x:Name="BarcodeLabel"
+                           TextColor="White"
+                           FontSize="18"
+                           FontAttributes="Bold"
+                           HorizontalOptions="End"/>
+                </Border>
+
                 <!-- REC badge — top-left overlay -->
                 <Border x:Name="RecBadge"
                         BackgroundColor="#ef4444"
@@ -57,55 +85,13 @@
 
             </Grid>
 
-            <!-- ── Controls bar ── -->
-            <VerticalStackLayout Grid.Row="1"
+            <!-- ── Row 1: Collapsible controls panel (hidden by default) ── -->
+            <VerticalStackLayout x:Name="ControlsPanel"
+                                 Grid.Row="1"
+                                 IsVisible="False"
                                  BackgroundColor="White"
                                  Padding="10,8"
                                  Spacing="6">
-
-                <!-- Station name row: display label + pencil, OR inline entry when editing -->
-                <Grid ColumnDefinitions="*, Auto, Auto" MinimumHeightRequest="32">
-
-                    <!-- Display mode (default) -->
-                    <Label x:Name="StationNameLabel"
-                           Grid.Column="0"
-                           FontAttributes="Bold"
-                           FontSize="14"
-                           TextColor="#111827"
-                           VerticalOptions="Center"/>
-                    <Button x:Name="EditNameButton"
-                            Grid.Column="1"
-                            Text="✏"
-                            FontSize="13"
-                            HeightRequest="30"
-                            WidthRequest="30"
-                            Padding="0"
-                            BackgroundColor="Transparent"
-                            TextColor="#9ca3af"
-                            CornerRadius="4"
-                            Clicked="OnEditNameClicked"/>
-
-                    <!-- Edit mode (hidden until pencil is tapped) -->
-                    <Entry x:Name="StationNameEntry"
-                           Grid.Column="0"
-                           Grid.ColumnSpan="2"
-                           IsVisible="False"
-                           FontAttributes="Bold"
-                           FontSize="14"
-                           TextColor="#111827"
-                           BackgroundColor="Transparent"
-                           Placeholder="Station name"
-                           ReturnType="Done"
-                           Completed="OnNameEntryCompleted"
-                           Unfocused="OnNameEntryUnfocused"/>
-
-                    <!-- Active barcode — always in the last column -->
-                    <Label x:Name="BarcodeLabel"
-                           Grid.Column="2"
-                           FontSize="12"
-                           TextColor="#6b7280"
-                           VerticalOptions="Center"/>
-                </Grid>
 
                 <!-- Camera picker + lock toggle -->
                 <Grid ColumnDefinitions="*, Auto">
@@ -154,6 +140,62 @@
                        TextColor="#6b7280"/>
 
             </VerticalStackLayout>
+
+            <!-- ── Row 2: Always-visible footer strip ── -->
+            <Grid Grid.Row="2"
+                  ColumnDefinitions="Auto, *, Auto"
+                  BackgroundColor="White"
+                  Padding="6,4">
+
+                <!-- Pencil edit button -->
+                <Button x:Name="EditNameButton"
+                        Grid.Column="0"
+                        Text="✏"
+                        FontSize="13"
+                        HeightRequest="34"
+                        WidthRequest="30"
+                        Padding="0"
+                        BackgroundColor="Transparent"
+                        TextColor="#9ca3af"
+                        CornerRadius="4"
+                        Clicked="OnEditNameClicked"/>
+
+                <!-- Station name (display) -->
+                <Label x:Name="StationNameLabel"
+                       Grid.Column="1"
+                       FontAttributes="Bold"
+                       FontSize="14"
+                       TextColor="#111827"
+                       VerticalOptions="Center"
+                       LineBreakMode="TailTruncation"/>
+
+                <!-- Station name (in-place edit — shown instead of label when editing) -->
+                <Entry x:Name="StationNameEntry"
+                       Grid.Column="1"
+                       IsVisible="False"
+                       FontAttributes="Bold"
+                       FontSize="14"
+                       TextColor="#111827"
+                       BackgroundColor="Transparent"
+                       Placeholder="Station name"
+                       ReturnType="Done"
+                       Completed="OnNameEntryCompleted"
+                       Unfocused="OnNameEntryUnfocused"/>
+
+                <!-- Collapse / expand toggle -->
+                <Button x:Name="ToggleButton"
+                        Grid.Column="2"
+                        Text="▼"
+                        FontSize="12"
+                        HeightRequest="34"
+                        WidthRequest="34"
+                        Padding="0"
+                        BackgroundColor="Transparent"
+                        TextColor="#6b7280"
+                        CornerRadius="4"
+                        Clicked="OnToggleControls"/>
+
+            </Grid>
 
         </Grid>
 

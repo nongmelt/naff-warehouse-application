@@ -38,6 +38,9 @@ public partial class StationView : ContentView, IDisposable
     private bool _cameraLocked;
     private bool _scannerLocked;
 
+    // Controls panel visibility state (collapsed by default)
+    private bool _controlsVisible;
+
     // Prevents OnCameraSelected from firing while the picker is being populated
     private bool _loadingDevices;
 
@@ -46,15 +49,34 @@ public partial class StationView : ContentView, IDisposable
     /// <summary>Fired when the user taps the camera area to activate this station.</summary>
     public event EventHandler? StationSelected;
 
+    private bool _isSelected;
+
     /// <summary>Highlights the card border when true; resets it when false.</summary>
     public bool IsSelected
     {
-        set
+        set { _isSelected = value; UpdateCardBorder(); }
+    }
+
+    /// <summary>
+    /// Green when both camera and scanner are live; blue when selected; gray otherwise.
+    /// </summary>
+    private void UpdateCardBorder()
+    {
+        bool bothActive = _cameraPreviewActive && (_serialPort?.IsOpen == true);
+        if (bothActive)
         {
-            CardBorder.Stroke = value
-                ? new SolidColorBrush(Color.FromArgb("#3b82f6"))
-                : new SolidColorBrush(Color.FromArgb("#d1d5db"));
-            CardBorder.StrokeThickness = value ? 2.5 : 1;
+            CardBorder.Stroke = new SolidColorBrush(Color.FromArgb("#22c55e"));
+            CardBorder.StrokeThickness = 2.5;
+        }
+        else if (_isSelected)
+        {
+            CardBorder.Stroke = new SolidColorBrush(Color.FromArgb("#3b82f6"));
+            CardBorder.StrokeThickness = 2.5;
+        }
+        else
+        {
+            CardBorder.Stroke = new SolidColorBrush(Color.FromArgb("#d1d5db"));
+            CardBorder.StrokeThickness = 1;
         }
     }
 
@@ -65,9 +87,9 @@ public partial class StationView : ContentView, IDisposable
 
     private void OnEditNameClicked(object sender, EventArgs e)
     {
-        StationNameEntry.Text = _stationName;
         StationNameLabel.IsVisible = false;
         EditNameButton.IsVisible = false;
+        StationNameEntry.Text = _stationName;
         StationNameEntry.IsVisible = true;
         StationNameEntry.Focus();
     }
@@ -84,6 +106,15 @@ public partial class StationView : ContentView, IDisposable
         StationNameEntry.IsVisible = false;
         StationNameLabel.IsVisible = true;
         EditNameButton.IsVisible = true;
+    }
+
+    // ── Controls panel toggle ────────────────────────────────────────────────
+
+    private void OnToggleControls(object sender, EventArgs e)
+    {
+        _controlsVisible = !_controlsVisible;
+        ControlsPanel.IsVisible = _controlsVisible;
+        ToggleButton.Text = _controlsVisible ? "▲" : "▼";
     }
 
     // ── Picker lock toggles ──────────────────────────────────────────────────
@@ -192,6 +223,7 @@ public partial class StationView : ContentView, IDisposable
             CameraFeed.IsVisible = false;
             NoCameraPlaceholder.IsVisible = true;
             _cameraPreviewActive = false;
+            UpdateCardBorder();
         }
 
         // Index 0 = "(None)" — detach and done
@@ -214,6 +246,7 @@ public partial class StationView : ContentView, IDisposable
             NoCameraPlaceholder.IsVisible = false;
             await CameraFeed.StartCameraPreview(CancellationToken.None);
             _cameraPreviewActive = true;
+            UpdateCardBorder();
             UpdateStatus("Camera ready — waiting for scan");
             Logger.Log($"Station {_stationId}: Camera started ({camera.Name})");
         }
@@ -224,6 +257,7 @@ public partial class StationView : ContentView, IDisposable
             CameraFeed.IsVisible = false;
             NoCameraPlaceholder.IsVisible = true;
             _cameraPreviewActive = false;
+            UpdateCardBorder();
         }
     }
 
@@ -259,6 +293,7 @@ public partial class StationView : ContentView, IDisposable
             };
             _serialPort.DataReceived += OnSerialDataReceived;
             _serialPort.Open();
+            UpdateCardBorder();
             UpdateStatus($"Scanner ready ({portName}) — waiting for scan");
             Logger.Log($"Station {_stationId}: Serial port {portName} opened");
         }
@@ -303,18 +338,22 @@ public partial class StationView : ContentView, IDisposable
 
                 _activeBarcode = barcode;
                 BarcodeLabel.Text = barcode;
+                BarcodeBadge.IsVisible = true;
                 RecBadge.IsVisible = true;
+                RecordingBorder.IsVisible = true;
                 StartRecording(barcode);
                 UpdateStatus("🔴 RECORDING");
             }
             else if (_activeBarcode == barcode)
             {
                 // Second matching scan → stop recording
+                BarcodeBadge.IsVisible = false;
+                BarcodeLabel.Text = "";
                 RecBadge.IsVisible = false;
+                RecordingBorder.IsVisible = false;
                 var filePath = await StopRecordingAsync();
                 var finishedBarcode = _activeBarcode;
                 _activeBarcode = null;
-                BarcodeLabel.Text = "";
 
                 if (!string.IsNullOrEmpty(filePath))
                 {
@@ -471,7 +510,11 @@ public partial class StationView : ContentView, IDisposable
             _serialPort.Dispose();
         }
         catch { }
-        finally { _serialPort = null; }
+        finally
+        {
+            _serialPort = null;
+            UpdateCardBorder();
+        }
     }
 
     // ── Cleanup ─────────────────────────────────────────────────────────────
