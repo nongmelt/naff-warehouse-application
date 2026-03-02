@@ -22,7 +22,7 @@
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
 		<!-- Display name -->
-		<ApplicationTitle>NAFFWarehouse</ApplicationTitle>
+		<ApplicationTitle>Warehouse</ApplicationTitle>
 
 		<!-- App Identifier -->
 		<ApplicationId>com.nafstationery.app</ApplicationId>
