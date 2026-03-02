@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="app.Views.SettingsPage"
+             Shell.NavBarIsVisible="False">
+
+    <ContentPage.Resources>
+        <ResourceDictionary>
+            <!-- NavOutlineButton re-declared locally (original is page-scoped in MainPage.xaml) -->
+            <Style x:Key="NavOutlineButton" TargetType="Button">
+                <Setter Property="BackgroundColor"  Value="Transparent"/>
+                <Setter Property="TextColor"        Value="White"/>
+                <Setter Property="BorderColor"      Value="White"/>
+                <Setter Property="BorderWidth"      Value="1"/>
+                <Setter Property="FontSize"         Value="12"/>
+                <Setter Property="Padding"          Value="14,6"/>
+                <Setter Property="CornerRadius"     Value="6"/>
+                <Setter Property="VisualStateManager.VisualStateGroups">
+                    <VisualStateGroupList>
+                        <VisualStateGroup x:Name="CommonStates">
+                            <VisualState x:Name="Normal">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="Transparent"/>
+                                    <Setter Property="TextColor"       Value="White"/>
+                                    <Setter Property="BorderColor"     Value="White"/>
+                                    <Setter Property="BorderWidth"     Value="1"/>
+                                    <Setter Property="Opacity"         Value="1"/>
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState x:Name="PointerOver">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="White"/>
+                                    <Setter Property="TextColor"       Value="{StaticResource Primary}"/>
+                                    <Setter Property="BorderColor"     Value="White"/>
+                                    <Setter Property="BorderWidth"     Value="2"/>
+                                    <Setter Property="Opacity"         Value="1"/>
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState x:Name="Pressed">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="#e0e7ff"/>
+                                    <Setter Property="TextColor"       Value="{StaticResource Primary}"/>
+                                    <Setter Property="BorderColor"     Value="White"/>
+                                    <Setter Property="Opacity"         Value="0.85"/>
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState x:Name="Disabled">
+                                <VisualState.Setters>
+                                    <Setter Property="Opacity" Value="0.35"/>
+                                </VisualState.Setters>
+                            </VisualState>
+                        </VisualStateGroup>
+                    </VisualStateGroupList>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="Auto, *">
+
+        <!-- Header bar — matches MainPage toolbar style -->
+        <Grid Grid.Row="0"
+              BackgroundColor="{StaticResource Primary}"
+              Padding="16,10">
+            <Label Text="Settings"
+                   TextColor="White"
+                   FontSize="20"
+                   FontAttributes="Bold"
+                   VerticalOptions="Center"/>
+            <Button Text="✕ Close"
+                    Clicked="OnCancel"
+                    Style="{StaticResource NavOutlineButton}"
+                    HorizontalOptions="End"/>
+        </Grid>
+
+        <!-- Form area -->
+        <ScrollView Grid.Row="1" BackgroundColor="#f3f4f6">
+            <VerticalStackLayout Padding="24"
+                                 Spacing="20"
+                                 MaximumWidthRequest="600"
+                                 HorizontalOptions="Center">
+
+                <!-- Video Folder card -->
+                <Border Stroke="#d1d5db"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 8"
+                        BackgroundColor="White"
+                        Padding="16">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="Video Destination Folder"
+                               FontAttributes="Bold"
+                               FontSize="14"
+                               TextColor="#111827"/>
+                        <Label Text="Recordings are saved into a date-stamped sub-folder inside this directory."
+                               FontSize="12"
+                               TextColor="#6b7280"/>
+                        <Grid ColumnDefinitions="*, Auto" ColumnSpacing="8">
+                            <Border Grid.Column="0"
+                                    Stroke="#d1d5db"
+                                    StrokeThickness="1"
+                                    StrokeShape="RoundRectangle 6"
+                                    Padding="10,0">
+                                <Entry x:Name="VideoFolderEntry"
+                                       Placeholder="e.g. C:\Users\Operator\Documents\NAFFWarehouse Videos"
+                                       FontSize="13"
+                                       VerticalOptions="Center"/>
+                            </Border>
+                            <Button Grid.Column="1"
+                                    Text="Browse…"
+                                    Clicked="OnBrowseFolder"
+                                    WidthRequest="90"
+                                    FontSize="13"
+                                    Padding="0,8"
+                                    CornerRadius="6"/>
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Webhook URL card -->
+                <Border Stroke="#d1d5db"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 8"
+                        BackgroundColor="White"
+                        Padding="16">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="n8n Webhook URL"
+                               FontAttributes="Bold"
+                               FontSize="14"
+                               TextColor="#111827"/>
+                        <Label Text="The full webhook URL that receives barcode and video file notifications."
+                               FontSize="12"
+                               TextColor="#6b7280"/>
+                        <Border Stroke="#d1d5db"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 6"
+                                Padding="10,0">
+                            <Entry x:Name="WebhookUrlEntry"
+                                   Placeholder="http://localhost:5678/webhook-test/..."
+                                   FontSize="13"
+                                   Keyboard="Url"/>
+                        </Border>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Save button — uses global Button style (Primary fill) -->
+                <Button Text="Save Settings"
+                        Clicked="OnSave"
+                        CornerRadius="8"
+                        FontSize="14"
+                        Padding="24,12"
+                        HorizontalOptions="End"/>
+
+            </VerticalStackLayout>
+        </ScrollView>
+
+    </Grid>
+
+</ContentPage>

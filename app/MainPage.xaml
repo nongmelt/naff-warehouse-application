@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="app.MainPage"
+             Shell.NavBarIsVisible="False">
+
+    <ContentPage.Resources>
+        <ResourceDictionary>
+
+            <!-- Solid button: white bg / primary text  →  primary bg / white text on hover -->
+            <Style x:Key="NavSolidButton" TargetType="Button">
+                <Setter Property="BackgroundColor"  Value="White"/>
+                <Setter Property="TextColor"        Value="{StaticResource Primary}"/>
+                <Setter Property="FontSize"         Value="12"/>
+                <Setter Property="Padding"          Value="14,6"/>
+                <Setter Property="CornerRadius"     Value="6"/>
+                <Setter Property="VisualStateManager.VisualStateGroups">
+                    <VisualStateGroupList>
+                        <VisualStateGroup x:Name="CommonStates">
+                            <VisualState x:Name="Normal">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="White"/>
+                                    <Setter Property="TextColor"       Value="{StaticResource Primary}"/>
+                                    <Setter Property="BorderColor"     Value="Transparent"/>
+                                    <Setter Property="BorderWidth"     Value="0"/>
+                                    <Setter Property="Opacity"         Value="1"/>
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState x:Name="PointerOver">
+                                <VisualState.Setters>
+                                    <!-- Full inversion: primary fill with white text -->
+                                    <Setter Property="BackgroundColor" Value="{StaticResource Primary}"/>
+                                    <Setter Property="TextColor"       Value="White"/>
+                                    <Setter Property="BorderColor"     Value="White"/>
+                                    <Setter Property="BorderWidth"     Value="2"/>
+                                    <Setter Property="Opacity"         Value="1"/>
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState x:Name="Pressed">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="#1d4ed8"/>
+                                    <Setter Property="TextColor"       Value="White"/>
+                                    <Setter Property="Opacity"         Value="0.85"/>
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState x:Name="Disabled">
+                                <VisualState.Setters>
+                                    <Setter Property="Opacity" Value="0.35"/>
+                                </VisualState.Setters>
+                            </VisualState>
+                        </VisualStateGroup>
+                    </VisualStateGroupList>
+                </Setter>
+            </Style>
+
+            <!-- Outline button: transparent / white  →  solid white / primary text on hover -->
+            <Style x:Key="NavOutlineButton" TargetType="Button">
+                <Setter Property="BackgroundColor"  Value="Transparent"/>
+                <Setter Property="TextColor"        Value="White"/>
+                <Setter Property="BorderColor"      Value="White"/>
+                <Setter Property="BorderWidth"      Value="1"/>
+                <Setter Property="FontSize"         Value="12"/>
+                <Setter Property="Padding"          Value="14,6"/>
+                <Setter Property="CornerRadius"     Value="6"/>
+                <Setter Property="VisualStateManager.VisualStateGroups">
+                    <VisualStateGroupList>
+                        <VisualStateGroup x:Name="CommonStates">
+                            <VisualState x:Name="Normal">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="Transparent"/>
+                                    <Setter Property="TextColor"       Value="White"/>
+                                    <Setter Property="BorderColor"     Value="White"/>
+                                    <Setter Property="BorderWidth"     Value="1"/>
+                                    <Setter Property="Opacity"         Value="1"/>
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState x:Name="PointerOver">
+                                <VisualState.Setters>
+                                    <!-- Fill the outline: white bg / primary text -->
+                                    <Setter Property="BackgroundColor" Value="White"/>
+                                    <Setter Property="TextColor"       Value="{StaticResource Primary}"/>
+                                    <Setter Property="BorderColor"     Value="White"/>
+                                    <Setter Property="BorderWidth"     Value="2"/>
+                                    <Setter Property="Opacity"         Value="1"/>
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState x:Name="Pressed">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="#e0e7ff"/>
+                                    <Setter Property="TextColor"       Value="{StaticResource Primary}"/>
+                                    <Setter Property="BorderColor"     Value="White"/>
+                                    <Setter Property="Opacity"         Value="0.85"/>
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState x:Name="Disabled">
+                                <VisualState.Setters>
+                                    <Setter Property="Opacity" Value="0.35"/>
+                                </VisualState.Setters>
+                            </VisualState>
+                        </VisualStateGroup>
+                    </VisualStateGroupList>
+                </Setter>
+            </Style>
+
+        </ResourceDictionary>
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="Auto, *">
+
+        <!-- ── Header Toolbar ── -->
+        <Grid Grid.Row="0"
+              BackgroundColor="{StaticResource Primary}"
+              Padding="16,10">
+            <Label Text="Packing Stations"
+                   TextColor="White"
+                   FontSize="20"
+                   FontAttributes="Bold"
+                   VerticalOptions="Center"/>
+            <HorizontalStackLayout HorizontalOptions="End" Spacing="8">
+                <Button Text="+ Add Station"
+                        Clicked="OnAddStation"
+                        Style="{StaticResource NavOutlineButton}"/>
+                <Button Text="− Remove"
+                        Clicked="OnRemoveStation"
+                        Style="{StaticResource NavOutlineButton}"/>
+                <Button Text="Refresh Devices"
+                        Clicked="OnRefreshDevices"
+                        Style="{StaticResource NavOutlineButton}"/>
+                <Button Text="⚙ Settings"
+                        Clicked="OnOpenSettings"
+                        Style="{StaticResource NavOutlineButton}"/>
+                <Button Text="Open Logs"
+                        Clicked="OnOpenLogs"
+                        Style="{StaticResource NavOutlineButton}"/>
+            </HorizontalStackLayout>
+        </Grid>
+
+        <!-- ── Dynamic Station Grid ── -->
+        <ScrollView Grid.Row="1" BackgroundColor="#f3f4f6">
+            <Grid x:Name="StationsGrid"/>
+        </ScrollView>
+
+    </Grid>
+
+</ContentPage>

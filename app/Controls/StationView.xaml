@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+             x:Class="app.Controls.StationView">
+
+    <Border x:Name="CardBorder"
+            Stroke="#d1d5db"
+            StrokeThickness="1"
+            Margin="4"
+            StrokeShape="RoundRectangle 8">
+
+        <Grid RowDefinitions="*, Auto">
+
+            <!-- ── Camera area (tap here to select this station) ── -->
+            <Grid Grid.Row="0" BackgroundColor="#111827" MinimumHeightRequest="180">
+                <Grid.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnCameraAreaTapped"/>
+                </Grid.GestureRecognizers>
+
+                <!-- Placeholder when no camera is selected -->
+                <VerticalStackLayout x:Name="NoCameraPlaceholder"
+                                     HorizontalOptions="Center"
+                                     VerticalOptions="Center"
+                                     Spacing="6">
+                    <Label Text="No Camera"
+                           TextColor="#4b5563"
+                           FontSize="16"
+                           HorizontalOptions="Center"/>
+                    <Label Text="Select a camera below"
+                           TextColor="#374151"
+                           FontSize="12"
+                           HorizontalOptions="Center"/>
+                </VerticalStackLayout>
+
+                <!-- Live camera feed -->
+                <toolkit:CameraView x:Name="CameraFeed"
+                                    IsVisible="False"
+                                    HorizontalOptions="FillAndExpand"
+                                    VerticalOptions="FillAndExpand"/>
+
+                <!-- REC badge — top-left overlay -->
+                <Border x:Name="RecBadge"
+                        BackgroundColor="#ef4444"
+                        StrokeShape="RoundRectangle 4"
+                        StrokeThickness="0"
+                        Padding="8,3"
+                        HorizontalOptions="Start"
+                        VerticalOptions="Start"
+                        Margin="8,8,0,0"
+                        IsVisible="False">
+                    <Label Text="● REC"
+                           TextColor="White"
+                           FontSize="11"
+                           FontAttributes="Bold"/>
+                </Border>
+
+            </Grid>
+
+            <!-- ── Controls bar ── -->
+            <VerticalStackLayout Grid.Row="1"
+                                 BackgroundColor="White"
+                                 Padding="10,8"
+                                 Spacing="6">
+
+                <!-- Station name row: display label + pencil, OR inline entry when editing -->
+                <Grid ColumnDefinitions="*, Auto, Auto" MinimumHeightRequest="32">
+
+                    <!-- Display mode (default) -->
+                    <Label x:Name="StationNameLabel"
+                           Grid.Column="0"
+                           FontAttributes="Bold"
+                           FontSize="14"
+                           TextColor="#111827"
+                           VerticalOptions="Center"/>
+                    <Button x:Name="EditNameButton"
+                            Grid.Column="1"
+                            Text="✏"
+                            FontSize="13"
+                            HeightRequest="30"
+                            WidthRequest="30"
+                            Padding="0"
+                            BackgroundColor="Transparent"
+                            TextColor="#9ca3af"
+                            CornerRadius="4"
+                            Clicked="OnEditNameClicked"/>
+
+                    <!-- Edit mode (hidden until pencil is tapped) -->
+                    <Entry x:Name="StationNameEntry"
+                           Grid.Column="0"
+                           Grid.ColumnSpan="2"
+                           IsVisible="False"
+                           FontAttributes="Bold"
+                           FontSize="14"
+                           TextColor="#111827"
+                           BackgroundColor="Transparent"
+                           Placeholder="Station name"
+                           ReturnType="Done"
+                           Completed="OnNameEntryCompleted"
+                           Unfocused="OnNameEntryUnfocused"/>
+
+                    <!-- Active barcode — always in the last column -->
+                    <Label x:Name="BarcodeLabel"
+                           Grid.Column="2"
+                           FontSize="12"
+                           TextColor="#6b7280"
+                           VerticalOptions="Center"/>
+                </Grid>
+
+                <!-- Camera picker + lock toggle -->
+                <Grid ColumnDefinitions="*, Auto">
+                    <Picker x:Name="CameraPicker"
+                            Grid.Column="0"
+                            Title="Select Camera"
+                            FontSize="12"
+                            SelectedIndexChanged="OnCameraSelected"/>
+                    <Button x:Name="CameraLockButton"
+                            Grid.Column="1"
+                            Text="🔓"
+                            FontSize="14"
+                            HeightRequest="34"
+                            WidthRequest="34"
+                            Padding="0"
+                            BackgroundColor="Transparent"
+                            TextColor="#9ca3af"
+                            CornerRadius="4"
+                            Clicked="OnCameraLockClicked"/>
+                </Grid>
+
+                <!-- Scanner (COM port) picker + lock toggle -->
+                <Grid ColumnDefinitions="*, Auto">
+                    <Picker x:Name="ComPortPicker"
+                            Grid.Column="0"
+                            Title="Select COM Port (Barcode Scanner)"
+                            FontSize="12"
+                            SelectedIndexChanged="OnComPortSelected"/>
+                    <Button x:Name="ScannerLockButton"
+                            Grid.Column="1"
+                            Text="🔓"
+                            FontSize="14"
+                            HeightRequest="34"
+                            WidthRequest="34"
+                            Padding="0"
+                            BackgroundColor="Transparent"
+                            TextColor="#9ca3af"
+                            CornerRadius="4"
+                            Clicked="OnScannerLockClicked"/>
+                </Grid>
+
+                <!-- Status -->
+                <Label x:Name="StatusLabel"
+                       Text="Ready to Scan"
+                       FontSize="11"
+                       TextColor="#6b7280"/>
+
+            </VerticalStackLayout>
+
+        </Grid>
+
+    </Border>
+
+</ContentView>

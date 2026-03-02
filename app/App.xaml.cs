@@ -1,0 +1,19 @@
+﻿using Microsoft.Extensions.DependencyInjection;
+using System.Runtime.Versioning;
+
+namespace app;
+
+[SupportedOSPlatform("windows")]
+
+public partial class App : Application
+{
+	public App()
+	{
+		InitializeComponent();
+	}
+
+	protected override Window CreateWindow(IActivationState? activationState)
+	{
+		return new Window(new AppShell()) { Title = "NAFFWarehouse" };
+	}
+}
