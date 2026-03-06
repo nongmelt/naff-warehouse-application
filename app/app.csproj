@@ -63,6 +63,9 @@
 		<!-- Images -->
 		<MauiImage Include="Resources\Images\*" />
 		<MauiImage Update="Resources\Images\dotnet_bot.png" Resize="True" BaseSize="300,185" />
+		<MauiImage Include="Resources\AppIcon\shopee.png" />
+		<MauiImage Include="Resources\AppIcon\lazada.png" />
+		<MauiImage Include="Resources\AppIcon\tiktok.png" />
 
 		<!-- Custom Fonts -->
 		<MauiFont Include="Resources\Fonts\*" />
@@ -88,6 +91,7 @@
 		<PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.23" />
 		<PackageReference Include="System.IO.Ports" Version="9.0.0" />
 		<PackageReference Include="System.Management" Version="9.0.0" />
+		<PackageReference Include="Npgsql" Version="9.0.4" />
 	</ItemGroup>
 
 	<ItemGroup>

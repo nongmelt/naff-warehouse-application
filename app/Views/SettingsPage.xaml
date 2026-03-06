@@ -6,7 +6,6 @@
 
     <ContentPage.Resources>
         <ResourceDictionary>
-            <!-- NavOutlineButton re-declared locally (original is page-scoped in MainPage.xaml) -->
             <Style x:Key="NavOutlineButton" TargetType="Button">
                 <Setter Property="BackgroundColor"  Value="Transparent"/>
                 <Setter Property="TextColor"        Value="White"/>
@@ -32,7 +31,7 @@
                                     <Setter Property="BackgroundColor" Value="White"/>
                                     <Setter Property="TextColor"       Value="{StaticResource Primary}"/>
                                     <Setter Property="BorderColor"     Value="White"/>
-                                    <Setter Property="BorderWidth"     Value="2"/>
+                                    <Setter Property="BorderWidth"     Value="1"/>
                                     <Setter Property="Opacity"         Value="1"/>
                                 </VisualState.Setters>
                             </VisualState>
@@ -53,12 +52,60 @@
                     </VisualStateGroupList>
                 </Setter>
             </Style>
+
+            <!-- Primary-fill button that turns white on hover, stable size -->
+            <Style x:Key="PrimaryActionButton" TargetType="Button">
+                <Setter Property="BackgroundColor" Value="{StaticResource Primary}"/>
+                <Setter Property="TextColor"       Value="White"/>
+                <Setter Property="BorderColor"     Value="{StaticResource Primary}"/>
+                <Setter Property="BorderWidth"     Value="1"/>
+                <Setter Property="CornerRadius"    Value="8"/>
+                <Setter Property="FontSize"        Value="14"/>
+                <Setter Property="Padding"         Value="24,12"/>
+                <Setter Property="VisualStateManager.VisualStateGroups">
+                    <VisualStateGroupList>
+                        <VisualStateGroup x:Name="CommonStates">
+                            <VisualState x:Name="Normal">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="{StaticResource Primary}"/>
+                                    <Setter Property="TextColor"       Value="White"/>
+                                    <Setter Property="BorderColor"     Value="{StaticResource Primary}"/>
+                                    <Setter Property="BorderWidth"     Value="1"/>
+                                    <Setter Property="Opacity"         Value="1"/>
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState x:Name="PointerOver">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="White"/>
+                                    <Setter Property="TextColor"       Value="{StaticResource Primary}"/>
+                                    <Setter Property="BorderColor"     Value="{StaticResource Primary}"/>
+                                    <Setter Property="BorderWidth"     Value="1"/>
+                                    <Setter Property="Opacity"         Value="1"/>
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState x:Name="Pressed">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="#e0e7ff"/>
+                                    <Setter Property="TextColor"       Value="{StaticResource Primary}"/>
+                                    <Setter Property="BorderColor"     Value="{StaticResource Primary}"/>
+                                    <Setter Property="Opacity"         Value="0.85"/>
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState x:Name="Disabled">
+                                <VisualState.Setters>
+                                    <Setter Property="Opacity" Value="0.35"/>
+                                </VisualState.Setters>
+                            </VisualState>
+                        </VisualStateGroup>
+                    </VisualStateGroupList>
+                </Setter>
+            </Style>
         </ResourceDictionary>
     </ContentPage.Resources>
 
     <Grid RowDefinitions="Auto, *">
 
-        <!-- Header bar — matches MainPage toolbar style -->
+        <!-- Header -->
         <Grid Grid.Row="0"
               BackgroundColor="{StaticResource Primary}"
               Padding="16,10">
@@ -73,85 +120,258 @@
                     HorizontalOptions="End"/>
         </Grid>
 
-        <!-- Form area -->
-        <ScrollView Grid.Row="1" BackgroundColor="#f3f4f6">
-            <VerticalStackLayout Padding="24"
-                                 Spacing="20"
-                                 MaximumWidthRequest="600"
-                                 HorizontalOptions="Center">
+        <!-- Sidebar + Content — 3 cols: sidebar | 1px divider | content -->
+        <Grid Grid.Row="1" ColumnDefinitions="200, 1, *" ColumnSpacing="0">
 
-                <!-- Video Folder card -->
-                <Border Stroke="#d1d5db"
-                        StrokeThickness="1"
-                        StrokeShape="RoundRectangle 8"
-                        BackgroundColor="White"
-                        Padding="16">
-                    <VerticalStackLayout Spacing="8">
-                        <Label Text="Video Destination Folder"
-                               FontAttributes="Bold"
-                               FontSize="14"
-                               TextColor="#111827"/>
-                        <Label Text="Recordings are saved into a date-stamped sub-folder inside this directory."
-                               FontSize="12"
-                               TextColor="#6b7280"/>
-                        <Grid ColumnDefinitions="*, Auto" ColumnSpacing="8">
-                            <Border Grid.Column="0"
-                                    Stroke="#d1d5db"
-                                    StrokeThickness="1"
-                                    StrokeShape="RoundRectangle 6"
-                                    Padding="10,0">
-                                <Entry x:Name="VideoFolderEntry"
-                                       Placeholder="e.g. C:\Users\Operator\Documents\NAFFWarehouse Videos"
-                                       FontSize="13"
-                                       VerticalOptions="Center"/>
-                            </Border>
-                            <Button Grid.Column="1"
-                                    Text="Browse…"
-                                    Clicked="OnBrowseFolder"
-                                    WidthRequest="90"
-                                    FontSize="13"
-                                    Padding="0,8"
-                                    CornerRadius="6"/>
-                        </Grid>
-                    </VerticalStackLayout>
+            <!-- Sidebar -->
+            <VerticalStackLayout Grid.Column="0" BackgroundColor="White" Spacing="0">
+
+                <!-- GENERAL -->
+                <Label Text="GENERAL"
+                       FontSize="10"
+                       FontAttributes="Bold"
+                       TextColor="#9ca3af"
+                       Margin="16,20,16,4"/>
+
+                <Border x:Name="NavGeneralBorder"
+                        BackgroundColor="#eff6ff"
+                        Stroke="Transparent"
+                        StrokeShape="RoundRectangle 6"
+                        Padding="12,9"
+                        Margin="8,2">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnNavGeneral"/>
+                    </Border.GestureRecognizers>
+                    <Label x:Name="NavGeneralLabel"
+                           Text="General"
+                           FontSize="13"
+                           FontAttributes="Bold"
+                           TextColor="#2563eb"/>
                 </Border>
 
-                <!-- Webhook URL card -->
-                <Border Stroke="#d1d5db"
-                        StrokeThickness="1"
-                        StrokeShape="RoundRectangle 8"
-                        BackgroundColor="White"
-                        Padding="16">
-                    <VerticalStackLayout Spacing="8">
-                        <Label Text="n8n Webhook URL"
-                               FontAttributes="Bold"
-                               FontSize="14"
-                               TextColor="#111827"/>
-                        <Label Text="The full webhook URL that receives barcode and video file notifications."
-                               FontSize="12"
-                               TextColor="#6b7280"/>
-                        <Border Stroke="#d1d5db"
-                                StrokeThickness="1"
-                                StrokeShape="RoundRectangle 6"
-                                Padding="10,0">
-                            <Entry x:Name="WebhookUrlEntry"
-                                   Placeholder="http://localhost:5678/webhook-test/..."
-                                   FontSize="13"
-                                   Keyboard="Url"/>
-                        </Border>
-                    </VerticalStackLayout>
-                </Border>
+                <!-- DATABASE -->
+                <Label Text="DATABASE"
+                       FontSize="10"
+                       FontAttributes="Bold"
+                       TextColor="#9ca3af"
+                       Margin="16,20,16,4"/>
 
-                <!-- Save button — uses global Button style (Primary fill) -->
-                <Button Text="Save Settings"
-                        Clicked="OnSave"
-                        CornerRadius="8"
-                        FontSize="14"
-                        Padding="24,12"
-                        HorizontalOptions="End"/>
+                <Border x:Name="NavPostgresBorder"
+                        BackgroundColor="Transparent"
+                        Stroke="Transparent"
+                        StrokeShape="RoundRectangle 6"
+                        Padding="12,9"
+                        Margin="8,2">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnNavPostgres"/>
+                    </Border.GestureRecognizers>
+                    <Label x:Name="NavPostgresLabel"
+                           Text="PostgreSQL"
+                           FontSize="13"
+                           TextColor="#374151"/>
+                </Border>
 
             </VerticalStackLayout>
-        </ScrollView>
+
+            <!-- Divider -->
+            <BoxView Grid.Column="1" BackgroundColor="#e5e7eb"/>
+
+            <!-- Content area -->
+            <ScrollView Grid.Column="2" BackgroundColor="#f3f4f6">
+                <Grid>
+
+                    <!-- ── General Panel ── -->
+                    <VerticalStackLayout x:Name="PanelGeneral"
+                                         Padding="28,24"
+                                         Spacing="20"
+                                         MaximumWidthRequest="620"
+                                         HorizontalOptions="Center">
+
+                        <Label Text="General"
+                               FontSize="18"
+                               FontAttributes="Bold"
+                               TextColor="#111827"
+                               Margin="0,0,0,4"/>
+
+                        <!-- Video Folder -->
+                        <Border Stroke="#d1d5db" StrokeThickness="1" StrokeShape="RoundRectangle 8"
+                                BackgroundColor="White" Padding="16">
+                            <VerticalStackLayout Spacing="8">
+                                <Label Text="Video Destination Folder"
+                                       FontAttributes="Bold" FontSize="14" TextColor="#111827"/>
+                                <Label Text="Recordings are saved into a date-stamped sub-folder inside this directory."
+                                       FontSize="12" TextColor="#6b7280"/>
+                                <Grid ColumnDefinitions="*, Auto" ColumnSpacing="8">
+                                    <Border Grid.Column="0" Stroke="#d1d5db" StrokeThickness="1"
+                                            StrokeShape="RoundRectangle 6" Padding="10,0">
+                                        <Entry x:Name="VideoFolderEntry"
+                                               Placeholder="e.g. C:\Users\Operator\Documents\NAFFWarehouse Videos"
+                                               FontSize="13" VerticalOptions="Center"/>
+                                    </Border>
+                                    <Button Grid.Column="1" Text="Browse…" Clicked="OnBrowseFolder"
+                                            WidthRequest="90" FontSize="13" Padding="0,8" CornerRadius="6"/>
+                                </Grid>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Webhook URL -->
+                        <Border Stroke="#d1d5db" StrokeThickness="1" StrokeShape="RoundRectangle 8"
+                                BackgroundColor="White" Padding="16">
+                            <VerticalStackLayout Spacing="8">
+                                <Label Text="n8n Webhook URL"
+                                       FontAttributes="Bold" FontSize="14" TextColor="#111827"/>
+                                <Label Text="The full webhook URL that receives barcode and video file notifications."
+                                       FontSize="12" TextColor="#6b7280"/>
+                                <Border Stroke="#d1d5db" StrokeThickness="1" StrokeShape="RoundRectangle 6" Padding="10,0">
+                                    <Entry x:Name="WebhookUrlEntry"
+                                           Placeholder="http://localhost:5678/webhook-test/..."
+                                           FontSize="13" Keyboard="Url"/>
+                                </Border>
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Save row -->
+                        <Grid ColumnDefinitions="*, Auto">
+                            <Label x:Name="GeneralSavedLabel"
+                                   Grid.Column="0"
+                                   Text="✓ Saved"
+                                   TextColor="#16a34a"
+                                   FontSize="13"
+                                   IsVisible="False"
+                                   VerticalOptions="Center"/>
+                            <Button Grid.Column="1"
+                                    Text="Save"
+                                    Clicked="OnSaveGeneral"
+                                    Style="{StaticResource PrimaryActionButton}"/>
+                        </Grid>
+
+                    </VerticalStackLayout>
+
+                    <!-- ── PostgreSQL Panel ── -->
+                    <VerticalStackLayout x:Name="PanelPostgres"
+                                         IsVisible="False"
+                                         Padding="28,24"
+                                         Spacing="20"
+                                         MaximumWidthRequest="620"
+                                         HorizontalOptions="Center">
+
+                        <Label Text="PostgreSQL"
+                               FontSize="18"
+                               FontAttributes="Bold"
+                               TextColor="#111827"
+                               Margin="0,0,0,4"/>
+
+                        <!-- Connection form (always stable, does not move) -->
+                        <Border Stroke="#d1d5db" StrokeThickness="1" StrokeShape="RoundRectangle 8"
+                                BackgroundColor="White" Padding="24">
+                            <VerticalStackLayout Spacing="18">
+
+                                <Label Text="Connection Details"
+                                       FontAttributes="Bold" FontSize="15" TextColor="#111827"/>
+
+                                <!-- Host + Port on one row -->
+                                <Grid ColumnDefinitions="*, 120" ColumnSpacing="14">
+                                    <VerticalStackLayout Grid.Column="0" Spacing="5">
+                                        <Label Text="Host" FontSize="12" TextColor="#6b7280"/>
+                                        <Border Stroke="#d1d5db" StrokeThickness="1" StrokeShape="RoundRectangle 6" Padding="10,0">
+                                            <Entry x:Name="DbHostEntry" Placeholder="localhost"
+                                                   FontSize="13" VerticalOptions="Center"/>
+                                        </Border>
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Column="1" Spacing="5">
+                                        <Label Text="Port" FontSize="12" TextColor="#6b7280"/>
+                                        <Border Stroke="#d1d5db" StrokeThickness="1" StrokeShape="RoundRectangle 6" Padding="10,0">
+                                            <Entry x:Name="DbPortEntry" Placeholder="5432"
+                                                   Keyboard="Numeric" FontSize="13" VerticalOptions="Center"/>
+                                        </Border>
+                                    </VerticalStackLayout>
+                                </Grid>
+
+                                <!-- Database -->
+                                <VerticalStackLayout Spacing="5">
+                                    <Label Text="Database" FontSize="12" TextColor="#6b7280"/>
+                                    <Border Stroke="#d1d5db" StrokeThickness="1" StrokeShape="RoundRectangle 6" Padding="10,0">
+                                        <Entry x:Name="DbDatabaseEntry" Placeholder="warehouse"
+                                               FontSize="13" VerticalOptions="Center"/>
+                                    </Border>
+                                </VerticalStackLayout>
+
+                                <!-- User -->
+                                <VerticalStackLayout Spacing="5">
+                                    <Label Text="User" FontSize="12" TextColor="#6b7280"/>
+                                    <Border Stroke="#d1d5db" StrokeThickness="1" StrokeShape="RoundRectangle 6" Padding="10,0">
+                                        <Entry x:Name="DbUserEntry" Placeholder="postgres"
+                                               FontSize="13" VerticalOptions="Center"/>
+                                    </Border>
+                                </VerticalStackLayout>
+
+                                <!-- Password -->
+                                <VerticalStackLayout Spacing="5">
+                                    <Label Text="Password" FontSize="12" TextColor="#6b7280"/>
+                                    <Border Stroke="#d1d5db" StrokeThickness="1" StrokeShape="RoundRectangle 6" Padding="10,0">
+                                        <Entry x:Name="DbPasswordEntry" IsPassword="True"
+                                               Placeholder="••••••••" FontSize="13" VerticalOptions="Center"/>
+                                    </Border>
+                                </VerticalStackLayout>
+
+                            </VerticalStackLayout>
+                        </Border>
+
+                        <!-- Save button (form stays above, notification appears below) -->
+                        <Button Text="Save"
+                                Clicked="OnSavePostgres"
+                                Style="{StaticResource PrimaryActionButton}"
+                                HorizontalOptions="End"/>
+
+                        <!-- Notification card — appended below after save, form does not shift -->
+                        <Border x:Name="NotificationCard"
+                                IsVisible="False"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 8"
+                                Padding="14,12">
+                            <Grid ColumnDefinitions="*, Auto" ColumnSpacing="12">
+                                <VerticalStackLayout Grid.Column="0" Spacing="6">
+                                    <Label x:Name="NotificationMessageLabel"
+                                           FontSize="13"
+                                           FontAttributes="Bold"/>
+                                    <Label x:Name="MoreDetailLabel"
+                                           Text="▼ More detail"
+                                           FontSize="12"
+                                           TextColor="#dc2626"
+                                           IsVisible="False">
+                                        <Label.GestureRecognizers>
+                                            <TapGestureRecognizer Tapped="OnToggleErrorDetail"/>
+                                        </Label.GestureRecognizers>
+                                    </Label>
+                                    <Border x:Name="ErrorDetailSection"
+                                            IsVisible="False"
+                                            BackgroundColor="#fff1f2"
+                                            Stroke="#fca5a5"
+                                            StrokeThickness="1"
+                                            StrokeShape="RoundRectangle 4"
+                                            Padding="10,8">
+                                        <Label x:Name="ErrorDetailLabel"
+                                               FontSize="11"
+                                               TextColor="#9f1239"
+                                               LineBreakMode="WordWrap"/>
+                                    </Border>
+                                </VerticalStackLayout>
+                                <Button Grid.Column="1"
+                                        Text="Retry"
+                                        Clicked="OnRetryConnection"
+                                        FontSize="12"
+                                        CornerRadius="6"
+                                        Padding="14,6"
+                                        VerticalOptions="Start"/>
+                            </Grid>
+                        </Border>
+
+                    </VerticalStackLayout>
+
+                </Grid>
+            </ScrollView>
+
+        </Grid>
 
     </Grid>
 

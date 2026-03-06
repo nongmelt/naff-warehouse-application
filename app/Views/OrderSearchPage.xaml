@@ -1,0 +1,316 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:models="clr-namespace:app.Models"
+             x:Class="app.Views.OrderSearchPage"
+             Shell.NavBarIsVisible="False">
+
+    <ContentPage.Resources>
+        <ResourceDictionary>
+            <Style x:Key="NavOutlineButton" TargetType="Button">
+                <Setter Property="BackgroundColor"  Value="Transparent"/>
+                <Setter Property="TextColor"        Value="White"/>
+                <Setter Property="BorderColor"      Value="White"/>
+                <Setter Property="BorderWidth"      Value="1"/>
+                <Setter Property="FontSize"         Value="12"/>
+                <Setter Property="Padding"          Value="14,6"/>
+                <Setter Property="CornerRadius"     Value="6"/>
+                <Setter Property="VisualStateManager.VisualStateGroups">
+                    <VisualStateGroupList>
+                        <VisualStateGroup x:Name="CommonStates">
+                            <VisualState x:Name="Normal">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="Transparent"/>
+                                    <Setter Property="TextColor"       Value="White"/>
+                                    <Setter Property="BorderColor"     Value="White"/>
+                                    <Setter Property="BorderWidth"     Value="1"/>
+                                    <Setter Property="Opacity"         Value="1"/>
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState x:Name="PointerOver">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="White"/>
+                                    <Setter Property="TextColor"       Value="{StaticResource Primary}"/>
+                                    <Setter Property="BorderColor"     Value="White"/>
+                                    <Setter Property="BorderWidth"     Value="1"/>
+                                    <Setter Property="Opacity"         Value="1"/>
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState x:Name="Pressed">
+                                <VisualState.Setters>
+                                    <Setter Property="BackgroundColor" Value="#e0e7ff"/>
+                                    <Setter Property="TextColor"       Value="{StaticResource Primary}"/>
+                                    <Setter Property="BorderColor"     Value="White"/>
+                                    <Setter Property="Opacity"         Value="0.85"/>
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState x:Name="Disabled">
+                                <VisualState.Setters>
+                                    <Setter Property="Opacity" Value="0.35"/>
+                                </VisualState.Setters>
+                            </VisualState>
+                        </VisualStateGroup>
+                    </VisualStateGroupList>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="Auto, Auto, *">
+
+        <!-- Header bar -->
+        <Grid Grid.Row="0"
+              BackgroundColor="{StaticResource Primary}"
+              Padding="16,10">
+            <Button Text="⌂ Home"
+                    Clicked="OnGoHome"
+                    Style="{StaticResource NavOutlineButton}"
+                    HorizontalOptions="Start"/>
+            <Label Text="Order Search"
+                   TextColor="White"
+                   FontSize="20"
+                   FontAttributes="Bold"
+                   HorizontalOptions="Center"
+                   VerticalOptions="Center"/>
+            <HorizontalStackLayout HorizontalOptions="End" Spacing="8">
+                <Button Text="Open Logs"
+                        Clicked="OnOpenLogs"
+                        Style="{StaticResource NavOutlineButton}"/>
+                <Button Text="⚙ Settings"
+                        Clicked="OnOpenSettings"
+                        Style="{StaticResource NavOutlineButton}"/>
+            </HorizontalStackLayout>
+        </Grid>
+
+        <!-- Fixed top bar: Scanner (1/3) + Search (2/3) -->
+        <Grid Grid.Row="1"
+              ColumnDefinitions="*, 2*"
+              ColumnSpacing="12"
+              BackgroundColor="#f3f4f6"
+              Padding="24,16,24,12">
+
+            <!-- Scanner card -->
+            <Border Grid.Column="0"
+                    Stroke="#d1d5db"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 8"
+                    BackgroundColor="White"
+                    Padding="12,10">
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="Barcode Scanner"
+                           FontAttributes="Bold"
+                           FontSize="13"
+                           TextColor="#111827"/>
+                    <Grid ColumnDefinitions="*, Auto" ColumnSpacing="8">
+                        <Picker x:Name="ComPortPicker"
+                                Grid.Column="0"
+                                Title="Select COM port"
+                                SelectedIndexChanged="OnComPortSelected"
+                                FontSize="12"/>
+                        <Button Grid.Column="1"
+                                Text="Refresh"
+                                Clicked="OnRefreshPorts"
+                                WidthRequest="72"
+                                FontSize="12"
+                                Padding="0,6"
+                                CornerRadius="6"/>
+                    </Grid>
+                    <Label x:Name="ScannerStatusLabel"
+                           Text="No scanner connected"
+                           FontSize="11"
+                           TextColor="#6b7280"
+                           MinimumHeightRequest="16"/>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Search card -->
+            <Border Grid.Column="1"
+                    Stroke="#d1d5db"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 8"
+                    BackgroundColor="White"
+                    Padding="12,10">
+                <VerticalStackLayout Spacing="6">
+                    <Label Text="Search"
+                           FontAttributes="Bold"
+                           FontSize="13"
+                           TextColor="#111827"/>
+                    <Grid ColumnDefinitions="*, Auto" ColumnSpacing="8">
+                        <Entry x:Name="SearchEntry"
+                               Grid.Column="0"
+                               Placeholder="Tracking or order number…"
+                               FontSize="13"
+                               ReturnType="Search"
+                               Completed="OnSearchCommitted"
+                               VerticalOptions="Center"/>
+                        <Button Grid.Column="1"
+                                Text="Search"
+                                Clicked="OnSearchClicked"
+                                WidthRequest="80"
+                                FontSize="13"
+                                Padding="0,6"
+                                CornerRadius="6"/>
+                    </Grid>
+                    <Label x:Name="SearchStatusLabel"
+                           Text=" "
+                           FontSize="11"
+                           TextColor="#6b7280"
+                           MinimumHeightRequest="16"/>
+                </VerticalStackLayout>
+            </Border>
+
+        </Grid>
+
+        <!-- Scrollable results -->
+        <ScrollView Grid.Row="2" BackgroundColor="#f3f4f6">
+            <VerticalStackLayout Padding="24,0,24,24" Spacing="0">
+
+                <CollectionView x:Name="ResultsView"
+                                ItemsSource="{Binding Results}"
+                                SelectionMode="None">
+
+                    <CollectionView.EmptyView>
+                        <Label x:Name="EmptyLabel"
+                               Text=""
+                               FontSize="13"
+                               TextColor="#9ca3af"
+                               HorizontalOptions="Center"
+                               Margin="0,24"/>
+                    </CollectionView.EmptyView>
+
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="models:PackingList">
+                            <VerticalStackLayout Spacing="6" Margin="0,16,0,0">
+
+                                <!-- Summary card -->
+                                <Border Stroke="#d1d5db"
+                                        StrokeThickness="1"
+                                        StrokeShape="RoundRectangle 8"
+                                        BackgroundColor="White"
+                                        Padding="16,12">
+                                    <VerticalStackLayout Spacing="5">
+                                        <!-- Tracking + platform icon + status -->
+                                        <Grid ColumnDefinitions="Auto, *,  Auto" ColumnSpacing="10">
+                                            <!-- Platform icon (only when known) -->
+                                            <Image Grid.Column="0"
+                                                   Source="{Binding PlatformIcon}"
+                                                   IsVisible="{Binding HasPlatformIcon}"
+                                                   WidthRequest="28"
+                                                   HeightRequest="28"
+                                                   Aspect="AspectFit"
+                                                   VerticalOptions="Center"/>
+                                            <Label Grid.Column="1"
+                                                   Text="{Binding TrackingNumber}"
+                                                   FontAttributes="Bold"
+                                                   FontSize="16"
+                                                   TextColor="#111827"
+                                                   VerticalOptions="Center"/>
+                                            <Border Grid.Column="2"
+                                                    BackgroundColor="{Binding StatusBgColor}"
+                                                    Stroke="Transparent"
+                                                    StrokeShape="RoundRectangle 4"
+                                                    Padding="10,4">
+                                                <Label Text="{Binding StatusDisplay}"
+                                                       TextColor="{Binding StatusFgColor}"
+                                                       FontSize="12"
+                                                       FontAttributes="Bold"/>
+                                            </Border>
+                                        </Grid>
+                                        <!-- Meta row -->
+                                        <HorizontalStackLayout Spacing="20">
+                                            <Label FontSize="12" TextColor="#6b7280">
+                                                <Label.FormattedText>
+                                                    <FormattedString>
+                                                        <Span Text="Order: " TextColor="#9ca3af"/>
+                                                        <Span Text="{Binding OrderNumber}" TextColor="#374151"/>
+                                                    </FormattedString>
+                                                </Label.FormattedText>
+                                            </Label>
+                                            <Label FontSize="12" TextColor="#6b7280">
+                                                <Label.FormattedText>
+                                                    <FormattedString>
+                                                        <Span Text="Items: " TextColor="#9ca3af"/>
+                                                        <Span Text="{Binding TotalItemsDisplay}" TextColor="#374151"/>
+                                                    </FormattedString>
+                                                </Label.FormattedText>
+                                            </Label>
+                                            <Label FontSize="12" TextColor="#6b7280">
+                                                <Label.FormattedText>
+                                                    <FormattedString>
+                                                        <Span Text="Station: " TextColor="#9ca3af"/>
+                                                        <Span Text="{Binding PackingStationDisplay}" TextColor="#374151"/>
+                                                    </FormattedString>
+                                                </Label.FormattedText>
+                                            </Label>
+                                            <Label Text="{Binding CreatedAtDisplay}"
+                                                   FontSize="12"
+                                                   TextColor="#9ca3af"/>
+                                        </HorizontalStackLayout>
+                                    </VerticalStackLayout>
+                                </Border>
+
+                                <!-- Individual product cards -->
+                                <VerticalStackLayout IsVisible="{Binding HasProducts}"
+                                                     BindableLayout.ItemsSource="{Binding Products}"
+                                                     Spacing="4">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate x:DataType="models:ProductItem">
+                                            <Border Stroke="#e5e7eb"
+                                                    StrokeThickness="1"
+                                                    StrokeShape="RoundRectangle 6"
+                                                    BackgroundColor="White"
+                                                    Padding="14,10">
+                                                <Border.GestureRecognizers>
+                                                    <PointerGestureRecognizer
+                                                        PointerEntered="OnProductCardEntered"
+                                                        PointerExited="OnProductCardExited"/>
+                                                </Border.GestureRecognizers>
+                                                <Grid ColumnDefinitions="*, Auto, 48" ColumnSpacing="12" InputTransparent="True">
+                                                    <!-- Name + Variation -->
+                                                    <VerticalStackLayout Grid.Column="0" Spacing="2">
+                                                        <Label Text="{Binding Name}"
+                                                               FontAttributes="Bold"
+                                                               FontSize="13"
+                                                               TextColor="#111827"
+                                                               LineBreakMode="WordWrap"/>
+                                                        <Label Text="{Binding Variation}"
+                                                               FontSize="11"
+                                                               TextColor="#6b7280"
+                                                               IsVisible="{Binding HasVariation}"
+                                                               LineBreakMode="TailTruncation"/>
+                                                    </VerticalStackLayout>
+                                                    <!-- Divider -->
+                                                    <BoxView Grid.Column="1"
+                                                             WidthRequest="1"
+                                                             BackgroundColor="#e5e7eb"
+                                                             VerticalOptions="Fill"/>
+                                                    <!-- Quantity -->
+                                                    <VerticalStackLayout Grid.Column="2" HorizontalOptions="Center" VerticalOptions="Center" Spacing="0">
+                                                        <Label Text="{Binding Quantity}"
+                                                               FontSize="22"
+                                                               FontAttributes="Bold"
+                                                               TextColor="#111827"
+                                                               HorizontalTextAlignment="Center"/>
+                                                        <Label Text="qty"
+                                                               FontSize="10"
+                                                               TextColor="#9ca3af"
+                                                               HorizontalTextAlignment="Center"/>
+                                                    </VerticalStackLayout>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </VerticalStackLayout>
+
+                            </VerticalStackLayout>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+
+                </CollectionView>
+
+            </VerticalStackLayout>
+        </ScrollView>
+
+    </Grid>
+
+</ContentPage>

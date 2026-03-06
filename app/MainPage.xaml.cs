@@ -71,6 +71,9 @@ public partial class MainPage : ContentPage
         await Navigation.PushModalAsync(new SettingsPage());
     }
 
+    private async void OnGoHome(object sender, EventArgs e)
+        => await Shell.Current.GoToAsync("//home");
+
     // ── Square Grid Layout ───────────────────────────────────────────────────
 
     /// <summary>

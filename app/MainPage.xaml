@@ -22,7 +22,7 @@
                                     <Setter Property="BackgroundColor" Value="White"/>
                                     <Setter Property="TextColor"       Value="{StaticResource Primary}"/>
                                     <Setter Property="BorderColor"     Value="Transparent"/>
-                                    <Setter Property="BorderWidth"     Value="0"/>
+                                    <Setter Property="BorderWidth"     Value="1"/>
                                     <Setter Property="Opacity"         Value="1"/>
                                 </VisualState.Setters>
                             </VisualState>
@@ -32,7 +32,7 @@
                                     <Setter Property="BackgroundColor" Value="{StaticResource Primary}"/>
                                     <Setter Property="TextColor"       Value="White"/>
                                     <Setter Property="BorderColor"     Value="White"/>
-                                    <Setter Property="BorderWidth"     Value="2"/>
+                                    <Setter Property="BorderWidth"     Value="1"/>
                                     <Setter Property="Opacity"         Value="1"/>
                                 </VisualState.Setters>
                             </VisualState>
@@ -80,7 +80,7 @@
                                     <Setter Property="BackgroundColor" Value="White"/>
                                     <Setter Property="TextColor"       Value="{StaticResource Primary}"/>
                                     <Setter Property="BorderColor"     Value="White"/>
-                                    <Setter Property="BorderWidth"     Value="2"/>
+                                    <Setter Property="BorderWidth"     Value="1"/>
                                     <Setter Property="Opacity"         Value="1"/>
                                 </VisualState.Setters>
                             </VisualState>
@@ -117,6 +117,9 @@
                    FontAttributes="Bold"
                    VerticalOptions="Center"/>
             <HorizontalStackLayout HorizontalOptions="End" Spacing="8">
+                <Button Text="⌂ Home"
+                        Clicked="OnGoHome"
+                        Style="{StaticResource NavOutlineButton}"/>
                 <Button Text="+ Add Station"
                         Clicked="OnAddStation"
                         Style="{StaticResource NavOutlineButton}"/>

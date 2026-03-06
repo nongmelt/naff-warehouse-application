@@ -4,11 +4,12 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:local="clr-namespace:app"
+    xmlns:views="clr-namespace:app.Views"
+    FlyoutBehavior="Disabled"
     Title="app">
 
-    <ShellContent
-        Title="Packing Station"
-        ContentTemplate="{DataTemplate local:MainPage}"
-        Route="MainPage"/>
+    <ShellContent Route="home"   ContentTemplate="{DataTemplate views:HomePage}"/>
+    <ShellContent Route="main"   ContentTemplate="{DataTemplate local:MainPage}"/>
+    <ShellContent Route="orders" ContentTemplate="{DataTemplate views:OrderSearchPage}"/>
 
 </Shell>
