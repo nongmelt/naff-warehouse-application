@@ -177,12 +177,11 @@
             <BoxView Grid.Column="1" BackgroundColor="#e5e7eb"/>
 
             <!-- Content area -->
-            <ScrollView Grid.Column="2" BackgroundColor="#f3f4f6">
-                <Grid>
+            <Grid Grid.Column="2" BackgroundColor="#f3f4f6">
 
-                    <!-- ── General Panel ── -->
-                    <VerticalStackLayout x:Name="PanelGeneral"
-                                         Padding="28,24"
+                <!-- ── General Panel (scrollable) ── -->
+                <ScrollView x:Name="PanelGeneral" IsVisible="False" BackgroundColor="#f3f4f6">
+                    <VerticalStackLayout Padding="28,24"
                                          Spacing="20"
                                          MaximumWidthRequest="620"
                                          HorizontalOptions="Center">
@@ -246,94 +245,61 @@
                         </Grid>
 
                     </VerticalStackLayout>
+                </ScrollView>
 
-                    <!-- ── PostgreSQL Panel ── -->
-                    <VerticalStackLayout x:Name="PanelPostgres"
-                                         IsVisible="False"
-                                         Padding="28,24"
-                                         Spacing="20"
-                                         MaximumWidthRequest="620"
-                                         HorizontalOptions="Center">
+                <!-- ── PostgreSQL Panel (title pinned, rest scrollable) ── -->
+                <Grid x:Name="PanelPostgres"
+                      IsVisible="False"
+                      RowDefinitions="Auto, *"
+                      Padding="28,24"
+                      RowSpacing="0"
+                      BackgroundColor="#f3f4f6">
 
-                        <Label Text="PostgreSQL"
-                               FontSize="18"
-                               FontAttributes="Bold"
-                               TextColor="#111827"
-                               Margin="0,0,0,4"/>
+                    <!-- Title -->
+                    <Label Grid.Row="0"
+                           Text="PostgreSQL"
+                           FontSize="18"
+                           FontAttributes="Bold"
+                           TextColor="#111827"
+                           Margin="0,0,0,16"/>
 
-                        <!-- Connection form (always stable, does not move) -->
-                        <Border Stroke="#d1d5db" StrokeThickness="1" StrokeShape="RoundRectangle 8"
-                                BackgroundColor="White" Padding="24">
-                            <VerticalStackLayout Spacing="18">
+                    <!-- Scrollable body: notification + form + save -->
+                    <ScrollView Grid.Row="1">
+                        <VerticalStackLayout Spacing="16">
 
-                                <Label Text="Connection Details"
-                                       FontAttributes="Bold" FontSize="15" TextColor="#111827"/>
+                            <!-- Notification card — centred message, small matching-colour Retry -->
+                            <Border x:Name="NotificationCard"
+                                    IsVisible="False"
+                                    StrokeThickness="1"
+                                    StrokeShape="RoundRectangle 8"
+                                    Padding="16,14">
+                                <VerticalStackLayout Spacing="8">
 
-                                <!-- Host + Port on one row -->
-                                <Grid ColumnDefinitions="*, 120" ColumnSpacing="14">
-                                    <VerticalStackLayout Grid.Column="0" Spacing="5">
-                                        <Label Text="Host" FontSize="12" TextColor="#6b7280"/>
-                                        <Border Stroke="#d1d5db" StrokeThickness="1" StrokeShape="RoundRectangle 6" Padding="10,0">
-                                            <Entry x:Name="DbHostEntry" Placeholder="localhost"
-                                                   FontSize="13" VerticalOptions="Center"/>
-                                        </Border>
-                                    </VerticalStackLayout>
-                                    <VerticalStackLayout Grid.Column="1" Spacing="5">
-                                        <Label Text="Port" FontSize="12" TextColor="#6b7280"/>
-                                        <Border Stroke="#d1d5db" StrokeThickness="1" StrokeShape="RoundRectangle 6" Padding="10,0">
-                                            <Entry x:Name="DbPortEntry" Placeholder="5432"
-                                                   Keyboard="Numeric" FontSize="13" VerticalOptions="Center"/>
-                                        </Border>
-                                    </VerticalStackLayout>
-                                </Grid>
+                                    <!-- Message + Retry on same row -->
+                                    <Grid ColumnDefinitions="*, Auto" ColumnSpacing="12" VerticalOptions="Center">
+                                        <Label x:Name="NotificationMessageLabel"
+                                               Grid.Column="0"
+                                               FontSize="13"
+                                               FontAttributes="Bold"
+                                               VerticalOptions="Center"/>
+                                        <Button x:Name="RetryButton"
+                                                Grid.Column="1"
+                                                Text="Retry"
+                                                Clicked="OnRetryConnection"
+                                                FontSize="11"
+                                                CornerRadius="6"
+                                                Padding="14,4"
+                                                BorderWidth="1"
+                                                VerticalOptions="Center">
+                                            <Button.GestureRecognizers>
+                                                <PointerGestureRecognizer
+                                                    PointerEntered="OnRetryButtonEntered"
+                                                    PointerExited="OnRetryButtonExited"/>
+                                            </Button.GestureRecognizers>
+                                        </Button>
+                                    </Grid>
 
-                                <!-- Database -->
-                                <VerticalStackLayout Spacing="5">
-                                    <Label Text="Database" FontSize="12" TextColor="#6b7280"/>
-                                    <Border Stroke="#d1d5db" StrokeThickness="1" StrokeShape="RoundRectangle 6" Padding="10,0">
-                                        <Entry x:Name="DbDatabaseEntry" Placeholder="warehouse"
-                                               FontSize="13" VerticalOptions="Center"/>
-                                    </Border>
-                                </VerticalStackLayout>
-
-                                <!-- User -->
-                                <VerticalStackLayout Spacing="5">
-                                    <Label Text="User" FontSize="12" TextColor="#6b7280"/>
-                                    <Border Stroke="#d1d5db" StrokeThickness="1" StrokeShape="RoundRectangle 6" Padding="10,0">
-                                        <Entry x:Name="DbUserEntry" Placeholder="postgres"
-                                               FontSize="13" VerticalOptions="Center"/>
-                                    </Border>
-                                </VerticalStackLayout>
-
-                                <!-- Password -->
-                                <VerticalStackLayout Spacing="5">
-                                    <Label Text="Password" FontSize="12" TextColor="#6b7280"/>
-                                    <Border Stroke="#d1d5db" StrokeThickness="1" StrokeShape="RoundRectangle 6" Padding="10,0">
-                                        <Entry x:Name="DbPasswordEntry" IsPassword="True"
-                                               Placeholder="••••••••" FontSize="13" VerticalOptions="Center"/>
-                                    </Border>
-                                </VerticalStackLayout>
-
-                            </VerticalStackLayout>
-                        </Border>
-
-                        <!-- Save button (form stays above, notification appears below) -->
-                        <Button Text="Save"
-                                Clicked="OnSavePostgres"
-                                Style="{StaticResource PrimaryActionButton}"
-                                HorizontalOptions="End"/>
-
-                        <!-- Notification card — appended below after save, form does not shift -->
-                        <Border x:Name="NotificationCard"
-                                IsVisible="False"
-                                StrokeThickness="1"
-                                StrokeShape="RoundRectangle 8"
-                                Padding="14,12">
-                            <Grid ColumnDefinitions="*, Auto" ColumnSpacing="12">
-                                <VerticalStackLayout Grid.Column="0" Spacing="6">
-                                    <Label x:Name="NotificationMessageLabel"
-                                           FontSize="13"
-                                           FontAttributes="Bold"/>
+                                    <!-- Error detail toggle + box (error only) -->
                                     <Label x:Name="MoreDetailLabel"
                                            Text="▼ More detail"
                                            FontSize="12"
@@ -355,21 +321,83 @@
                                                TextColor="#9f1239"
                                                LineBreakMode="WordWrap"/>
                                     </Border>
-                                </VerticalStackLayout>
-                                <Button Grid.Column="1"
-                                        Text="Retry"
-                                        Clicked="OnRetryConnection"
-                                        FontSize="12"
-                                        CornerRadius="6"
-                                        Padding="14,6"
-                                        VerticalOptions="Start"/>
-                            </Grid>
-                        </Border>
 
-                    </VerticalStackLayout>
+                                </VerticalStackLayout>
+                            </Border>
+
+                            <!-- Connection Details card -->
+                            <Border Stroke="#d1d5db"
+                                    StrokeThickness="1"
+                                    StrokeShape="RoundRectangle 8"
+                                    BackgroundColor="White"
+                                    Padding="24">
+                                <VerticalStackLayout Spacing="18">
+
+                                    <Label Text="Connection Details"
+                                           FontAttributes="Bold" FontSize="15" TextColor="#111827"/>
+
+                                    <!-- Host + Port -->
+                                    <Grid ColumnDefinitions="*, 120" ColumnSpacing="14">
+                                        <VerticalStackLayout Grid.Column="0" Spacing="5">
+                                            <Label Text="Host" FontSize="12" TextColor="#6b7280"/>
+                                            <Border Stroke="#d1d5db" StrokeThickness="1" StrokeShape="RoundRectangle 6" Padding="10,0">
+                                                <Entry x:Name="DbHostEntry" Placeholder="localhost"
+                                                       FontSize="13" VerticalOptions="Center"/>
+                                            </Border>
+                                        </VerticalStackLayout>
+                                        <VerticalStackLayout Grid.Column="1" Spacing="5">
+                                            <Label Text="Port" FontSize="12" TextColor="#6b7280"/>
+                                            <Border Stroke="#d1d5db" StrokeThickness="1" StrokeShape="RoundRectangle 6" Padding="10,0">
+                                                <Entry x:Name="DbPortEntry" Placeholder="5432"
+                                                       Keyboard="Numeric" FontSize="13" VerticalOptions="Center"/>
+                                            </Border>
+                                        </VerticalStackLayout>
+                                    </Grid>
+
+                                    <!-- Database -->
+                                    <VerticalStackLayout Spacing="5">
+                                        <Label Text="Database" FontSize="12" TextColor="#6b7280"/>
+                                        <Border Stroke="#d1d5db" StrokeThickness="1" StrokeShape="RoundRectangle 6" Padding="10,0">
+                                            <Entry x:Name="DbDatabaseEntry" Placeholder="warehouse"
+                                                   FontSize="13" VerticalOptions="Center"/>
+                                        </Border>
+                                    </VerticalStackLayout>
+
+                                    <!-- User -->
+                                    <VerticalStackLayout Spacing="5">
+                                        <Label Text="User" FontSize="12" TextColor="#6b7280"/>
+                                        <Border Stroke="#d1d5db" StrokeThickness="1" StrokeShape="RoundRectangle 6" Padding="10,0">
+                                            <Entry x:Name="DbUserEntry" Placeholder="postgres"
+                                                   FontSize="13" VerticalOptions="Center"/>
+                                        </Border>
+                                    </VerticalStackLayout>
+
+                                    <!-- Password -->
+                                    <VerticalStackLayout Spacing="5">
+                                        <Label Text="Password" FontSize="12" TextColor="#6b7280"/>
+                                        <Border Stroke="#d1d5db" StrokeThickness="1" StrokeShape="RoundRectangle 6" Padding="10,0">
+                                            <Entry x:Name="DbPasswordEntry" IsPassword="True"
+                                                   Placeholder="••••••••" FontSize="13" VerticalOptions="Center"
+                                                   Focused="OnPasswordFocused"
+                                                   Unfocused="OnPasswordUnfocused"/>
+                                        </Border>
+                                    </VerticalStackLayout>
+
+                                </VerticalStackLayout>
+                            </Border>
+
+                            <!-- Save button -->
+                            <Button Text="Save"
+                                    Clicked="OnSavePostgres"
+                                    Style="{StaticResource PrimaryActionButton}"
+                                    HorizontalOptions="End"/>
+
+                        </VerticalStackLayout>
+                    </ScrollView>
 
                 </Grid>
-            </ScrollView>
+
+            </Grid>
 
         </Grid>
 
