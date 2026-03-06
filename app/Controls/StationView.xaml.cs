@@ -20,6 +20,7 @@ public partial class StationView : ContentView, IDisposable
 
     // Recording state
     private string? _activeBarcode;
+    private bool _isRecording;
     private CancellationTokenSource? _recordingCts;
     private Task? _recordingTask;
     private Stream? _recordedStream;
@@ -33,6 +34,9 @@ public partial class StationView : ContentView, IDisposable
 
     // Editable station name (backing field so file-naming doesn't need to touch the UI)
     private string _stationName = string.Empty;
+
+    // Video count for today (initialised from disk, then incremented in-memory)
+    private int _videoCount;
 
     // Lock flags — prevent picker changes and skip re-population on Refresh
     private bool _cameraLocked;
@@ -58,12 +62,16 @@ public partial class StationView : ContentView, IDisposable
     }
 
     /// <summary>
-    /// Green when both camera and scanner are live; blue when selected; gray otherwise.
+    /// Red when recording; green when both camera and scanner are live; blue when selected; gray otherwise.
     /// </summary>
     private void UpdateCardBorder()
     {
-        bool bothActive = _cameraPreviewActive && (_serialPort?.IsOpen == true);
-        if (bothActive)
+        if (_isRecording)
+        {
+            CardBorder.Stroke = new SolidColorBrush(Color.FromArgb("#ef4444"));
+            CardBorder.StrokeThickness = 2.5;
+        }
+        else if (_cameraPreviewActive && (_serialPort?.IsOpen == true))
         {
             CardBorder.Stroke = new SolidColorBrush(Color.FromArgb("#22c55e"));
             CardBorder.StrokeThickness = 2.5;
@@ -151,7 +159,11 @@ public partial class StationView : ContentView, IDisposable
         Loaded += OnViewLoaded;
     }
 
-    private void OnViewLoaded(object? sender, EventArgs e) => _ = LoadDevicesAsync();
+    private void OnViewLoaded(object? sender, EventArgs e)
+    {
+        _ = LoadDevicesAsync();
+        _ = LoadTodayVideoCountAsync();
+    }
 
     // ── Device Discovery ────────────────────────────────────────────────────
 
@@ -230,7 +242,8 @@ public partial class StationView : ContentView, IDisposable
         if (idx == 0)
         {
             Logger.Log($"Station {_stationId}: Camera detached");
-            UpdateStatus("Ready to Scan");
+            VideoCountBadge.IsVisible = false;
+            UpdateStatusFromDevices();
             return;
         }
 
@@ -247,7 +260,8 @@ public partial class StationView : ContentView, IDisposable
             await CameraFeed.StartCameraPreview(CancellationToken.None);
             _cameraPreviewActive = true;
             UpdateCardBorder();
-            UpdateStatus("Camera ready — waiting for scan");
+            UpdateStatusFromDevices();
+            _ = LoadTodayVideoCountAsync();
             Logger.Log($"Station {_stationId}: Camera started ({camera.Name})");
         }
         catch (Exception ex)
@@ -273,7 +287,7 @@ public partial class StationView : ContentView, IDisposable
         {
             CloseSerialPort();
             Logger.Log($"Station {_stationId}: Scanner detached");
-            UpdateStatus(_cameraPreviewActive ? "Camera ready — waiting for scan" : "Ready to Scan");
+            UpdateStatusFromDevices();
             return;
         }
 
@@ -294,7 +308,7 @@ public partial class StationView : ContentView, IDisposable
             _serialPort.DataReceived += OnSerialDataReceived;
             _serialPort.Open();
             UpdateCardBorder();
-            UpdateStatus($"Scanner ready ({portName}) — waiting for scan");
+            UpdateStatusFromDevices();
             Logger.Log($"Station {_stationId}: Serial port {portName} opened");
         }
         catch (Exception ex)
@@ -337,6 +351,8 @@ public partial class StationView : ContentView, IDisposable
                 }
 
                 _activeBarcode = barcode;
+                _isRecording = true;
+                UpdateCardBorder();
                 BarcodeLabel.Text = barcode;
                 BarcodeBadge.IsVisible = true;
                 RecBadge.IsVisible = true;
@@ -347,6 +363,8 @@ public partial class StationView : ContentView, IDisposable
             else if (_activeBarcode == barcode)
             {
                 // Second matching scan → stop recording
+                _isRecording = false;
+                UpdateCardBorder();
                 BarcodeBadge.IsVisible = false;
                 BarcodeLabel.Text = "";
                 RecBadge.IsVisible = false;
@@ -359,7 +377,9 @@ public partial class StationView : ContentView, IDisposable
                 {
                     UpdateStatus("Sending webhook…");
                     await _webhookService.SendAsync(finishedBarcode, filePath);
-                    UpdateStatus("Ready to Scan");
+                    _videoCount++;
+                    MainThread.BeginInvokeOnMainThread(() => VideoCountLabel.Text = _videoCount.ToString());
+                    UpdateStatusFromDevices();
                 }
                 else
                 {
@@ -412,8 +432,9 @@ public partial class StationView : ContentView, IDisposable
             var dir = Path.Combine(AppSettings.VideoFolder, DateTime.Now.ToString("yyyy-MM-dd"));
             Directory.CreateDirectory(dir);
 
-            // Format: S{id}-{station name}_{barcode}_{timestamp}.mp4
-            var filePath = Path.Combine(dir, $"S{_stationId}-{stationName}_{_activeBarcode}_{DateTime.Now:yyyyMMdd_HHmmss}.mp4");
+            // Format: {station_name}_{barcode}_{date}_{time}.mp4  (spaces in name → dash)
+            var prefix   = stationName.Replace(' ', '-');
+            var filePath = Path.Combine(dir, $"{prefix}_{_activeBarcode}_{DateTime.Now:yyyyMMdd_HHmmss}.mp4");
             _recordedStream.Position = 0;
             await using var fs = File.Create(filePath);
             await _recordedStream.CopyToAsync(fs);
@@ -440,6 +461,50 @@ public partial class StationView : ContentView, IDisposable
 
     private void UpdateStatus(string text) =>
         MainThread.BeginInvokeOnMainThread(() => StatusLabel.Text = text);
+
+    /// <summary>Sets StatusLabel based on which devices are currently connected.</summary>
+    private void UpdateStatusFromDevices()
+    {
+        bool hasCamera  = _cameraPreviewActive;
+        bool hasScanner = _serialPort?.IsOpen == true;
+        string portName = _serialPort?.PortName ?? "";
+
+        string status = (hasCamera, hasScanner) switch
+        {
+            (false, false) => "Waiting for camera and scanner",
+            (true,  false) => "Camera ready · Waiting for scanner",
+            (false, true)  => $"Waiting for camera · Scanner ready ({portName})",
+            (true,  true)  => $"Camera ready · Scanner ready ({portName})",
+        };
+        UpdateStatus(status);
+    }
+
+    /// <summary>
+    /// Scans today's folder for existing recordings matching this station's name prefix
+    /// and sets <see cref="_videoCount"/>. Called once at startup; afterwards the counter
+    /// is incremented in-memory each time the app saves a new file.
+    /// </summary>
+    private async Task LoadTodayVideoCountAsync()
+    {
+        try
+        {
+            var dir    = Path.Combine(AppSettings.VideoFolder, DateTime.Now.ToString("yyyy-MM-dd"));
+            var prefix = SanitizeFileName(_stationName).Replace(' ', '-');
+            _videoCount = Directory.Exists(dir)
+                ? Directory.GetFiles(dir, $"{prefix}_*.mp4").Length
+                : 0;
+
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                VideoCountLabel.Text      = _videoCount.ToString();
+                VideoCountBadge.IsVisible = _cameraPreviewActive;
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"Station {_stationId} LoadTodayVideoCountAsync: {ex.Message}");
+        }
+    }
 
     /// <summary>
     /// Queries Win32_PnPEntity (WMI / Device Manager) for every Ports-class device.

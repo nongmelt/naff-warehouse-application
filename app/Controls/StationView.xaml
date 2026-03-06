@@ -83,6 +83,22 @@
                            FontAttributes="Bold"/>
                 </Border>
 
+                <!-- Video count badge — bottom-right overlay -->
+                <Border x:Name="VideoCountBadge"
+                        BackgroundColor="#CC000000"
+                        StrokeShape="RoundRectangle 6"
+                        StrokeThickness="0"
+                        Padding="12,6"
+                        HorizontalOptions="End"
+                        VerticalOptions="End"
+                        Margin="0,0,8,8"
+                        IsVisible="False">
+                    <Label x:Name="VideoCountLabel"
+                           TextColor="White"
+                           FontSize="28"
+                           FontAttributes="Bold"
+                           HorizontalTextAlignment="Center"/></Border>
+
             </Grid>
 
             <!-- ── Row 1: Collapsible controls panel (hidden by default) ── -->
@@ -133,17 +149,11 @@
                             Clicked="OnScannerLockClicked"/>
                 </Grid>
 
-                <!-- Status -->
-                <Label x:Name="StatusLabel"
-                       Text="Ready to Scan"
-                       FontSize="11"
-                       TextColor="#6b7280"/>
-
             </VerticalStackLayout>
 
             <!-- ── Row 2: Always-visible footer strip ── -->
             <Grid Grid.Row="2"
-                  ColumnDefinitions="Auto, *, Auto"
+                  ColumnDefinitions="Auto, Auto, *, Auto"
                   BackgroundColor="White"
                   Padding="6,4">
 
@@ -167,7 +177,8 @@
                        FontSize="14"
                        TextColor="#111827"
                        VerticalOptions="Center"
-                       LineBreakMode="TailTruncation"/>
+                       LineBreakMode="TailTruncation"
+                       MaximumWidthRequest="160"/>
 
                 <!-- Station name (in-place edit — shown instead of label when editing) -->
                 <Entry x:Name="StationNameEntry"
@@ -182,9 +193,20 @@
                        Completed="OnNameEntryCompleted"
                        Unfocused="OnNameEntryUnfocused"/>
 
+                <!-- Status — always visible beside station name -->
+                <Label x:Name="StatusLabel"
+                       Grid.Column="2"
+                       Text="Ready to Scan"
+                       FontSize="11"
+                       TextColor="#6b7280"
+                       VerticalOptions="Center"
+                       HorizontalOptions="Start"
+                       LineBreakMode="TailTruncation"
+                       Margin="8,0,0,0"/>
+
                 <!-- Collapse / expand toggle -->
                 <Button x:Name="ToggleButton"
-                        Grid.Column="2"
+                        Grid.Column="3"
                         Text="▼"
                         FontSize="12"
                         HeightRequest="34"
