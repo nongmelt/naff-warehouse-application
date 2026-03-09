@@ -22,7 +22,6 @@ public static class MauiProgram
 				fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
 			});
 
-		builder.Services.AddSingleton<Services.IRecordingService, Services.RtspRecordingService>();
 		builder.Services.AddSingleton<Services.WebhookService>();
 
 #if DEBUG
