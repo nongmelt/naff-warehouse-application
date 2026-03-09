@@ -12,7 +12,6 @@ namespace app.Controls;
 public partial class StationView : ContentView, IDisposable
 {
     private readonly int _stationId;
-    private readonly WebhookService _webhookService = new();
 
     // Camera state
     private List<CameraInfo> _availableCameras = new();
@@ -24,6 +23,9 @@ public partial class StationView : ContentView, IDisposable
     private CancellationTokenSource? _recordingCts;
     private Task? _recordingTask;
     private Stream? _recordedStream;
+
+    // Serializes barcode events so rapid double-scans cannot interleave state
+    private readonly SemaphoreSlim _barcodeLock = new(1, 1);
 
     // Serial barcode scanner
     private SerialPort? _serialPort;
@@ -337,6 +339,11 @@ public partial class StationView : ContentView, IDisposable
 
     private async void HandleBarcode(string barcode)
     {
+        if (!await _barcodeLock.WaitAsync(0))
+        {
+            Logger.Log($"Station {_stationId}: Barcode {barcode} dropped — previous scan still processing");
+            return;
+        }
         try
         {
             Logger.Log($"Station {_stationId}: Barcode received: {barcode}");
@@ -376,9 +383,11 @@ public partial class StationView : ContentView, IDisposable
                 if (!string.IsNullOrEmpty(filePath))
                 {
                     UpdateStatus("Sending webhook…");
-                    await _webhookService.SendAsync(finishedBarcode, filePath, _stationName);
+                    var sent = await WebhookService.SendAsync(finishedBarcode, filePath, _stationName);
                     _videoCount++;
                     MainThread.BeginInvokeOnMainThread(() => VideoCountLabel.Text = _videoCount.ToString());
+                    UpdateStatus(sent ? "✓ Webhook sent" : "⚠ Webhook failed");
+                    await Task.Delay(2000);
                     UpdateStatusFromDevices();
                 }
                 else
@@ -395,6 +404,10 @@ public partial class StationView : ContentView, IDisposable
         catch (Exception ex)
         {
             Logger.Log($"Station {_stationId} HandleBarcode: {ex}");
+        }
+        finally
+        {
+            _barcodeLock.Release();
         }
     }
 
