@@ -133,10 +133,24 @@ public partial class MainPage : ContentPage
 
     // ── Lifecycle ────────────────────────────────────────────────────────────
 
+    public void DisposeStations()
+    {
+        foreach (var s in _stations)
+            s.Dispose();
+    }
+
+    protected override void OnAppearing()
+    {
+        base.OnAppearing();
+        // Re-enumerate devices after returning from any modal (e.g. Settings)
+        _ = Task.WhenAll(_stations.Select(s => s.LoadDevicesAsync()));
+    }
+
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
-        foreach (var s in _stations)
-            s.Dispose();
+        // Do NOT dispose stations here — OnDisappearing fires for modal navigation
+        // too (e.g. opening Settings), which would kill cameras and serial ports.
+        // Cleanup is handled via Window.Destroying in App.xaml.cs instead.
     }
 }
