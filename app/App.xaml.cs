@@ -14,6 +14,15 @@ public partial class App : Application
 
 	protected override Window CreateWindow(IActivationState? activationState)
 	{
-		return new Window(new AppShell()) { Title = "NAFFWarehouse" };
+		var window = new Window(new AppShell()) { Title = "NAFFWarehouse" };
+		window.Destroying += OnWindowDestroying;
+		return window;
+	}
+
+	private static void OnWindowDestroying(object? sender, EventArgs e)
+	{
+		// Dispose all stations (closes serial ports, stops camera previews) on true app exit
+		if (Shell.Current?.CurrentPage is MainPage mainPage)
+			mainPage.DisposeStations();
 	}
 }
