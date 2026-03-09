@@ -10,7 +10,7 @@ public class WebhookService
 {
     private readonly HttpClient _httpClient = new();
 
-    public async Task SendAsync(string barcode, string filePath)
+    public async Task SendAsync(string barcode, string filePath, string stationName)
     {
         Logger.Log($"Sending webhook for barcode: {barcode}, filePath: {filePath}");
         try
@@ -20,7 +20,8 @@ public class WebhookService
                 barcode = barcode,
                 filePath = filePath,
                 fileName = Path.GetFileName(filePath),
-                finishedAt = DateTime.UtcNow
+                finishedAt = DateTime.UtcNow,
+                stationName = $"{Environment.MachineName}-{stationName.Replace(' ', '-')}"
             };
 
             var json = JsonSerializer.Serialize(payload);

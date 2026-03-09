@@ -376,7 +376,7 @@ public partial class StationView : ContentView, IDisposable
                 if (!string.IsNullOrEmpty(filePath))
                 {
                     UpdateStatus("Sending webhook…");
-                    await _webhookService.SendAsync(finishedBarcode, filePath);
+                    await _webhookService.SendAsync(finishedBarcode, filePath, _stationName);
                     _videoCount++;
                     MainThread.BeginInvokeOnMainThread(() => VideoCountLabel.Text = _videoCount.ToString());
                     UpdateStatusFromDevices();
