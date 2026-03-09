@@ -5,41 +5,55 @@ using System.Runtime.Versioning;
 namespace app.Services;
 
 [SupportedOSPlatform("windows")]
-
 public class WebhookService
 {
-    private readonly HttpClient _httpClient = new();
+    private static readonly HttpClient _httpClient = new();
+    private const int MaxRetries = 3;
 
-    public async Task SendAsync(string barcode, string filePath, string stationName)
+    /// <summary>
+    /// Posts webhook to n8n. Retries up to 3 times on transient failures.
+    /// Returns true if the webhook was delivered successfully.
+    /// </summary>
+    public static async Task<bool> SendAsync(string barcode, string filePath, string stationName)
     {
         Logger.Log($"Sending webhook for barcode: {barcode}, filePath: {filePath}");
-        try
+
+        var payload = new
         {
-            var payload = new
+            barcode,
+            filePath,
+            fileName = Path.GetFileName(filePath),
+            finishedAt = DateTime.UtcNow,
+            stationName = $"{Environment.MachineName}-{stationName.Replace(' ', '-')}"
+        };
+
+        var json = JsonSerializer.Serialize(payload);
+
+        for (int attempt = 1; attempt <= MaxRetries; attempt++)
+        {
+            try
             {
-                barcode = barcode,
-                filePath = filePath,
-                fileName = Path.GetFileName(filePath),
-                finishedAt = DateTime.UtcNow,
-                stationName = $"{Environment.MachineName}-{stationName.Replace(' ', '-')}"
-            };
+                using var content = new StringContent(json, Encoding.UTF8, "application/json");
+                using var response = await _httpClient.PostAsync(AppSettings.WebhookUrl, content);
 
-            var json = JsonSerializer.Serialize(payload);
+                if (response.IsSuccessStatusCode)
+                {
+                    Logger.Log($"Webhook sent (attempt {attempt}): {(int)response.StatusCode}");
+                    return true;
+                }
 
-            var content = new StringContent(
-                json,
-                Encoding.UTF8,
-                "application/json"
-            );
+                Logger.Log($"Webhook attempt {attempt} failed: HTTP {(int)response.StatusCode}");
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Webhook attempt {attempt} error: {ex.Message}");
+            }
 
-            await _httpClient.PostAsync(
-                AppSettings.WebhookUrl,
-                content
-            );
+            if (attempt < MaxRetries)
+                await Task.Delay(TimeSpan.FromSeconds(attempt * 2));
         }
-        catch (Exception ex)
-        {
-            Logger.Log(ex);
-        }
+
+        Logger.Log($"Webhook failed after {MaxRetries} attempts for barcode: {barcode}");
+        return false;
     }
 }
