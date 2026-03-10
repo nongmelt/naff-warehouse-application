@@ -96,8 +96,7 @@
                         StrokeThickness="1"
                         StrokeShape="RoundRectangle 12"
                         BackgroundColor="White"
-                        Padding="36,32"
-                        MinimumWidthRequest="220">
+                        Padding="36,32">
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnGoToStations"/>
                         <PointerGestureRecognizer
@@ -108,15 +107,16 @@
                     </Border.GestureRecognizers>
                     <!-- InputTransparent lets pointer events pass through to the Border's recognizers -->
                     <VerticalStackLayout InputTransparent="True"
+                                         x:Name="StationsStack"
                                          Spacing="14"
                                          HorizontalOptions="Center">
-                        <Label Text="📦" FontSize="44" HorizontalOptions="Center"/>
-                        <Label Text="Packing Stations"
+                        <Label x:Name="StationsIcon"  Text="📦" FontSize="44" HorizontalOptions="Center"/>
+                        <Label x:Name="StationsTitle" Text="Packing Stations"
                                FontSize="16"
                                FontAttributes="Bold"
                                TextColor="#111827"
                                HorizontalOptions="Center"/>
-                        <Label Text="Webcam recording triggered&#10;by barcode scan"
+                        <Label x:Name="StationsDesc"  Text="Webcam recording triggered&#10;by barcode scan"
                                FontSize="12"
                                TextColor="#6b7280"
                                HorizontalOptions="Center"
@@ -136,8 +136,7 @@
                         StrokeThickness="1"
                         StrokeShape="RoundRectangle 12"
                         BackgroundColor="White"
-                        Padding="36,32"
-                        MinimumWidthRequest="220">
+                        Padding="36,32">
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnGoToOrders"/>
                         <PointerGestureRecognizer
@@ -147,15 +146,16 @@
                             PointerReleased="OnOrdersCardReleased"/>
                     </Border.GestureRecognizers>
                     <VerticalStackLayout InputTransparent="True"
+                                         x:Name="OrdersStack"
                                          Spacing="14"
                                          HorizontalOptions="Center">
-                        <Label Text="🔍" FontSize="44" HorizontalOptions="Center"/>
-                        <Label Text="Order Search"
+                        <Label x:Name="OrdersIcon"  Text="🔍" FontSize="44" HorizontalOptions="Center"/>
+                        <Label x:Name="OrdersTitle" Text="Order Search"
                                FontSize="16"
                                FontAttributes="Bold"
                                TextColor="#111827"
                                HorizontalOptions="Center"/>
-                        <Label Text="Look up orders and tracking&#10;numbers from the database"
+                        <Label x:Name="OrdersDesc"  Text="Look up orders and tracking&#10;numbers from the database"
                                FontSize="12"
                                TextColor="#6b7280"
                                HorizontalOptions="Center"

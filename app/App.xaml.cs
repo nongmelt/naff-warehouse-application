@@ -9,6 +9,7 @@ public partial class App : Application
 {
 	public App()
 	{
+		Services.AppSettings.Initialize();
 		InitializeComponent();
 	}
 

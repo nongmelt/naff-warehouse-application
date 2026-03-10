@@ -11,10 +11,6 @@ public partial class SettingsPage : ContentPage
     private Color _retryHover = Colors.Transparent;
     private Color _retryText  = Colors.Black;
 
-    // Long mask — fills the field width, hiding actual password length
-    private const string PasswordMask = "••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••";
-    private bool _passwordEditing;
-
     public SettingsPage()
     {
         InitializeComponent();
@@ -26,12 +22,7 @@ public partial class SettingsPage : ContentPage
         base.OnAppearing();
         VideoFolderEntry.Text = AppSettings.VideoFolder;
         WebhookUrlEntry.Text  = AppSettings.WebhookUrl;
-        DbHostEntry.Text      = AppSettings.DbHost;
-        DbPortEntry.Text      = AppSettings.DbPort.ToString();
-        DbDatabaseEntry.Text  = AppSettings.DbDatabase;
-        DbUserEntry.Text      = AppSettings.DbUser;
-        DbPasswordEntry.Text  = string.IsNullOrEmpty(AppSettings.DbPassword) ? "" : PasswordMask;
-        _passwordEditing = false;
+        ApiUrlEntry.Text      = AppSettings.ApiUrl;
     }
 
     // ── Navigation ───────────────────────────────────────────────────────────
@@ -41,15 +32,15 @@ public partial class SettingsPage : ContentPage
 
     // ── Sidebar ───────────────────────────────────────────────────────────────
 
-    private void OnNavGeneral(object sender, TappedEventArgs e)  => ShowPanel("general");
-    private void OnNavPostgres(object sender, TappedEventArgs e) => ShowPanel("postgres");
+    private void OnNavGeneral(object sender, TappedEventArgs e) => ShowPanel("general");
+    private void OnNavApi(object sender, TappedEventArgs e)     => ShowPanel("api");
 
     private void ShowPanel(string panel)
     {
-        PanelGeneral.IsVisible  = panel == "general";
-        PanelPostgres.IsVisible = panel == "postgres";
-        SetNavActive(NavGeneralBorder,  NavGeneralLabel,  panel == "general");
-        SetNavActive(NavPostgresBorder, NavPostgresLabel, panel == "postgres");
+        PanelGeneral.IsVisible = panel == "general";
+        PanelApi.IsVisible     = panel == "api";
+        SetNavActive(NavGeneralBorder, NavGeneralLabel, panel == "general");
+        SetNavActive(NavApiBorder,     NavApiLabel,     panel == "api");
     }
 
     private static void SetNavActive(Border border, Label label, bool active)
@@ -77,19 +68,17 @@ public partial class SettingsPage : ContentPage
         Dispatcher.DispatchDelayed(TimeSpan.FromSeconds(3), () => GeneralSavedLabel.IsVisible = false);
     }
 
-    // ── PostgreSQL ────────────────────────────────────────────────────────────
+    // ── Backend API ───────────────────────────────────────────────────────────
 
-    private async void OnSavePostgres(object sender, EventArgs e)
+    private async void OnSaveApi(object sender, EventArgs e)
     {
-        SaveDbSettings();
+        AppSettings.ApiUrl = ApiUrlEntry.Text?.Trim() ?? AppSettings.DefaultApiUrl;
+        Logger.Log($"API URL saved — {AppSettings.ApiUrl}");
         await TestAndShowResultAsync();
     }
 
-    private async void OnRetryConnection(object sender, EventArgs e)
-    {
-        SaveDbSettings();
+    private async void OnRetryConnection(object sender, EventArgs e) =>
         await TestAndShowResultAsync();
-    }
 
     private void OnRetryButtonEntered(object sender, PointerEventArgs e)
     {
@@ -103,81 +92,39 @@ public partial class SettingsPage : ContentPage
         RetryButton.TextColor       = _retryText;
     }
 
-    private void OnToggleErrorDetail(object sender, TappedEventArgs e)
-    {
-        ErrorDetailSection.IsVisible = !ErrorDetailSection.IsVisible;
-        MoreDetailLabel.Text = ErrorDetailSection.IsVisible ? "▲ Less detail" : "▼ More detail";
-    }
-
-    private void OnPasswordFocused(object sender, FocusEventArgs e)
-    {
-        if (!_passwordEditing)
-        {
-            DbPasswordEntry.Text = "";
-            _passwordEditing = true;
-        }
-    }
-
-    private void OnPasswordUnfocused(object sender, FocusEventArgs e)
-    {
-        // If user cleared the field without typing, restore mask for existing password
-        if (string.IsNullOrEmpty(DbPasswordEntry.Text) && !string.IsNullOrEmpty(AppSettings.DbPassword))
-        {
-            DbPasswordEntry.Text = PasswordMask;
-            _passwordEditing = false;
-        }
-    }
-
-    private void SaveDbSettings()
-    {
-        AppSettings.DbHost     = DbHostEntry.Text?.Trim() ?? "localhost";
-        AppSettings.DbPort     = int.TryParse(DbPortEntry.Text?.Trim(), out var p) ? p : 5432;
-        AppSettings.DbDatabase = DbDatabaseEntry.Text?.Trim() ?? "";
-        AppSettings.DbUser     = DbUserEntry.Text?.Trim() ?? "";
-        // Only update password if user actually typed a new one (not showing the mask)
-        if (_passwordEditing || string.IsNullOrEmpty(AppSettings.DbPassword))
-            AppSettings.DbPassword = DbPasswordEntry.Text ?? "";
-        _passwordEditing = false;
-        DbPasswordEntry.Text = string.IsNullOrEmpty(AppSettings.DbPassword) ? "" : PasswordMask;
-        Logger.Log($"DB settings saved — Host: {AppSettings.DbHost}:{AppSettings.DbPort}, DB: {AppSettings.DbDatabase}");
-    }
-
     private async Task TestAndShowResultAsync()
     {
-        NotificationCard.IsVisible   = false;
-        ErrorDetailSection.IsVisible = false;
+        NotificationCard.IsVisible = false;
 
-        var (success, error) = await DatabaseService.TestConnectionAsync();
+        var (success, error) = await ApiService.TestConnectionAsync();
 
         Color cardBg, cardBorder, msgColor, retryBase, retryHover, retryText;
         if (success)
         {
-            cardBg      = Color.FromArgb("#dcfce7");
-            cardBorder  = Color.FromArgb("#86efac");
-            msgColor    = Color.FromArgb("#15803d");
-            retryBase   = Color.FromArgb("#dcfce7");
-            retryHover  = Color.FromArgb("#86efac");
-            retryText   = Color.FromArgb("#15803d");
+            cardBg     = Color.FromArgb("#dcfce7");
+            cardBorder = Color.FromArgb("#86efac");
+            msgColor   = Color.FromArgb("#15803d");
+            retryBase  = Color.FromArgb("#dcfce7");
+            retryHover = Color.FromArgb("#86efac");
+            retryText  = Color.FromArgb("#15803d");
         }
         else
         {
-            cardBg      = Color.FromArgb("#fee2e2");
-            cardBorder  = Color.FromArgb("#fca5a5");
-            msgColor    = Color.FromArgb("#dc2626");
-            retryBase   = Color.FromArgb("#fee2e2");
-            retryHover  = Color.FromArgb("#fca5a5");
-            retryText   = Color.FromArgb("#dc2626");
+            cardBg     = Color.FromArgb("#fee2e2");
+            cardBorder = Color.FromArgb("#fca5a5");
+            msgColor   = Color.FromArgb("#dc2626");
+            retryBase  = Color.FromArgb("#fee2e2");
+            retryHover = Color.FromArgb("#fca5a5");
+            retryText  = Color.FromArgb("#dc2626");
         }
 
         NotificationCard.BackgroundColor   = cardBg;
         NotificationCard.Stroke            = new SolidColorBrush(cardBorder);
-        NotificationMessageLabel.Text      = success ? "Connection tested successfully" : "Couldn't connect with these settings";
+        NotificationMessageLabel.Text      = success
+            ? "Backend API reachable"
+            : $"Cannot reach API{(error != null ? $": {error}" : "")}";
         NotificationMessageLabel.TextColor = msgColor;
-        MoreDetailLabel.IsVisible = !success;
-        if (!success && error != null)
-            ErrorDetailLabel.Text = error;
 
-        // Style the Retry button to match the card
         _retryBase  = retryBase;
         _retryHover = retryHover;
         _retryText  = retryText;

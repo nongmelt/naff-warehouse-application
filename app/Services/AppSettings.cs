@@ -1,4 +1,5 @@
 using System.Runtime.Versioning;
+using System.Text.Json;
 
 namespace app.Services;
 
@@ -6,7 +7,9 @@ namespace app.Services;
 public static class AppSettings
 {
     private const string KeyVideoFolder = "settings.video_folder";
-    private const string KeyWebhookUrl = "settings.webhook_url";
+    private const string KeyWebhookUrl  = "settings.webhook_url";
+    private const string KeyApiUrl      = "settings.api_url";
+    private const string KeySeeded      = "settings.seeded";
 
     public static readonly string DefaultVideoFolder =
         Path.Combine(
@@ -16,6 +19,54 @@ public static class AppSettings
 
     public const string DefaultWebhookUrl =
         "http://localhost:5678/webhook-test/7842c780-4224-4c16-abb7-2973e1407835";
+
+    public const string DefaultApiUrl = "http://localhost:8080";
+
+    // ── First-run seeding ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Call once at startup before InitializeComponent.
+    /// Reads appsettings.json from the install directory and seeds Preferences
+    /// on the first run only. Subsequent launches skip this so user overrides
+    /// via the Settings page are preserved.
+    /// </summary>
+    public static void Initialize()
+    {
+        if (Preferences.Default.Get(KeySeeded, false)) return;
+
+        try
+        {
+            var configPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+            if (!File.Exists(configPath)) return;
+
+            var doc = JsonDocument.Parse(File.ReadAllText(configPath)).RootElement;
+
+            if (doc.TryGetProperty("webhookUrl", out var wh) &&
+                !string.IsNullOrWhiteSpace(wh.GetString()))
+                Preferences.Default.Set(KeyWebhookUrl, wh.GetString()!);
+
+            if (doc.TryGetProperty("videoFolder", out var vf) &&
+                !string.IsNullOrWhiteSpace(vf.GetString()))
+                Preferences.Default.Set(KeyVideoFolder, vf.GetString()!);
+
+            if (doc.TryGetProperty("apiUrl", out var api) &&
+                !string.IsNullOrWhiteSpace(api.GetString()))
+                Preferences.Default.Set(KeyApiUrl, api.GetString()!);
+
+            Logger.Log("AppSettings: seeded from appsettings.json");
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"AppSettings.Initialize: {ex.Message}");
+        }
+        finally
+        {
+            // Mark seeded even on failure so we don't retry every launch
+            Preferences.Default.Set(KeySeeded, true);
+        }
+    }
+
+    // ── Settings ─────────────────────────────────────────────────────────────
 
     public static string VideoFolder
     {
@@ -29,45 +80,9 @@ public static class AppSettings
         set => Preferences.Default.Set(KeyWebhookUrl, value);
     }
 
-    private const string KeyDbHost     = "settings.db_host";
-    private const string KeyDbPort     = "settings.db_port";
-    private const string KeyDbDatabase = "settings.db_database";
-    private const string KeyDbUser     = "settings.db_user";
-    private const string KeyDbPassword = "settings.db_password";
-
-    public static string DbHost
+    public static string ApiUrl
     {
-        get => Preferences.Default.Get(KeyDbHost, "localhost");
-        set => Preferences.Default.Set(KeyDbHost, value);
+        get => Preferences.Default.Get(KeyApiUrl, DefaultApiUrl);
+        set => Preferences.Default.Set(KeyApiUrl, value);
     }
-
-    public static int DbPort
-    {
-        get => Preferences.Default.Get(KeyDbPort, 5432);
-        set => Preferences.Default.Set(KeyDbPort, value);
-    }
-
-    public static string DbDatabase
-    {
-        get => Preferences.Default.Get(KeyDbDatabase, "");
-        set => Preferences.Default.Set(KeyDbDatabase, value);
-    }
-
-    public static string DbUser
-    {
-        get => Preferences.Default.Get(KeyDbUser, "");
-        set => Preferences.Default.Set(KeyDbUser, value);
-    }
-
-    public static string DbPassword
-    {
-        get => Preferences.Default.Get(KeyDbPassword, "");
-        set => Preferences.Default.Set(KeyDbPassword, value);
-    }
-
-    public static string ConnectionString =>
-        string.IsNullOrWhiteSpace(DbHost) ? "" :
-        $"Host={DbHost};Port={DbPort};Database={DbDatabase};Username={DbUser};Password={DbPassword}";
-
-
 }

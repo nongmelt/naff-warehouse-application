@@ -18,6 +18,48 @@ public partial class HomePage : ContentPage
         InitializeComponent();
     }
 
+    // ── Responsive card sizing ────────────────────────────────────────────────
+
+    protected override void OnSizeAllocated(double width, double height)
+    {
+        base.OnSizeAllocated(width, height);
+        if (width <= 0 || height <= 0) return;
+
+        // Each card takes ~38% of page width, gap is 24px, side margins 48px total
+        var cardWidth  = Math.Clamp((width - 120) / 2, 220, 520);
+        var cardHeight = Math.Clamp(height * 0.46,      200, 480);
+        var padH       = Math.Clamp(cardWidth  * 0.13,   28,  60);
+        var padV       = Math.Clamp(cardHeight * 0.11,   24,  52);
+
+        // Scale font sizes relative to card width (baseline card = 280px)
+        var scale      = cardWidth / 280.0;
+        var iconSize   = Math.Clamp(44 * scale, 36, 88);
+        var titleSize  = Math.Clamp(16 * scale, 14, 30);
+        var descSize   = Math.Clamp(12 * scale, 11, 22);
+        var arrowSize  = Math.Clamp(12 * scale, 11, 20);
+        var spacing    = Math.Clamp(14 * scale, 10, 26);
+
+        var padding = new Thickness(padH, padV);
+
+        StationsCard.WidthRequest  = cardWidth;
+        StationsCard.HeightRequest = cardHeight;
+        StationsCard.Padding       = padding;
+        StationsStack.Spacing      = spacing;
+        StationsIcon.FontSize      = iconSize;
+        StationsTitle.FontSize     = titleSize;
+        StationsDesc.FontSize      = descSize;
+        StationsArrow.FontSize     = arrowSize;
+
+        OrdersCard.WidthRequest    = cardWidth;
+        OrdersCard.HeightRequest   = cardHeight;
+        OrdersCard.Padding         = padding;
+        OrdersStack.Spacing        = spacing;
+        OrdersIcon.FontSize        = iconSize;
+        OrdersTitle.FontSize       = titleSize;
+        OrdersDesc.FontSize        = descSize;
+        OrdersArrow.FontSize       = arrowSize;
+    }
+
     // ── Navigation ───────────────────────────────────────────────────────────
 
     private async void OnGoToStations(object sender, TappedEventArgs e)

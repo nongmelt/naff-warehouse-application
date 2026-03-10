@@ -136,14 +136,14 @@ public partial class OrderSearchPage : ContentPage
             if (!string.IsNullOrEmpty(line))
                 MainThread.BeginInvokeOnMainThread(async () =>
                 {
-                    // Always check DB first: tracking number → load order; otherwise → SKU pick
-                    var isTracking = await DatabaseService.ExistsAsTrackingAsync(line);
-                    if (isTracking)
-                        await ExecuteSearchAsync(line);
+                    // Single API call: if results come back it's a tracking number; otherwise it's a SKU.
+                    var rows = await ApiService.SearchAsync(line);
+                    if (rows.Count > 0)
+                        await ExecuteSearchAsync(line, rows);
                     else if (_orderLoaded)
                         HandleSkuScan(line);
                     else
-                        UpdateSearchStatus($"Scan a tracking number to load an order first");
+                        UpdateSearchStatus("Scan a tracking number to load an order first");
                 });
         }
         catch (TimeoutException) { }
@@ -177,14 +177,14 @@ public partial class OrderSearchPage : ContentPage
     private async void OnSearchCommitted(object sender, EventArgs e)
         => await ExecuteSearchAsync(SearchEntry.Text?.Trim() ?? "");
 
-    private async Task ExecuteSearchAsync(string input)
+    private async Task ExecuteSearchAsync(string input, List<PackingList>? preloaded = null)
     {
         if (string.IsNullOrWhiteSpace(input) || _isSearching) return;
-        SearchEntry.Text = string.Empty; // clear immediately so the next scan can start fresh
+        SearchEntry.Text = string.Empty;
 
-        if (string.IsNullOrWhiteSpace(AppSettings.ConnectionString))
+        if (string.IsNullOrWhiteSpace(AppSettings.ApiUrl))
         {
-            UpdateSearchStatus("No database connection configured — open Settings to add one.");
+            UpdateSearchStatus("No backend API URL configured — open Settings to add one.");
             return;
         }
 
@@ -201,7 +201,7 @@ public partial class OrderSearchPage : ContentPage
         Results.Clear();
 
         Logger.Log($"OrderSearch: querying for '{input}'");
-        var rows = await DatabaseService.SearchAsync(input);
+        var rows = preloaded ?? await ApiService.SearchAsync(input);
 
         foreach (var r in rows)
             Results.Add(r);
@@ -313,7 +313,7 @@ public partial class OrderSearchPage : ContentPage
             var updatedJson = JsonSerializer.Serialize(order.ParsedProducts.ToList(),
                 new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
             var now = DateTime.UtcNow;
-            var ok = await DatabaseService.UpdatePackingStatusAsync(order.PackingId, "QC Hold", updatedJson);
+            var ok = await ApiService.UpdatePackingStatusAsync(order.PackingId, "QC Hold", updatedJson);
             if (ok)
             {
                 order.PackingStatus = "QC Hold";
@@ -338,7 +338,7 @@ public partial class OrderSearchPage : ContentPage
             var updatedJson = JsonSerializer.Serialize(order.ParsedProducts.ToList(),
                 new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
             var now = DateTime.UtcNow;
-            var ok = await DatabaseService.UpdatePackingStatusAsync(
+            var ok = await ApiService.UpdatePackingStatusAsync(
                 order.PackingId, "QC Passed", updatedJson, checkedBy: StationName);
             if (ok)
             {
@@ -373,7 +373,7 @@ public partial class OrderSearchPage : ContentPage
             var updatedJson = JsonSerializer.Serialize(order.ParsedProducts.ToList(),
                 new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
             var now = DateTime.UtcNow;
-            var ok = await DatabaseService.UpdatePackingStatusAsync(
+            var ok = await ApiService.UpdatePackingStatusAsync(
                 order.PackingId, "QC Hold", updatedJson);
             if (ok)
             {
@@ -415,7 +415,7 @@ public partial class OrderSearchPage : ContentPage
     {
         if (sender is not Button btn || btn.BindingContext is not PackingList order) return;
 
-        var ok = await DatabaseService.ResetQcHoldAsync(order.PackingId);
+        var ok = await ApiService.ResetQcHoldAsync(order.PackingId);
         if (!ok)
         {
             UpdateSearchStatus($"⚠ Reset failed for {order.TrackingNumber}");
