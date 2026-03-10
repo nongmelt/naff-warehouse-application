@@ -8,6 +8,18 @@ builder.Services.AddDbContext<AppDbContext>(opt =>
 
 var app = builder.Build();
 
+// ── Warm up DB connection pool before accepting requests ──────────────────────
+using (var scope = app.Services.CreateScope())
+{
+    try
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.OpenConnectionAsync();
+        await db.Database.CloseConnectionAsync();
+    }
+    catch { /* non-fatal — app still starts */ }
+}
+
 // ── GET /health ──────────────────────────────────────────────────────────────
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
