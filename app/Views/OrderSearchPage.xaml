@@ -447,16 +447,29 @@
                                                                FontSize="13"
                                                                TextColor="#111827"
                                                                LineBreakMode="WordWrap"/>
-                                                        <Label Text="{Binding Variation}"
-                                                               FontSize="13"
+                                                        <Label FontSize="13"
                                                                FontAttributes="Bold"
-                                                               TextColor="#6b7280"
+                                                               TextColor="#2563eb"
                                                                IsVisible="{Binding HasVariation}"
-                                                               LineBreakMode="TailTruncation"/>
-                                                        <Label Text="{Binding SellerSku}"
-                                                               FontSize="12"
-                                                               TextColor="#9ca3af"
-                                                               LineBreakMode="TailTruncation"/>
+                                                               LineBreakMode="TailTruncation">
+                                                            <Label.FormattedText>
+                                                                <FormattedString>
+                                                                    <Span Text="Category: " TextColor="#9ca3af" FontAttributes="None"/>
+                                                                    <Span Text="{Binding Variation}"/>
+                                                                </FormattedString>
+                                                            </Label.FormattedText>
+                                                        </Label>
+                                                        <Label FontSize="14"
+                                                               FontAttributes="Bold"
+                                                               TextColor="#374151"
+                                                               LineBreakMode="TailTruncation">
+                                                            <Label.FormattedText>
+                                                                <FormattedString>
+                                                                    <Span Text="SKU: " TextColor="#9ca3af" FontAttributes="None"/>
+                                                                    <Span Text="{Binding SellerSku}"/>
+                                                                </FormattedString>
+                                                            </Label.FormattedText>
+                                                        </Label>
                                                     </VerticalStackLayout>
                                                     <!-- Divider -->
                                                     <BoxView Grid.Column="1"
