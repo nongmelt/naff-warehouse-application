@@ -15,7 +15,7 @@ public partial class App : Application
 
 	protected override Window CreateWindow(IActivationState? activationState)
 	{
-		var window = new Window(new AppShell()) { Title = "NAFFWarehouse" };
+		var window = new Window(new AppShell()) { Title = "Warehouse" };
 		window.Destroying += OnWindowDestroying;
 		return window;
 	}

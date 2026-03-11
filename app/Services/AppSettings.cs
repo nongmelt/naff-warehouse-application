@@ -7,15 +7,11 @@ namespace app.Services;
 public static class AppSettings
 {
     private const string KeyVideoFolder = "settings.video_folder";
-    private const string KeyWebhookUrl  = "settings.webhook_url";
-    private const string KeyApiUrl      = "settings.api_url";
-    private const string KeySeeded      = "settings.seeded";
+    private const string KeyWebhookUrl = "settings.webhook_url";
+    private const string KeyApiUrl = "settings.api_url";
+    private const string KeySeeded = "settings.seeded.v2";
 
-    public static readonly string DefaultVideoFolder =
-        Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-            "Warehouse Videos"
-        );
+    public static readonly string DefaultVideoFolder = @"C:\Videos\Warehouse";
 
     public const string DefaultWebhookUrl =
         "http://localhost:5678/webhook-test/7842c780-4224-4c16-abb7-2973e1407835";
@@ -48,6 +44,8 @@ public static class AppSettings
             if (doc.TryGetProperty("videoFolder", out var vf) &&
                 !string.IsNullOrWhiteSpace(vf.GetString()))
                 Preferences.Default.Set(KeyVideoFolder, vf.GetString()!);
+            else
+                Preferences.Default.Remove(KeyVideoFolder); // reset to DefaultVideoFolder
 
             if (doc.TryGetProperty("apiUrl", out var api) &&
                 !string.IsNullOrWhiteSpace(api.GetString()))

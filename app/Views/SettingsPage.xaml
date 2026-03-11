@@ -6,46 +6,69 @@
 
     <ContentPage.Resources>
         <ResourceDictionary>
-            <Style x:Key="NavOutlineButton" TargetType="Button">
-                <Setter Property="BackgroundColor"  Value="Transparent"/>
-                <Setter Property="TextColor"        Value="White"/>
-                <Setter Property="BorderColor"      Value="White"/>
-                <Setter Property="BorderWidth"      Value="1"/>
-                <Setter Property="FontSize"         Value="12"/>
-                <Setter Property="Padding"          Value="14,6"/>
-                <Setter Property="CornerRadius"     Value="6"/>
+            <Style x:Key="NavOutlineButton"
+                    TargetType="Button">
+                <Setter Property="BackgroundColor"
+                        Value="Transparent"/>
+                <Setter Property="TextColor"
+                        Value="White"/>
+                <Setter Property="BorderColor"
+                        Value="White"/>
+                <Setter Property="BorderWidth"
+                        Value="1"/>
+                <Setter Property="FontSize"
+                        Value="12"/>
+                <Setter Property="Padding"
+                        Value="14,6"/>
+                <Setter Property="CornerRadius"
+                        Value="6"/>
                 <Setter Property="VisualStateManager.VisualStateGroups">
                     <VisualStateGroupList>
                         <VisualStateGroup x:Name="CommonStates">
                             <VisualState x:Name="Normal">
                                 <VisualState.Setters>
-                                    <Setter Property="BackgroundColor" Value="Transparent"/>
-                                    <Setter Property="TextColor"       Value="White"/>
-                                    <Setter Property="BorderColor"     Value="White"/>
-                                    <Setter Property="BorderWidth"     Value="1"/>
-                                    <Setter Property="Opacity"         Value="1"/>
+                                    <Setter Property="BackgroundColor"
+                                            Value="Transparent"/>
+                                    <Setter Property="TextColor"
+                                            Value="White"/>
+                                    <Setter Property="BorderColor"
+                                            Value="White"/>
+                                    <Setter Property="BorderWidth"
+                                            Value="1"/>
+                                    <Setter Property="Opacity"
+                                            Value="1"/>
                                 </VisualState.Setters>
                             </VisualState>
                             <VisualState x:Name="PointerOver">
                                 <VisualState.Setters>
-                                    <Setter Property="BackgroundColor" Value="White"/>
-                                    <Setter Property="TextColor"       Value="{StaticResource Primary}"/>
-                                    <Setter Property="BorderColor"     Value="White"/>
-                                    <Setter Property="BorderWidth"     Value="1"/>
-                                    <Setter Property="Opacity"         Value="1"/>
+                                    <Setter Property="BackgroundColor"
+                                            Value="White"/>
+                                    <Setter Property="TextColor"
+                                            Value="{StaticResource Primary}"/>
+                                    <Setter Property="BorderColor"
+                                            Value="White"/>
+                                    <Setter Property="BorderWidth"
+                                            Value="1"/>
+                                    <Setter Property="Opacity"
+                                            Value="1"/>
                                 </VisualState.Setters>
                             </VisualState>
                             <VisualState x:Name="Pressed">
                                 <VisualState.Setters>
-                                    <Setter Property="BackgroundColor" Value="#e0e7ff"/>
-                                    <Setter Property="TextColor"       Value="{StaticResource Primary}"/>
-                                    <Setter Property="BorderColor"     Value="White"/>
-                                    <Setter Property="Opacity"         Value="0.85"/>
+                                    <Setter Property="BackgroundColor"
+                                            Value="#e0e7ff"/>
+                                    <Setter Property="TextColor"
+                                            Value="{StaticResource Primary}"/>
+                                    <Setter Property="BorderColor"
+                                            Value="White"/>
+                                    <Setter Property="Opacity"
+                                            Value="0.85"/>
                                 </VisualState.Setters>
                             </VisualState>
                             <VisualState x:Name="Disabled">
                                 <VisualState.Setters>
-                                    <Setter Property="Opacity" Value="0.35"/>
+                                    <Setter Property="Opacity"
+                                            Value="0.35"/>
                                 </VisualState.Setters>
                             </VisualState>
                         </VisualStateGroup>
@@ -54,46 +77,69 @@
             </Style>
 
             <!-- Primary-fill button that turns white on hover, stable size -->
-            <Style x:Key="PrimaryActionButton" TargetType="Button">
-                <Setter Property="BackgroundColor" Value="{StaticResource Primary}"/>
-                <Setter Property="TextColor"       Value="White"/>
-                <Setter Property="BorderColor"     Value="{StaticResource Primary}"/>
-                <Setter Property="BorderWidth"     Value="1"/>
-                <Setter Property="CornerRadius"    Value="8"/>
-                <Setter Property="FontSize"        Value="14"/>
-                <Setter Property="Padding"         Value="24,12"/>
+            <Style x:Key="PrimaryActionButton"
+                    TargetType="Button">
+                <Setter Property="BackgroundColor"
+                        Value="{StaticResource Primary}"/>
+                <Setter Property="TextColor"
+                        Value="White"/>
+                <Setter Property="BorderColor"
+                        Value="{StaticResource Primary}"/>
+                <Setter Property="BorderWidth"
+                        Value="1"/>
+                <Setter Property="CornerRadius"
+                        Value="8"/>
+                <Setter Property="FontSize"
+                        Value="14"/>
+                <Setter Property="Padding"
+                        Value="24,12"/>
                 <Setter Property="VisualStateManager.VisualStateGroups">
                     <VisualStateGroupList>
                         <VisualStateGroup x:Name="CommonStates">
                             <VisualState x:Name="Normal">
                                 <VisualState.Setters>
-                                    <Setter Property="BackgroundColor" Value="{StaticResource Primary}"/>
-                                    <Setter Property="TextColor"       Value="White"/>
-                                    <Setter Property="BorderColor"     Value="{StaticResource Primary}"/>
-                                    <Setter Property="BorderWidth"     Value="1"/>
-                                    <Setter Property="Opacity"         Value="1"/>
+                                    <Setter Property="BackgroundColor"
+                                            Value="{StaticResource Primary}"/>
+                                    <Setter Property="TextColor"
+                                            Value="White"/>
+                                    <Setter Property="BorderColor"
+                                            Value="{StaticResource Primary}"/>
+                                    <Setter Property="BorderWidth"
+                                            Value="1"/>
+                                    <Setter Property="Opacity"
+                                            Value="1"/>
                                 </VisualState.Setters>
                             </VisualState>
                             <VisualState x:Name="PointerOver">
                                 <VisualState.Setters>
-                                    <Setter Property="BackgroundColor" Value="White"/>
-                                    <Setter Property="TextColor"       Value="{StaticResource Primary}"/>
-                                    <Setter Property="BorderColor"     Value="{StaticResource Primary}"/>
-                                    <Setter Property="BorderWidth"     Value="1"/>
-                                    <Setter Property="Opacity"         Value="1"/>
+                                    <Setter Property="BackgroundColor"
+                                            Value="White"/>
+                                    <Setter Property="TextColor"
+                                            Value="{StaticResource Primary}"/>
+                                    <Setter Property="BorderColor"
+                                            Value="{StaticResource Primary}"/>
+                                    <Setter Property="BorderWidth"
+                                            Value="1"/>
+                                    <Setter Property="Opacity"
+                                            Value="1"/>
                                 </VisualState.Setters>
                             </VisualState>
                             <VisualState x:Name="Pressed">
                                 <VisualState.Setters>
-                                    <Setter Property="BackgroundColor" Value="#e0e7ff"/>
-                                    <Setter Property="TextColor"       Value="{StaticResource Primary}"/>
-                                    <Setter Property="BorderColor"     Value="{StaticResource Primary}"/>
-                                    <Setter Property="Opacity"         Value="0.85"/>
+                                    <Setter Property="BackgroundColor"
+                                            Value="#e0e7ff"/>
+                                    <Setter Property="TextColor"
+                                            Value="{StaticResource Primary}"/>
+                                    <Setter Property="BorderColor"
+                                            Value="{StaticResource Primary}"/>
+                                    <Setter Property="Opacity"
+                                            Value="0.85"/>
                                 </VisualState.Setters>
                             </VisualState>
                             <VisualState x:Name="Disabled">
                                 <VisualState.Setters>
-                                    <Setter Property="Opacity" Value="0.35"/>
+                                    <Setter Property="Opacity"
+                                            Value="0.35"/>
                                 </VisualState.Setters>
                             </VisualState>
                         </VisualStateGroup>
@@ -121,10 +167,14 @@
         </Grid>
 
         <!-- Sidebar + Content — 3 cols: sidebar | 1px divider | content -->
-        <Grid Grid.Row="1" ColumnDefinitions="200, 1, *" ColumnSpacing="0">
+        <Grid Grid.Row="1"
+                ColumnDefinitions="200, 1, *"
+                ColumnSpacing="0">
 
             <!-- Sidebar -->
-            <VerticalStackLayout Grid.Column="0" BackgroundColor="White" Spacing="0">
+            <VerticalStackLayout Grid.Column="0"
+                    BackgroundColor="White"
+                    Spacing="0">
 
                 <!-- GENERAL -->
                 <Label Text="GENERAL"
@@ -174,13 +224,17 @@
             </VerticalStackLayout>
 
             <!-- Divider -->
-            <BoxView Grid.Column="1" BackgroundColor="#e5e7eb"/>
+            <BoxView Grid.Column="1"
+                    BackgroundColor="#e5e7eb"/>
 
             <!-- Content area -->
-            <Grid Grid.Column="2" BackgroundColor="#f3f4f6">
+            <Grid Grid.Column="2"
+                    BackgroundColor="#f3f4f6">
 
                 <!-- ── General Panel (scrollable) ── -->
-                <ScrollView x:Name="PanelGeneral" IsVisible="False" BackgroundColor="#f3f4f6">
+                <ScrollView x:Name="PanelGeneral"
+                        IsVisible="True"
+                        BackgroundColor="#f3f4f6">
                     <VerticalStackLayout Padding="28,24"
                                          Spacing="20"
                                          MaximumWidthRequest="620"
@@ -193,38 +247,64 @@
                                Margin="0,0,0,4"/>
 
                         <!-- Video Folder -->
-                        <Border Stroke="#d1d5db" StrokeThickness="1" StrokeShape="RoundRectangle 8"
-                                BackgroundColor="White" Padding="16">
+                        <Border Stroke="#d1d5db"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 8"
+                                BackgroundColor="White"
+                                Padding="16">
                             <VerticalStackLayout Spacing="8">
                                 <Label Text="Video Destination Folder"
-                                       FontAttributes="Bold" FontSize="14" TextColor="#111827"/>
+                                       FontAttributes="Bold"
+                                        FontSize="14"
+                                        TextColor="#111827"/>
                                 <Label Text="Recordings are saved into a date-stamped sub-folder inside this directory."
-                                       FontSize="12" TextColor="#6b7280"/>
-                                <Grid ColumnDefinitions="*, Auto" ColumnSpacing="8">
-                                    <Border Grid.Column="0" Stroke="#d1d5db" StrokeThickness="1"
-                                            StrokeShape="RoundRectangle 6" Padding="10,0">
+                                       FontSize="12"
+                                        TextColor="#6b7280"/>
+                                <Grid ColumnDefinitions="*, Auto"
+                                        ColumnSpacing="8">
+                                    <Border Grid.Column="0"
+                                            Stroke="#d1d5db"
+                                            StrokeThickness="1"
+                                            StrokeShape="RoundRectangle 6"
+                                            Padding="10,0">
                                         <Entry x:Name="VideoFolderEntry"
-                                               Placeholder="e.g. C:\Users\Operator\Documents\NAFFWarehouse Videos"
-                                               FontSize="13" VerticalOptions="Center"/>
+                                               Placeholder="e.g. C:\Users\Videos"
+                                               FontSize="13"
+                                                VerticalOptions="Center"/>
                                     </Border>
-                                    <Button Grid.Column="1" Text="Browse…" Clicked="OnBrowseFolder"
-                                            WidthRequest="90" FontSize="13" Padding="0,8" CornerRadius="6"/>
+                                    <Button Grid.Column="1"
+                                            Text="Browse…"
+                                            Clicked="OnBrowseFolder"
+                                            WidthRequest="90"
+                                            FontSize="13"
+                                            Padding="0,8"
+                                            CornerRadius="6"/>
                                 </Grid>
                             </VerticalStackLayout>
                         </Border>
 
                         <!-- Webhook URL -->
-                        <Border Stroke="#d1d5db" StrokeThickness="1" StrokeShape="RoundRectangle 8"
-                                BackgroundColor="White" Padding="16">
+                        <Border Stroke="#d1d5db"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 8"
+                                BackgroundColor="White"
+                                Padding="16">
                             <VerticalStackLayout Spacing="8">
                                 <Label Text="n8n Webhook URL"
-                                       FontAttributes="Bold" FontSize="14" TextColor="#111827"/>
+                                       FontAttributes="Bold"
+                                        FontSize="14"
+                                        TextColor="#111827"/>
                                 <Label Text="The full webhook URL that receives barcode and video file notifications."
-                                       FontSize="12" TextColor="#6b7280"/>
-                                <Border Stroke="#d1d5db" StrokeThickness="1" StrokeShape="RoundRectangle 6" Padding="10,0">
+                                       FontSize="12"
+                                        TextColor="#6b7280"/>
+                                <Border Stroke="#d1d5db"
+                                        StrokeThickness="1"
+                                        StrokeShape="RoundRectangle 6"
+                                        Padding="10,0">
                                     <Entry x:Name="WebhookUrlEntry"
                                            Placeholder="http://localhost:5678/webhook-test/..."
-                                           FontSize="13" Keyboard="Url"/>
+                                           FontSize="13"
+                                            Keyboard="Url"/>
                                 </Border>
                             </VerticalStackLayout>
                         </Border>
@@ -274,7 +354,8 @@
                                     StrokeThickness="1"
                                     StrokeShape="RoundRectangle 8"
                                     Padding="16,14">
-                                <Grid ColumnDefinitions="*, Auto" ColumnSpacing="12">
+                                <Grid ColumnDefinitions="*, Auto"
+                                        ColumnSpacing="12">
                                     <Label x:Name="NotificationMessageLabel"
                                            Grid.Column="0"
                                            FontSize="13"
@@ -306,10 +387,16 @@
                                     Padding="24">
                                 <VerticalStackLayout Spacing="12">
                                     <Label Text="API URL"
-                                           FontAttributes="Bold" FontSize="15" TextColor="#111827"/>
+                                           FontAttributes="Bold"
+                                            FontSize="15"
+                                            TextColor="#111827"/>
                                     <Label Text="Base URL of the backend service. The desktop app sends all database requests here instead of connecting to PostgreSQL directly."
-                                           FontSize="12" TextColor="#6b7280"/>
-                                    <Border Stroke="#d1d5db" StrokeThickness="1" StrokeShape="RoundRectangle 6" Padding="10,0">
+                                           FontSize="12"
+                                            TextColor="#6b7280"/>
+                                    <Border Stroke="#d1d5db"
+                                            StrokeThickness="1"
+                                            StrokeShape="RoundRectangle 6"
+                                            Padding="10,0">
                                         <Entry x:Name="ApiUrlEntry"
                                                Placeholder="http://localhost:8080"
                                                Keyboard="Url"
