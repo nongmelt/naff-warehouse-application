@@ -227,18 +227,16 @@
             <BoxView Grid.Column="1"
                     BackgroundColor="#e5e7eb"/>
 
-            <!-- Content area -->
-            <Grid Grid.Column="2"
-                    BackgroundColor="#f3f4f6">
-
-                <!-- ── General Panel (scrollable) ── -->
-                <ScrollView x:Name="PanelGeneral"
-                        IsVisible="True"
+            <!-- Content area — single ScrollView; panels are sequential (no overlay) -->
+            <ScrollView Grid.Column="2"
                         BackgroundColor="#f3f4f6">
-                    <VerticalStackLayout Padding="28,24"
-                                         Spacing="20"
-                                         MaximumWidthRequest="620"
-                                         HorizontalOptions="Center">
+                <VerticalStackLayout>
+
+                    <!-- ── General Panel ── -->
+                    <VerticalStackLayout x:Name="PanelGeneral"
+                                         IsVisible="True"
+                                         Padding="28,24"
+                                         Spacing="20">
 
                         <Label Text="General"
                                FontSize="18"
@@ -255,23 +253,18 @@
                             <VerticalStackLayout Spacing="8">
                                 <Label Text="Video Destination Folder"
                                        FontAttributes="Bold"
-                                        FontSize="14"
-                                        TextColor="#111827"/>
+                                       FontSize="14"
+                                       TextColor="#111827"/>
                                 <Label Text="Recordings are saved into a date-stamped sub-folder inside this directory."
                                        FontSize="12"
-                                        TextColor="#6b7280"/>
+                                       TextColor="#6b7280"/>
                                 <Grid ColumnDefinitions="*, Auto"
-                                        ColumnSpacing="8">
-                                    <Border Grid.Column="0"
-                                            Stroke="#d1d5db"
-                                            StrokeThickness="1"
-                                            StrokeShape="RoundRectangle 6"
-                                            Padding="10,0">
-                                        <Entry x:Name="VideoFolderEntry"
-                                               Placeholder="e.g. C:\Users\Videos"
-                                               FontSize="13"
-                                                VerticalOptions="Center"/>
-                                    </Border>
+                                      ColumnSpacing="8">
+                                    <Entry x:Name="VideoFolderEntry"
+                                           Grid.Column="0"
+                                           Placeholder="e.g. C:\Users\Videos"
+                                           FontSize="13"
+                                           VerticalOptions="Center"/>
                                     <Button Grid.Column="1"
                                             Text="Browse…"
                                             Clicked="OnBrowseFolder"
@@ -292,20 +285,15 @@
                             <VerticalStackLayout Spacing="8">
                                 <Label Text="n8n Webhook URL"
                                        FontAttributes="Bold"
-                                        FontSize="14"
-                                        TextColor="#111827"/>
+                                       FontSize="14"
+                                       TextColor="#111827"/>
                                 <Label Text="The full webhook URL that receives barcode and video file notifications."
                                        FontSize="12"
-                                        TextColor="#6b7280"/>
-                                <Border Stroke="#d1d5db"
-                                        StrokeThickness="1"
-                                        StrokeShape="RoundRectangle 6"
-                                        Padding="10,0">
-                                    <Entry x:Name="WebhookUrlEntry"
-                                           Placeholder="http://localhost:5678/webhook-test/..."
-                                           FontSize="13"
-                                            Keyboard="Url"/>
-                                </Border>
+                                       TextColor="#6b7280"/>
+                                <Entry x:Name="WebhookUrlEntry"
+                                       Placeholder="http://localhost:5678/webhook-test/..."
+                                       FontSize="13"
+                                       Keyboard="Url"/>
                             </VerticalStackLayout>
                         </Border>
 
@@ -325,99 +313,82 @@
                         </Grid>
 
                     </VerticalStackLayout>
-                </ScrollView>
 
-                <!-- ── Backend API Panel ── -->
-                <Grid x:Name="PanelApi"
-                      IsVisible="False"
-                      RowDefinitions="Auto, *"
-                      Padding="28,24"
-                      RowSpacing="0"
-                      BackgroundColor="#f3f4f6">
+                    <!-- ── Backend API Panel ── -->
+                    <VerticalStackLayout x:Name="PanelApi"
+                                         IsVisible="False"
+                                         Padding="28,24"
+                                         Spacing="16">
 
-                    <!-- Title -->
-                    <Label Grid.Row="0"
-                           Text="Backend API"
-                           FontSize="18"
-                           FontAttributes="Bold"
-                           TextColor="#111827"
-                           Margin="0,0,0,16"/>
+                        <Label Text="Backend API"
+                               FontSize="18"
+                               FontAttributes="Bold"
+                               TextColor="#111827"
+                               Margin="0,0,0,4"/>
 
-                    <ScrollView Grid.Row="1">
-                        <VerticalStackLayout Spacing="16"
-                                             MaximumWidthRequest="620"
-                                             HorizontalOptions="Center">
+                        <!-- Notification card -->
+                        <Border x:Name="NotificationCard"
+                                IsVisible="False"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 8"
+                                Padding="16,14">
+                            <Grid ColumnDefinitions="*, Auto"
+                                  ColumnSpacing="12">
+                                <Label x:Name="NotificationMessageLabel"
+                                       Grid.Column="0"
+                                       FontSize="13"
+                                       FontAttributes="Bold"
+                                       VerticalOptions="Center"/>
+                                <Button x:Name="RetryButton"
+                                        Grid.Column="1"
+                                        Text="Retry"
+                                        Clicked="OnRetryConnection"
+                                        FontSize="11"
+                                        CornerRadius="6"
+                                        Padding="14,4"
+                                        BorderWidth="1"
+                                        VerticalOptions="Center">
+                                    <Button.GestureRecognizers>
+                                        <PointerGestureRecognizer
+                                            PointerEntered="OnRetryButtonEntered"
+                                            PointerExited="OnRetryButtonExited"/>
+                                    </Button.GestureRecognizers>
+                                </Button>
+                            </Grid>
+                        </Border>
 
-                            <!-- Notification card -->
-                            <Border x:Name="NotificationCard"
-                                    IsVisible="False"
-                                    StrokeThickness="1"
-                                    StrokeShape="RoundRectangle 8"
-                                    Padding="16,14">
-                                <Grid ColumnDefinitions="*, Auto"
-                                        ColumnSpacing="12">
-                                    <Label x:Name="NotificationMessageLabel"
-                                           Grid.Column="0"
-                                           FontSize="13"
-                                           FontAttributes="Bold"
-                                           VerticalOptions="Center"/>
-                                    <Button x:Name="RetryButton"
-                                            Grid.Column="1"
-                                            Text="Retry"
-                                            Clicked="OnRetryConnection"
-                                            FontSize="11"
-                                            CornerRadius="6"
-                                            Padding="14,4"
-                                            BorderWidth="1"
-                                            VerticalOptions="Center">
-                                        <Button.GestureRecognizers>
-                                            <PointerGestureRecognizer
-                                                PointerEntered="OnRetryButtonEntered"
-                                                PointerExited="OnRetryButtonExited"/>
-                                        </Button.GestureRecognizers>
-                                    </Button>
-                                </Grid>
-                            </Border>
+                        <!-- API URL card -->
+                        <Border Stroke="#d1d5db"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 8"
+                                BackgroundColor="White"
+                                Padding="24">
+                            <VerticalStackLayout Spacing="12">
+                                <Label Text="API URL"
+                                       FontAttributes="Bold"
+                                       FontSize="15"
+                                       TextColor="#111827"/>
+                                <Label Text="Base URL of the backend service. The desktop app sends all database requests here instead of connecting to PostgreSQL directly."
+                                       FontSize="12"
+                                       TextColor="#6b7280"/>
+                                <Entry x:Name="ApiUrlEntry"
+                                       Placeholder="http://localhost:8080"
+                                       Keyboard="Url"
+                                       FontSize="13"
+                                       VerticalOptions="Center"/>
+                            </VerticalStackLayout>
+                        </Border>
 
-                            <!-- API URL card -->
-                            <Border Stroke="#d1d5db"
-                                    StrokeThickness="1"
-                                    StrokeShape="RoundRectangle 8"
-                                    BackgroundColor="White"
-                                    Padding="24">
-                                <VerticalStackLayout Spacing="12">
-                                    <Label Text="API URL"
-                                           FontAttributes="Bold"
-                                            FontSize="15"
-                                            TextColor="#111827"/>
-                                    <Label Text="Base URL of the backend service. The desktop app sends all database requests here instead of connecting to PostgreSQL directly."
-                                           FontSize="12"
-                                            TextColor="#6b7280"/>
-                                    <Border Stroke="#d1d5db"
-                                            StrokeThickness="1"
-                                            StrokeShape="RoundRectangle 6"
-                                            Padding="10,0">
-                                        <Entry x:Name="ApiUrlEntry"
-                                               Placeholder="http://localhost:8080"
-                                               Keyboard="Url"
-                                               FontSize="13"
-                                               VerticalOptions="Center"/>
-                                    </Border>
-                                </VerticalStackLayout>
-                            </Border>
+                        <!-- Save button -->
+                        <Button Text="Save &amp; Test"
+                                Clicked="OnSaveApi"
+                                Style="{StaticResource PrimaryActionButton}"
+                                HorizontalOptions="End"/>
 
-                            <!-- Save button -->
-                            <Button Text="Save &amp; Test"
-                                    Clicked="OnSaveApi"
-                                    Style="{StaticResource PrimaryActionButton}"
-                                    HorizontalOptions="End"/>
+                    </VerticalStackLayout>
 
-                        </VerticalStackLayout>
-                    </ScrollView>
-
-                </Grid>
-
-            </Grid>
+                </VerticalStackLayout>
+            </ScrollView>
 
         </Grid>
 
