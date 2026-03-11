@@ -55,7 +55,7 @@ app.MapPost("/packing-lists/{id}/reset", async (int id, AppDbContext db) =>
     var row = await db.PackingLists.FindAsync(id);
     if (row is null) return Results.NotFound();
 
-    row.PackingStatus       = null;
+    row.PackingStatus       = "To be packed";
     row.CheckedBy           = null;
     row.CheckedAt           = null;
     row.UpdatedAt           = DateTime.UtcNow;

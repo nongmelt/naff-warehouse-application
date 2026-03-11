@@ -33,10 +33,15 @@ public class ProductItem : INotifyPropertyChanged
     [JsonIgnore] public bool HasVariation  => !string.IsNullOrWhiteSpace(Variation);
     [JsonIgnore] public bool IsFullyPicked => Quantity <= 0;
     [JsonIgnore] public Color CardBgColor =>
-        IsFullyPicked || string.Equals(_orderQcContext, "QC Passed", StringComparison.OrdinalIgnoreCase)
-            ? Color.FromArgb("#dcfce7")  // green — picked or QC Passed
-            : string.IsNullOrEmpty(_orderQcContext) ? Colors.White
-            : Color.FromArgb("#fef9c3"); // yellow — remaining in QC Hold context
+        IsFullyPicked ||
+        string.Equals(_orderQcContext, "QC Passed",        StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(_orderQcContext, "Packed Complete",  StringComparison.OrdinalIgnoreCase)
+            ? Color.FromArgb("#dcfce7")  // green — picked / QC Passed / Packed Complete
+        : string.Equals(_orderQcContext, "Packed", StringComparison.OrdinalIgnoreCase)
+            ? Color.FromArgb("#ffedd5")  // orange — Packed (in progress)
+        : string.IsNullOrEmpty(_orderQcContext)
+            ? Colors.White
+            : Color.FromArgb("#fef9c3"); // yellow — QC Hold
 
     private bool _isBeingPicked;
     [JsonIgnore]
@@ -90,6 +95,10 @@ public class PackingList : INotifyPropertyChanged
             _packingStatus = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(IsQcHold));
+            OnPropertyChanged(nameof(IsNotQcHold));
+            OnPropertyChanged(nameof(ResetOpacity));
+            OnPropertyChanged(nameof(IsPacked));
+            OnPropertyChanged(nameof(IsPackedComplete));
             OnPropertyChanged(nameof(StatusDisplay));
             OnPropertyChanged(nameof(StatusBgColor));
             OnPropertyChanged(nameof(StatusFgColor));
@@ -120,7 +129,7 @@ public class PackingList : INotifyPropertyChanged
     public string? CheckedBy
     {
         get => _checkedBy;
-        set { _checkedBy = value; OnPropertyChanged(); OnPropertyChanged(nameof(CheckedByDisplay)); }
+        set { _checkedBy = value; OnPropertyChanged(); OnPropertyChanged(nameof(CheckedByDisplay)); OnPropertyChanged(nameof(IsPackedComplete)); }
     }
 
     private DateTime? _checkedAt;
@@ -138,21 +147,40 @@ public class PackingList : INotifyPropertyChanged
 
     // ── Display helpers ──────────────────────────────────────────────────────
 
-    public bool IsQcHold => string.Equals(PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase);
+    public bool IsQcHold    => string.Equals(_packingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase);
+    public bool IsNotQcHold => !IsQcHold;
+    public double ResetOpacity => IsQcHold ? 1.0 : 0.0;
+    public bool IsPacked  => string.Equals(_packingStatus, "Packed",   StringComparison.OrdinalIgnoreCase);
+    public bool IsPackedComplete =>
+        IsPacked && !string.IsNullOrWhiteSpace(_checkedBy) && AllUpdatedItemsZero();
 
-    public string StatusDisplay => PackingStatus ?? "unknown";
+    private bool AllUpdatedItemsZero()
+    {
+        if (string.IsNullOrWhiteSpace(UpdatedProductLists)) return false;
+        try
+        {
+            var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var list = JsonSerializer.Deserialize<List<ProductItem>>(UpdatedProductLists, opts);
+            return list?.All(p => p.Quantity <= 0) ?? false;
+        }
+        catch { return false; }
+    }
 
-    public Color StatusBgColor => (PackingStatus ?? "").ToLower() switch
+    public string StatusDisplay => _packingStatus ?? "unknown";
+
+    public Color StatusBgColor => (_packingStatus ?? "").ToLower() switch
     {
         "completed" or "done" or "qc passed" => Color.FromArgb("#dcfce7"),
         "in_progress" or "packing" or "qc hold" => Color.FromArgb("#fef9c3"),
+        "packed"                              => Color.FromArgb("#ffedd5"),
         _                                     => Color.FromArgb("#f3f4f6"),
     };
 
-    public Color StatusFgColor => (PackingStatus ?? "").ToLower() switch
+    public Color StatusFgColor => (_packingStatus ?? "").ToLower() switch
     {
         "completed" or "done" or "qc passed" => Color.FromArgb("#166534"),
         "in_progress" or "packing" or "qc hold" => Color.FromArgb("#713f12"),
+        "packed"                              => Color.FromArgb("#9a3412"),
         _                                     => Color.FromArgb("#374151"),
     };
 
@@ -180,10 +208,10 @@ public class PackingList : INotifyPropertyChanged
 
     public string? PlatformIcon => (Platform ?? "").ToLower() switch
     {
-        "shopee"  => "shopee.png",
-        "lazada"  => "lazada.png",
-        "tiktok"  => "tiktok.png",
-        _         => null,
+        var p when p.Contains("shopee")  => "shopee.png",
+        var p when p.Contains("lazada")  => "lazada.png",
+        var p when p.Contains("tiktok")  => "tiktok.png",
+        _                                => null,
     };
 
     public bool HasPlatformIcon => PlatformIcon != null;
@@ -231,20 +259,25 @@ public class PackingList : INotifyPropertyChanged
 
     private ObservableCollection<ProductItem> ParseProductsCore()
     {
-        // QC Hold  → show remaining (updated) quantities so the picker knows what's left.
-        // QC Passed → show the original needed quantities for reference.
-        // Everything else → always use original.
-        var isQcHold = string.Equals(PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase);
-        var json = isQcHold && !string.IsNullOrWhiteSpace(UpdatedProductLists)
-            ? UpdatedProductLists
-            : ProductLists;
+        // QC Hold / Packed (in-progress) → show updated quantities so picker sees what's left.
+        // Packed Complete / QC Passed / everything else → show original required quantities.
+        var useUpdated = (IsQcHold || (IsPacked && !IsPackedComplete)) && !string.IsNullOrWhiteSpace(UpdatedProductLists);
+        var json = useUpdated ? UpdatedProductLists : ProductLists;
 
         if (string.IsNullOrWhiteSpace(json)) return [];
         try
         {
             var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             var list = JsonSerializer.Deserialize<List<ProductItem>>(json, opts) ?? [];
-            var ctx  = IsQcStatus ? PackingStatus! : "";
+
+            string ctx;
+            if (IsPacked)
+                ctx = IsPackedComplete ? "Packed Complete" : "Packed";
+            else if (IsQcStatus)
+                ctx = _packingStatus!;
+            else
+                ctx = "";
+
             foreach (var item in list)
             {
                 item.OriginalQuantity = item.Quantity;

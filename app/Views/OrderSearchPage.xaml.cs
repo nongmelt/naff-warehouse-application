@@ -40,10 +40,17 @@ public partial class OrderSearchPage : ContentPage
 
     // ── Lifecycle ────────────────────────────────────────────────────────────
 
+    private bool _warmedUp;
+
     protected override async void OnAppearing()
     {
         base.OnAppearing();
         await LoadComPortsAsync();
+        if (!_warmedUp)
+        {
+            _warmedUp = true;
+            _ = ApiService.TestConnectionAsync(); // establish TCP + DB pool in background
+        }
     }
 
     protected override void OnDisappearing()
@@ -254,10 +261,20 @@ public partial class OrderSearchPage : ContentPage
         }
 
         _pendingSkuProduct = found;
-        found.IsBeingPicked = true;
-        var label = found.Name + (found.HasVariation ? $" · {found.Variation}" : "");
-        UpdateSearchStatus($"Matched: {label} — enter qty and press Enter");
-        Logger.Log($"OrderSearch: SKU matched '{barcode}'");
+
+        if (found.Quantity == 1)
+        {
+            // Only one left — deduct immediately, no input needed
+            ApplySkuDeduction(found, "1");
+        }
+        else
+        {
+            found.IsBeingPicked = true;
+            FocusItemEntry(found);
+            var label = found.Name + (found.HasVariation ? $" · {found.Variation}" : "");
+            UpdateSearchStatus($"Matched: {label} — enter qty and press Enter");
+            Logger.Log($"OrderSearch: SKU matched '{barcode}'");
+        }
     }
 
     private void OnPickQtyEntryCompleted(object sender, EventArgs e)
@@ -270,19 +287,34 @@ public partial class OrderSearchPage : ContentPage
     {
         if (sender is not Entry entry) return;
         if (entry.BindingContext is not ProductItem item) return;
-        if (string.IsNullOrEmpty(e.NewTextValue)) return;
 
-        if (int.TryParse(e.NewTextValue, out var qty) && qty > item.Quantity)
+        var raw = e.NewTextValue ?? "";
+        // Strip any non-digit characters
+        var digits = new string(raw.Where(char.IsDigit).ToArray());
+        if (digits != raw) { entry.Text = digits; return; }
+
+        if (string.IsNullOrEmpty(digits)) return;
+        if (int.TryParse(digits, out var qty) && qty > item.Quantity)
             entry.Text = item.Quantity.ToString();
     }
 
     private void ApplySkuDeduction(ProductItem item, string? qtyText)
     {
-        if (!int.TryParse(qtyText?.Trim(), out var qty) || qty <= 0) qty = 1;
-        qty = Math.Min(qty, item.Quantity); // clamp to remaining qty
+        if (!int.TryParse(qtyText?.Trim(), out var qty)) qty = 1; // invalid input → default 1
+        qty = Math.Max(0, Math.Min(qty, item.Quantity));           // clamp [0, remaining]
+
+        if (qty == 0)
+        {
+            // User entered 0 — dismiss entry without deducting
+            item.IsBeingPicked = false;
+            if (item == _pendingSkuProduct) _pendingSkuProduct = null;
+            UpdateSearchStatus($"{item.SellerSku} — no deduction (0 entered)");
+            return;
+        }
 
         item.Quantity -= qty;
         item.IsBeingPicked = false;
+        item.OrderQcContext = "QC Hold"; // highlight yellow immediately (green if IsFullyPicked takes priority)
 
         if (item == _pendingSkuProduct) _pendingSkuProduct = null;
 
@@ -387,6 +419,64 @@ public partial class OrderSearchPage : ContentPage
         }
     }
 
+    // ── Focus helper ─────────────────────────────────────────────────────────
+
+    private void FocusItemEntry(ProductItem item)
+    {
+        _ = Dispatcher.DispatchAsync(async () =>
+        {
+            await Task.Delay(80); // allow Entry to become visible after IsBeingPicked = true
+            var entry = FindDescendant<Entry>(this, e => e.BindingContext == item && e.IsVisible);
+            entry?.Focus();
+        });
+    }
+
+    private static T? FindDescendant<T>(IVisualTreeElement root, Func<T, bool> predicate) where T : VisualElement
+    {
+        foreach (var child in root.GetVisualChildren())
+        {
+            if (child is T element && predicate(element)) return element;
+            var found = FindDescendant(child, predicate);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    // ── Quantity tap (manual QC deduction) ───────────────────────────────────
+
+    private void OnQuantityTapped(object sender, TappedEventArgs e)
+    {
+        if (sender is not VerticalStackLayout layout) return;
+        if (layout.BindingContext is not ProductItem item) return;
+
+        PackingList? order = null;
+        foreach (var o in Results)
+            if (o.ParsedProducts.Contains(item)) { order = o; break; }
+        if (order == null) return;
+
+        bool isQcPassed = _completedPackingIds.Contains(order.PackingId)
+            || string.Equals(order.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase);
+        if (isQcPassed) { UpdateSearchStatus($"Order {order.TrackingNumber} is QC Passed — no changes allowed"); return; }
+        if (item.Quantity <= 0) { UpdateSearchStatus($"{item.SellerSku} — already fully picked"); return; }
+
+        if (_pendingSkuProduct != null)
+            ApplySkuDeduction(_pendingSkuProduct, "1");
+
+        _pendingSkuProduct = item;
+
+        if (item.Quantity == 1)
+        {
+            ApplySkuDeduction(item, "1");
+        }
+        else
+        {
+            item.IsBeingPicked = true;
+            FocusItemEntry(item);
+            var label = item.Name + (item.HasVariation ? $" · {item.Variation}" : "");
+            UpdateSearchStatus($"Matched: {label} — enter qty and press Enter");
+        }
+    }
+
     // ── Product card hover ───────────────────────────────────────────────────
 
     private void OnProductCardEntered(object sender, PointerEventArgs e)
@@ -413,7 +503,7 @@ public partial class OrderSearchPage : ContentPage
 
     private async void OnResetClicked(object sender, EventArgs e)
     {
-        if (sender is not Button btn || btn.BindingContext is not PackingList order) return;
+        if (sender is not VisualElement el || el.BindingContext is not PackingList order) return;
 
         var ok = await ApiService.ResetQcHoldAsync(order.PackingId);
         if (!ok)
@@ -433,7 +523,7 @@ public partial class OrderSearchPage : ContentPage
         }
 
         // Reset in-memory state
-        order.PackingStatus        = null;
+        order.PackingStatus        = "To be packed";
         order.CheckedBy            = null;
         order.UpdatedAt            = DateTime.UtcNow;
         order.CheckedAt            = null;
@@ -458,7 +548,7 @@ public partial class OrderSearchPage : ContentPage
         try
         {
             using var searcher = new ManagementObjectSearcher(
-                "SELECT Name, Status FROM Win32_PnPEntity WHERE PNPClass = 'Ports'");
+                "SELECT Name FROM Win32_PnPEntity WHERE Name LIKE '%(COM%)'");
 
             foreach (ManagementObject obj in searcher.Get().Cast<ManagementObject>())
             {

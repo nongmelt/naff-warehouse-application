@@ -7,46 +7,69 @@
 
     <ContentPage.Resources>
         <ResourceDictionary>
-            <Style x:Key="NavOutlineButton" TargetType="Button">
-                <Setter Property="BackgroundColor"  Value="Transparent"/>
-                <Setter Property="TextColor"        Value="White"/>
-                <Setter Property="BorderColor"      Value="White"/>
-                <Setter Property="BorderWidth"      Value="1"/>
-                <Setter Property="FontSize"         Value="12"/>
-                <Setter Property="Padding"          Value="14,6"/>
-                <Setter Property="CornerRadius"     Value="6"/>
+            <Style x:Key="NavOutlineButton"
+                   TargetType="Button">
+                <Setter Property="BackgroundColor"
+                        Value="Transparent"/>
+                <Setter Property="TextColor"
+                        Value="White"/>
+                <Setter Property="BorderColor"
+                        Value="White"/>
+                <Setter Property="BorderWidth"
+                        Value="1"/>
+                <Setter Property="FontSize"
+                        Value="12"/>
+                <Setter Property="Padding"
+                        Value="14,6"/>
+                <Setter Property="CornerRadius"
+                        Value="6"/>
                 <Setter Property="VisualStateManager.VisualStateGroups">
                     <VisualStateGroupList>
                         <VisualStateGroup x:Name="CommonStates">
                             <VisualState x:Name="Normal">
                                 <VisualState.Setters>
-                                    <Setter Property="BackgroundColor" Value="Transparent"/>
-                                    <Setter Property="TextColor"       Value="White"/>
-                                    <Setter Property="BorderColor"     Value="White"/>
-                                    <Setter Property="BorderWidth"     Value="1"/>
-                                    <Setter Property="Opacity"         Value="1"/>
+                                    <Setter Property="BackgroundColor"
+                                            Value="Transparent"/>
+                                    <Setter Property="TextColor"
+                                            Value="White"/>
+                                    <Setter Property="BorderColor"
+                                            Value="White"/>
+                                    <Setter Property="BorderWidth"
+                                            Value="1"/>
+                                    <Setter Property="Opacity"
+                                            Value="1"/>
                                 </VisualState.Setters>
                             </VisualState>
                             <VisualState x:Name="PointerOver">
                                 <VisualState.Setters>
-                                    <Setter Property="BackgroundColor" Value="White"/>
-                                    <Setter Property="TextColor"       Value="{StaticResource Primary}"/>
-                                    <Setter Property="BorderColor"     Value="White"/>
-                                    <Setter Property="BorderWidth"     Value="1"/>
-                                    <Setter Property="Opacity"         Value="1"/>
+                                    <Setter Property="BackgroundColor"
+                                            Value="White"/>
+                                    <Setter Property="TextColor"
+                                            Value="{StaticResource Primary}"/>
+                                    <Setter Property="BorderColor"
+                                            Value="White"/>
+                                    <Setter Property="BorderWidth"
+                                            Value="1"/>
+                                    <Setter Property="Opacity"
+                                            Value="1"/>
                                 </VisualState.Setters>
                             </VisualState>
                             <VisualState x:Name="Pressed">
                                 <VisualState.Setters>
-                                    <Setter Property="BackgroundColor" Value="#e0e7ff"/>
-                                    <Setter Property="TextColor"       Value="{StaticResource Primary}"/>
-                                    <Setter Property="BorderColor"     Value="White"/>
-                                    <Setter Property="Opacity"         Value="0.85"/>
+                                    <Setter Property="BackgroundColor"
+                                            Value="#e0e7ff"/>
+                                    <Setter Property="TextColor"
+                                            Value="{StaticResource Primary}"/>
+                                    <Setter Property="BorderColor"
+                                            Value="White"/>
+                                    <Setter Property="Opacity"
+                                            Value="0.85"/>
                                 </VisualState.Setters>
                             </VisualState>
                             <VisualState x:Name="Disabled">
                                 <VisualState.Setters>
-                                    <Setter Property="Opacity" Value="0.35"/>
+                                    <Setter Property="Opacity"
+                                            Value="0.35"/>
                                 </VisualState.Setters>
                             </VisualState>
                         </VisualStateGroup>
@@ -55,29 +78,35 @@
             </Style>
 
             <!-- Filled button with pointer-over highlight -->
-            <Style x:Key="HoverButton" TargetType="Button">
-                <Setter Property="CornerRadius" Value="6"/>
+            <Style x:Key="HoverButton"
+                   TargetType="Button">
+                <Setter Property="CornerRadius"
+                        Value="6"/>
                 <Setter Property="VisualStateManager.VisualStateGroups">
                     <VisualStateGroupList>
                         <VisualStateGroup x:Name="CommonStates">
                             <VisualState x:Name="Normal">
                                 <VisualState.Setters>
-                                    <Setter Property="Opacity" Value="1"/>
+                                    <Setter Property="Opacity"
+                                            Value="1"/>
                                 </VisualState.Setters>
                             </VisualState>
                             <VisualState x:Name="PointerOver">
                                 <VisualState.Setters>
-                                    <Setter Property="Opacity" Value="0.78"/>
+                                    <Setter Property="Opacity"
+                                            Value="0.78"/>
                                 </VisualState.Setters>
                             </VisualState>
                             <VisualState x:Name="Pressed">
                                 <VisualState.Setters>
-                                    <Setter Property="Opacity" Value="0.6"/>
+                                    <Setter Property="Opacity"
+                                            Value="0.6"/>
                                 </VisualState.Setters>
                             </VisualState>
                             <VisualState x:Name="Disabled">
                                 <VisualState.Setters>
-                                    <Setter Property="Opacity" Value="0.35"/>
+                                    <Setter Property="Opacity"
+                                            Value="0.35"/>
                                 </VisualState.Setters>
                             </VisualState>
                         </VisualStateGroup>
@@ -103,7 +132,9 @@
                    FontAttributes="Bold"
                    HorizontalOptions="Center"
                    VerticalOptions="Center"/>
-            <HorizontalStackLayout HorizontalOptions="End" Spacing="12" VerticalOptions="Center">
+            <HorizontalStackLayout HorizontalOptions="End"
+                                   Spacing="12"
+                                   VerticalOptions="Center">
                 <Label Text="{Binding StationNameDisplay}"
                        TextColor="White"
                        FontSize="12"
@@ -137,7 +168,8 @@
                            FontAttributes="Bold"
                            FontSize="13"
                            TextColor="#111827"/>
-                    <Grid ColumnDefinitions="*, Auto" ColumnSpacing="8">
+                    <Grid ColumnDefinitions="*, Auto"
+                          ColumnSpacing="8">
                         <Picker x:Name="ComPortPicker"
                                 Grid.Column="0"
                                 Title="Select COM port"
@@ -171,7 +203,8 @@
                            FontAttributes="Bold"
                            FontSize="13"
                            TextColor="#111827"/>
-                    <Grid ColumnDefinitions="*, Auto" ColumnSpacing="8">
+                    <Grid ColumnDefinitions="*, Auto"
+                          ColumnSpacing="8">
                         <Entry x:Name="SearchEntry"
                                Grid.Column="0"
                                Placeholder="Tracking or order number…"
@@ -198,8 +231,10 @@
         </Grid>
 
         <!-- Scrollable results -->
-        <ScrollView Grid.Row="2" BackgroundColor="#f3f4f6">
-            <VerticalStackLayout Padding="24,0,24,24" Spacing="0">
+        <ScrollView Grid.Row="2"
+                    BackgroundColor="#f3f4f6">
+            <VerticalStackLayout Padding="24,0,24,24"
+                                 Spacing="0">
 
                 <CollectionView x:Name="ResultsView"
                                 ItemsSource="{Binding Results}"
@@ -216,129 +251,172 @@
 
                     <CollectionView.ItemTemplate>
                         <DataTemplate x:DataType="models:PackingList">
-                            <VerticalStackLayout Spacing="6" Margin="0,16,0,0">
+                            <VerticalStackLayout Spacing="6"
+                                                 Margin="0,16,0,0">
 
                                 <!-- Summary card -->
                                 <Border Stroke="#d1d5db"
                                         StrokeThickness="1"
                                         StrokeShape="RoundRectangle 8"
                                         BackgroundColor="White"
-                                        Padding="16,12">
-                                    <VerticalStackLayout Spacing="5">
+                                        Padding="14,8">
+                                    <VerticalStackLayout Spacing="3">
                                         <!-- Tracking + platform icon + status -->
-                                        <Grid ColumnDefinitions="Auto, *, Auto" ColumnSpacing="10">
+                                        <Grid ColumnDefinitions="Auto, *, Auto"
+                                              ColumnSpacing="10">
                                             <!-- Platform icon (only when known) -->
                                             <Image Grid.Column="0"
                                                    Source="{Binding PlatformIcon}"
                                                    IsVisible="{Binding HasPlatformIcon}"
-                                                   WidthRequest="28"
-                                                   HeightRequest="28"
+                                                   WidthRequest="48"
+                                                   HeightRequest="48"
                                                    Aspect="AspectFit"
                                                    VerticalOptions="Center"/>
-                                            <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                            <VerticalStackLayout Grid.Column="1"
+                                                                 Spacing="1"
+                                                                 VerticalOptions="Center">
                                                 <Label Text="{Binding TrackingNumber}"
                                                        FontAttributes="Bold"
-                                                       FontSize="16"
+                                                       FontSize="18"
                                                        TextColor="#111827"/>
                                                 <!-- Submitted + Checked at on same line -->
                                                 <HorizontalStackLayout Spacing="14">
-                                                    <Label FontSize="11" TextColor="#9ca3af">
+                                                    <Label FontSize="11"
+                                                           TextColor="#9ca3af">
                                                         <Label.FormattedText>
                                                             <FormattedString>
                                                                 <Span Text="Submitted: "/>
-                                                                <Span Text="{Binding CreatedAtDisplay}" TextColor="#6b7280"/>
+                                                                <Span Text="{Binding CreatedAtDisplay}"
+                                                                      TextColor="#6b7280"/>
                                                             </FormattedString>
                                                         </Label.FormattedText>
                                                     </Label>
-                                                    <Label FontSize="11" TextColor="#9ca3af"
+                                                    <Label FontSize="11"
+                                                           TextColor="#9ca3af"
                                                            IsVisible="{Binding HasBeenChecked}">
                                                         <Label.FormattedText>
                                                             <FormattedString>
                                                                 <Span Text="Checked at: "/>
-                                                                <Span Text="{Binding CheckedAtDisplay}" TextColor="#6b7280"/>
+                                                                <Span Text="{Binding CheckedAtDisplay}"
+                                                                      TextColor="#6b7280"/>
                                                             </FormattedString>
                                                         </Label.FormattedText>
                                                     </Label>
                                                 </HorizontalStackLayout>
                                                 <!-- Packed by + Checked by beside tracking -->
                                                 <HorizontalStackLayout Spacing="14">
-                                                    <Label FontSize="11" TextColor="#9ca3af">
+                                                    <Label FontSize="11"
+                                                           TextColor="#9ca3af">
                                                         <Label.FormattedText>
                                                             <FormattedString>
                                                                 <Span Text="Packed by: "/>
-                                                                <Span Text="{Binding PackedByDisplay}" TextColor="#6b7280"/>
+                                                                <Span Text="{Binding PackedByDisplay}"
+                                                                      TextColor="#6b7280"/>
                                                             </FormattedString>
                                                         </Label.FormattedText>
                                                     </Label>
-                                                    <Label FontSize="11" TextColor="#9ca3af">
+                                                    <Label FontSize="11"
+                                                           TextColor="#9ca3af">
                                                         <Label.FormattedText>
                                                             <FormattedString>
                                                                 <Span Text="Checked by: "/>
-                                                                <Span Text="{Binding CheckedByDisplay}" TextColor="#6b7280"/>
+                                                                <Span Text="{Binding CheckedByDisplay}"
+                                                                      TextColor="#6b7280"/>
                                                             </FormattedString>
                                                         </Label.FormattedText>
                                                     </Label>
                                                 </HorizontalStackLayout>
                                             </VerticalStackLayout>
-                                            <Border Grid.Column="2"
-                                                    BackgroundColor="{Binding StatusBgColor}"
-                                                    Stroke="Transparent"
-                                                    StrokeShape="RoundRectangle 4"
-                                                    Padding="10,4"
-                                                    VerticalOptions="Start">
-                                                <Label Text="{Binding StatusDisplay}"
-                                                       TextColor="{Binding StatusFgColor}"
-                                                       FontSize="12"
-                                                       FontAttributes="Bold"/>
-                                            </Border>
+                                            <!-- Status badge(s) + Reset button -->
+                                            <VerticalStackLayout Grid.Column="2"
+                                                                 Spacing="3"
+                                                                 HorizontalOptions="End"
+                                                                 VerticalOptions="Center">
+                                                <HorizontalStackLayout Spacing="4"
+                                                                       HorizontalOptions="End">
+                                                    <Border BackgroundColor="{Binding StatusBgColor}"
+                                                            Stroke="Transparent"
+                                                            StrokeShape="RoundRectangle 4"
+                                                            Padding="8,3">
+                                                        <Label Text="{Binding StatusDisplay}"
+                                                               TextColor="{Binding StatusFgColor}"
+                                                               FontSize="11"
+                                                               FontAttributes="Bold"/>
+                                                    </Border>
+                                                    <!-- Green "✓ QC Passed" — only when Packed Complete -->
+                                                    <Border IsVisible="{Binding IsPackedComplete}"
+                                                            BackgroundColor="#dcfce7"
+                                                            Stroke="#86efac"
+                                                            StrokeThickness="1"
+                                                            StrokeShape="RoundRectangle 4"
+                                                            Padding="8,3">
+                                                        <Label Text="✓ QC Passed"
+                                                               TextColor="#166534"
+                                                               FontSize="11"
+                                                               FontAttributes="Bold"/>
+                                                    </Border>
+                                                </HorizontalStackLayout>
+                                                <!-- Reset — always reserves height so all cards stay the same size -->
+                                                <Button Text="Reset"
+                                                        Clicked="OnResetClicked"
+                                                        Opacity="{Binding ResetOpacity}"
+                                                        InputTransparent="{Binding IsNotQcHold}"
+                                                        HorizontalOptions="End"
+                                                        FontSize="11"
+                                                        Padding="8,3"
+                                                        BackgroundColor="#fef9c3"
+                                                        TextColor="#713f12"
+                                                        CornerRadius="6"
+                                                        BorderColor="#fde68a"
+                                                        BorderWidth="1"/>
+                                            </VerticalStackLayout>
                                         </Grid>
                                         <!-- Meta row -->
-                                        <HorizontalStackLayout Spacing="20">
-                                            <Label FontSize="12" TextColor="#6b7280">
+                                        <HorizontalStackLayout Spacing="16">
+                                            <Label FontSize="11"
+                                                   TextColor="#6b7280">
                                                 <Label.FormattedText>
                                                     <FormattedString>
-                                                        <Span Text="Order: " TextColor="#9ca3af"/>
-                                                        <Span Text="{Binding OrderNumber}" TextColor="#374151"/>
+                                                        <Span Text="Order: "
+                                                              TextColor="#9ca3af"/>
+                                                        <Span Text="{Binding OrderNumber}"
+                                                              TextColor="#374151"/>
                                                     </FormattedString>
                                                 </Label.FormattedText>
                                             </Label>
-                                            <Label FontSize="12" TextColor="#6b7280">
+                                            <Label FontSize="11"
+                                                   TextColor="#6b7280">
                                                 <Label.FormattedText>
                                                     <FormattedString>
-                                                        <Span Text="Items: " TextColor="#9ca3af"/>
-                                                        <Span Text="{Binding TotalItemsDisplay}" TextColor="#374151"/>
+                                                        <Span Text="Items: "
+                                                              TextColor="#9ca3af"/>
+                                                        <Span Text="{Binding TotalItemsDisplay}"
+                                                              TextColor="#374151"/>
                                                     </FormattedString>
                                                 </Label.FormattedText>
                                             </Label>
-                                            <HorizontalStackLayout Spacing="4" VerticalOptions="Center"
+                                            <HorizontalStackLayout Spacing="3"
+                                                                   VerticalOptions="Center"
                                                                    IsVisible="{Binding HasBeenUpdated}">
                                                 <Label Text="↻"
                                                        TextColor="#2563eb"
-                                                       FontSize="13"
+                                                       FontSize="11"
                                                        FontAttributes="Bold"
                                                        VerticalOptions="Center"/>
-                                                <Label FontSize="12" TextColor="#6b7280" VerticalOptions="Center">
+                                                <Label FontSize="11"
+                                                       TextColor="#6b7280"
+                                                       VerticalOptions="Center">
                                                     <Label.FormattedText>
                                                         <FormattedString>
-                                                            <Span Text="Updated: " TextColor="#9ca3af"/>
-                                                            <Span Text="{Binding UpdatedAtDisplay}" TextColor="#374151"/>
+                                                            <Span Text="Updated: "
+                                                                  TextColor="#9ca3af"/>
+                                                            <Span Text="{Binding UpdatedAtDisplay}"
+                                                                  TextColor="#374151"/>
                                                         </FormattedString>
                                                     </Label.FormattedText>
                                                 </Label>
                                             </HorizontalStackLayout>
                                         </HorizontalStackLayout>
-                                        <!-- Reset button — only visible when QC Hold -->
-                                        <Button Text="↺ Reset"
-                                                Clicked="OnResetClicked"
-                                                IsVisible="{Binding IsQcHold}"
-                                                HorizontalOptions="End"
-                                                FontSize="12"
-                                                Padding="12,5"
-                                                BackgroundColor="#fef9c3"
-                                                TextColor="#713f12"
-                                                CornerRadius="6"
-                                                BorderColor="#fde68a"
-                                                BorderWidth="1"/>
                                     </VerticalStackLayout>
                                 </Border>
 
@@ -358,9 +436,12 @@
                                                         PointerEntered="OnProductCardEntered"
                                                         PointerExited="OnProductCardExited"/>
                                                 </Border.GestureRecognizers>
-                                                <Grid ColumnDefinitions="*, Auto, Auto" ColumnSpacing="12">
+                                                <Grid ColumnDefinitions="*, Auto, Auto"
+                                                      ColumnSpacing="12">
                                                     <!-- Name + Variation + SKU -->
-                                                    <VerticalStackLayout Grid.Column="0" Spacing="3" InputTransparent="True">
+                                                    <VerticalStackLayout Grid.Column="0"
+                                                                         Spacing="3"
+                                                                         InputTransparent="True">
                                                         <Label Text="{Binding Name}"
                                                                FontAttributes="Bold"
                                                                FontSize="13"
@@ -383,9 +464,17 @@
                                                              BackgroundColor="#e5e7eb"
                                                              VerticalOptions="Fill"
                                                              InputTransparent="True"/>
-                                                    <!-- Quantity + inline pick entry -->
-                                                    <VerticalStackLayout Grid.Column="2" HorizontalOptions="Center" VerticalOptions="Center" Spacing="2">
-                                                        <HorizontalStackLayout HorizontalOptions="Center" Spacing="10" VerticalOptions="Center">
+                                                    <!-- Quantity + inline pick entry (tap to deduct) -->
+                                                    <VerticalStackLayout Grid.Column="2"
+                                                                         HorizontalOptions="Center"
+                                                                         VerticalOptions="Center"
+                                                                         Spacing="2">
+                                                        <VerticalStackLayout.GestureRecognizers>
+                                                            <TapGestureRecognizer Tapped="OnQuantityTapped"/>
+                                                        </VerticalStackLayout.GestureRecognizers>
+                                                        <HorizontalStackLayout HorizontalOptions="Center"
+                                                                               Spacing="10"
+                                                                               VerticalOptions="Center">
                                                             <Label Text="{Binding Quantity}"
                                                                    FontSize="28"
                                                                    FontAttributes="Bold"
