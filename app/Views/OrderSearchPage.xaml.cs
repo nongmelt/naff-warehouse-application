@@ -150,7 +150,7 @@ public partial class OrderSearchPage : ContentPage
                     else if (_orderLoaded)
                         HandleSkuScan(line);
                     else
-                        UpdateSearchStatus("Scan a tracking number to load an order first");
+                        await ExecuteSearchAsync(line, rows);
                 });
         }
         catch (TimeoutException) { }
