@@ -72,9 +72,6 @@
 		<!-- Raw Assets (also remove the "Resources\Raw" prefix) -->
 		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
 
-<Content Include="Platforms\Windows\VLC\**">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-		</Content>
 		<Content Include="appsettings.json">
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
 		</Content>
@@ -85,16 +82,12 @@
 		<PackageReference Include="CommunityToolkit.Maui" Version="13.0.0" />
 		<PackageReference Include="CommunityToolkit.Maui.Camera" Version="5.0.0" />
 		<PackageReference Include="CommunityToolkit.Maui.MediaElement" Version="7.0.0" />
-		<PackageReference Include="LibVLCSharp.MAUI" Version="3.9.5" />
-		<PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.23" />
 		<PackageReference Include="System.IO.Ports" Version="9.0.0" />
 		<PackageReference Include="System.Management" Version="9.0.0" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="LibVLCSharp" Version="3.9.5" />
 		<PackageReference Include="Microsoft.Maui.Controls" Version="10.0.10" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
 	</ItemGroup>
-
 </Project>
