@@ -382,13 +382,19 @@ public partial class StationView : ContentView, IDisposable
 
                 if (!string.IsNullOrEmpty(filePath))
                 {
-                    UpdateStatus("Sending webhook…");
-                    var sent = await WebhookService.SendAsync(finishedBarcode, filePath, _stationName);
                     _videoCount++;
                     MainThread.BeginInvokeOnMainThread(() => VideoCountLabel.Text = _videoCount.ToString());
-                    UpdateStatus(sent ? "✓ Webhook sent" : "⚠ Webhook failed");
-                    await Task.Delay(2000);
-                    UpdateStatusFromDevices();
+                    UpdateStatusFromDevices(); // ready for next scan immediately
+
+                    WebhookService.FireAndRetry(finishedBarcode, filePath, _stationName, sent =>
+                    {
+                        MainThread.BeginInvokeOnMainThread(async () =>
+                        {
+                            UpdateStatus(sent ? "✓ Webhook sent" : "⚠ Webhook failed");
+                            await Task.Delay(2000);
+                            UpdateStatusFromDevices();
+                        });
+                    });
                 }
                 else
                 {
