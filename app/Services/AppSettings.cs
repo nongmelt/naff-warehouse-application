@@ -9,9 +9,10 @@ public static class AppSettings
     private const string KeyVideoFolder = "settings.video_folder";
     private const string KeyWebhookUrl = "settings.webhook_url";
     private const string KeyApiUrl = "settings.api_url";
-    private const string KeySeeded = "settings.seeded.v2";
+    private const string KeySeeded = "settings.seeded.v3";
 
-    public static readonly string DefaultVideoFolder = @"C:\Videos\Warehouse";
+    public static readonly string DefaultVideoFolder =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Warehouse");
 
     public const string DefaultWebhookUrl =
         "http://localhost:5678/webhook-test/7842c780-4224-4c16-abb7-2973e1407835";
