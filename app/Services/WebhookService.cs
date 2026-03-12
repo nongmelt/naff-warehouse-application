@@ -11,6 +11,21 @@ public class WebhookService
     private const int MaxRetries = 3;
 
     /// <summary>
+    /// Fires the webhook in a background thread and retries up to 3 times.
+    /// Returns immediately so the caller is never blocked.
+    /// <paramref name="onComplete"/> is invoked on a thread-pool thread when finished.
+    /// </summary>
+    public static void FireAndRetry(string barcode, string filePath, string stationName,
+        Action<bool>? onComplete = null)
+    {
+        _ = Task.Run(async () =>
+        {
+            var result = await SendAsync(barcode, filePath, stationName);
+            onComplete?.Invoke(result);
+        });
+    }
+
+    /// <summary>
     /// Posts webhook to n8n. Retries up to 3 times on transient failures.
     /// Returns true if the webhook was delivered successfully.
     /// </summary>
