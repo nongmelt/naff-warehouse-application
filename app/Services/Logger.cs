@@ -7,8 +7,15 @@ namespace app.Services;
 
 public static class Logger
 {
-    static readonly string LogFile =
-        Path.Combine(FileSystem.AppDataDirectory, "app.log");
+    static string LogFile
+    {
+        get
+        {
+            var dir = Path.Combine(FileSystem.AppDataDirectory, "logs");
+            Directory.CreateDirectory(dir);
+            return Path.Combine(dir, $"{DateTime.Now:yyyy-MM-dd}.txt");
+        }
+    }
 
     public static void Log(string message)
     {
