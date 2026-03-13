@@ -23,7 +23,6 @@ public partial class SettingsPage : ContentPage
         VideoFolderEntry.Text    = AppSettings.VideoFolder;
         WebhookUrlEntry.Text     = AppSettings.WebhookUrl;
         ApiUrlEntry.Text         = AppSettings.ApiUrl;
-        MinioPcNameEntry.Text    = AppSettings.MinioPcName;
         MinioBucketEntry.Text    = AppSettings.MinioBucket;
         MinioEndpointEntry.Text  = AppSettings.MinioEndpoint;
         MinioAccessKeyEntry.Text = AppSettings.MinioAccessKey;
@@ -80,7 +79,6 @@ public partial class SettingsPage : ContentPage
 
     private void OnSaveMinio(object sender, EventArgs e)
     {
-        AppSettings.MinioPcName    = MinioPcNameEntry.Text?.Trim()    ?? string.Empty;
         AppSettings.MinioBucket    = MinioBucketEntry.Text?.Trim()    ?? string.Empty;
         AppSettings.MinioEndpoint  = MinioEndpointEntry.Text?.Trim()  ?? string.Empty;
         AppSettings.MinioAccessKey = MinioAccessKeyEntry.Text?.Trim() ?? string.Empty;

@@ -12,7 +12,7 @@ public static class ScriptService
         var scriptsDir = Path.Combine(appDir, "Scripts");
         Directory.CreateDirectory(scriptsDir);
 
-        var pcName      = AppSettings.MinioPcName;
+        var pcName      = Environment.MachineName;
         var bucket      = AppSettings.MinioBucket;
         var accessKey   = AppSettings.MinioAccessKey;
         var secretKey   = AppSettings.MinioSecretKey;
@@ -60,30 +60,6 @@ public static class ScriptService
         sync.AppendLine();
         sync.AppendLine("echo [%date% %time%] Upload complete >> \"%LOG_FILE%\"");
         File.WriteAllText(Path.Combine(scriptsDir, "sync_to_minio.bat"), sync.ToString());
-
-        // ── cleanup_videos.bat ───────────────────────────────────────────────
-        var cleanup = new StringBuilder();
-        cleanup.AppendLine("@echo off");
-        cleanup.AppendLine(":: Local Video Cleanup Script");
-        cleanup.AppendLine(":: Run AFTER sync_to_minio.bat to ensure videos are uploaded");
-        cleanup.AppendLine($"set LOCAL_VIDEO_FOLDER={videoFolder}");
-        cleanup.AppendLine("set KEEP_DAYS=15");
-        cleanup.AppendLine($"set PC_NAME={pcName}");
-        cleanup.AppendLine(@"set LOG_DIR=%LOCALAPPDATA%\Warehouse\logs\sync");
-        cleanup.AppendLine(@"set LOG_FILE=%LOG_DIR%\cleanup_%PC_NAME%.log");
-        cleanup.AppendLine();
-        cleanup.AppendLine("if not exist \"%LOG_DIR%\" mkdir \"%LOG_DIR%\"");
-        cleanup.AppendLine();
-        cleanup.AppendLine("echo [%date% %time%] Starting cleanup for %PC_NAME% (keeping last %KEEP_DAYS% days) >> \"%LOG_FILE%\"");
-        cleanup.AppendLine();
-        cleanup.AppendLine("forfiles /p \"%LOCAL_VIDEO_FOLDER%\" /s /m *.mp4 /d -%KEEP_DAYS% /c \"cmd /c del @path\" 2>>\"%LOG_FILE%\"");
-        cleanup.AppendLine();
-        cleanup.AppendLine("for /f \"delims=\" %%d in ('dir /s /b /ad \"%LOCAL_VIDEO_FOLDER%\" ^| sort /r') do (");
-        cleanup.AppendLine("    rd \"%%d\" 2>nul");
-        cleanup.AppendLine(")");
-        cleanup.AppendLine();
-        cleanup.AppendLine("echo [%date% %time%] Cleanup complete >> \"%LOG_FILE%\"");
-        File.WriteAllText(Path.Combine(scriptsDir, "cleanup_videos.bat"), cleanup.ToString());
 
         Logger.Log($"ScriptService: regenerated scripts in {scriptsDir}");
     }

@@ -11,7 +11,6 @@ public static class AppSettings
     private const string KeyApiUrl = "settings.api_url";
     private const string KeySeeded = "settings.seeded.v3";
 
-    private const string KeyMinioPcName   = "settings.minio.pc_name";
     private const string KeyMinioBucket   = "settings.minio.bucket";
     private const string KeyMinioAccess   = "settings.minio.access_key";
     private const string KeyMinioSecret   = "settings.minio.secret_key";
@@ -82,7 +81,6 @@ public static class AppSettings
                     var doc = JsonDocument.Parse(File.ReadAllText(configPath)).RootElement;
                     if (doc.TryGetProperty("minio", out var minio))
                     {
-                        SetFromJson(KeyMinioPcName,   minio, "pcName");
                         SetFromJson(KeyMinioBucket,   minio, "bucket");
                         SetFromJson(KeyMinioAccess,   minio, "accessKey");
                         SetFromJson(KeyMinioSecret,   minio, "secretKey");
@@ -121,12 +119,6 @@ public static class AppSettings
     {
         get => Preferences.Default.Get(KeyApiUrl, DefaultApiUrl);
         set => Preferences.Default.Set(KeyApiUrl, value);
-    }
-
-    public static string MinioPcName
-    {
-        get => Preferences.Default.Get(KeyMinioPcName, Environment.MachineName);
-        set => Preferences.Default.Set(KeyMinioPcName, value);
     }
 
     public static string MinioBucket

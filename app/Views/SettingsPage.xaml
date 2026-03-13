@@ -421,25 +421,6 @@
                                                        TextColor="#111827"
                                                        Margin="0,0,0,4"/>
 
-                                                <!-- PC Name -->
-                                                <Border Stroke="#d1d5db"
-                                                        StrokeThickness="1"
-                                                        StrokeShape="RoundRectangle 8"
-                                                        BackgroundColor="White"
-                                                        Padding="16">
-                                                        <VerticalStackLayout Spacing="8">
-                                                                <Label Text="PC Name"
-                                                                       FontAttributes="Bold"
-                                                                       FontSize="14"
-                                                                       TextColor="#111827"/>
-                                                                <Label Text="Identifies this station as the upload source folder in MinIO and in log file names."
-                                                                       FontSize="12"
-                                                                       TextColor="#6b7280"/>
-                                                                <Entry x:Name="MinioPcNameEntry"
-                                                                       FontSize="13"/>
-                                                        </VerticalStackLayout>
-                                                </Border>
-
                                                 <!-- Bucket + Endpoint -->
                                                 <Border Stroke="#d1d5db"
                                                         StrokeThickness="1"
