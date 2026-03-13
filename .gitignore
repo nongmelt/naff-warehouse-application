@@ -211,4 +211,8 @@ FakesAssemblies/
 
 # JetBrains Rider
 *.sln.iml
-app/Tools/ffmpeg.exe
+
+# Internal
+installer/
+minio/
+*.exe
