@@ -15,7 +15,6 @@ public static class AppSettings
     private const string KeyMinioAccess   = "settings.minio.access_key";
     private const string KeyMinioSecret   = "settings.minio.secret_key";
     private const string KeyMinioEndpoint = "settings.minio.endpoint";
-    private const string KeyMinioSeeded   = "settings.minio.seeded.v1";
 
     public static readonly string DefaultVideoFolder =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Warehouse");
@@ -25,79 +24,74 @@ public static class AppSettings
 
     public const string DefaultApiUrl = "http://localhost:8080";
 
-    // ── First-run seeding ────────────────────────────────────────────────────
+    // ── Startup seeding ──────────────────────────────────────────────────────
 
     /// <summary>
-    /// Call once at startup before InitializeComponent.
-    /// Reads appsettings.json from the install directory and seeds Preferences
-    /// on the first run only. Subsequent launches skip this so user overrides
-    /// via the Settings page are preserved.
+    /// Called once at startup. Seeds Preferences from appsettings.json:
+    /// - General settings: seeded once (flag-gated so user overrides are preserved).
+    /// - MinIO settings: seeded whenever a field is empty, so reinstalls always
+    ///   pick up new credentials without relying on a flag that persists in the registry.
     /// </summary>
     public static void Initialize()
     {
-        if (Preferences.Default.Get(KeySeeded, false)) return;
+        var configPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
 
-        try
-        {
-            var configPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
-            if (!File.Exists(configPath)) return;
-
-            var doc = JsonDocument.Parse(File.ReadAllText(configPath)).RootElement;
-
-            if (doc.TryGetProperty("webhookUrl", out var wh) &&
-                !string.IsNullOrWhiteSpace(wh.GetString()))
-                Preferences.Default.Set(KeyWebhookUrl, wh.GetString()!);
-
-            if (doc.TryGetProperty("videoFolder", out var vf) &&
-                !string.IsNullOrWhiteSpace(vf.GetString()))
-                Preferences.Default.Set(KeyVideoFolder, vf.GetString()!);
-            else
-                Preferences.Default.Remove(KeyVideoFolder); // reset to DefaultVideoFolder
-
-            if (doc.TryGetProperty("apiUrl", out var api) &&
-                !string.IsNullOrWhiteSpace(api.GetString()))
-                Preferences.Default.Set(KeyApiUrl, api.GetString()!);
-
-            Logger.Log("AppSettings: seeded from appsettings.json");
-        }
-        catch (Exception ex)
-        {
-            Logger.Log($"AppSettings.Initialize: {ex.Message}");
-        }
-        finally
-        {
-            // Mark seeded even on failure so we don't retry every launch
-            Preferences.Default.Set(KeySeeded, true);
-        }
-
-        // ── MinIO seeding (separate flag so existing installs pick up new fields) ──
-        if (!Preferences.Default.Get(KeyMinioSeeded, false))
+        // ── General (webhook, videoFolder, apiUrl) — seed once ───────────────
+        if (!Preferences.Default.Get(KeySeeded, false))
         {
             try
             {
-                var configPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
                 if (File.Exists(configPath))
                 {
                     var doc = JsonDocument.Parse(File.ReadAllText(configPath)).RootElement;
-                    if (doc.TryGetProperty("minio", out var minio))
-                    {
-                        SetFromJson(KeyMinioBucket,   minio, "bucket");
-                        SetFromJson(KeyMinioAccess,   minio, "accessKey");
-                        SetFromJson(KeyMinioSecret,   minio, "secretKey");
-                        SetFromJson(KeyMinioEndpoint, minio, "endpoint");
-                        Logger.Log("AppSettings: seeded MinIO settings from appsettings.json");
-                    }
+
+                    if (doc.TryGetProperty("webhookUrl", out var wh) &&
+                        !string.IsNullOrWhiteSpace(wh.GetString()))
+                        Preferences.Default.Set(KeyWebhookUrl, wh.GetString()!);
+
+                    if (doc.TryGetProperty("videoFolder", out var vf) &&
+                        !string.IsNullOrWhiteSpace(vf.GetString()))
+                        Preferences.Default.Set(KeyVideoFolder, vf.GetString()!);
+                    else
+                        Preferences.Default.Remove(KeyVideoFolder);
+
+                    if (doc.TryGetProperty("apiUrl", out var api) &&
+                        !string.IsNullOrWhiteSpace(api.GetString()))
+                        Preferences.Default.Set(KeyApiUrl, api.GetString()!);
+
+                    Logger.Log("AppSettings: seeded general settings from appsettings.json");
                 }
             }
-            catch (Exception ex) { Logger.Log($"AppSettings.InitializeMinio: {ex.Message}"); }
-            finally { Preferences.Default.Set(KeyMinioSeeded, true); }
+            catch (Exception ex) { Logger.Log($"AppSettings.Initialize: {ex.Message}"); }
+            finally { Preferences.Default.Set(KeySeeded, true); }
         }
+
+        // ── MinIO — seed any empty field from appsettings.json ───────────────
+        // No flag: runs every launch so reinstalls always pick up new credentials.
+        // User overrides in Settings are preserved because we only write when empty.
+        try
+        {
+            if (File.Exists(configPath))
+            {
+                var doc = JsonDocument.Parse(File.ReadAllText(configPath)).RootElement;
+                if (doc.TryGetProperty("minio", out var minio))
+                {
+                    SeedIfEmpty(KeyMinioBucket,   minio, "bucket");
+                    SeedIfEmpty(KeyMinioAccess,   minio, "accessKey");
+                    SeedIfEmpty(KeyMinioSecret,   minio, "secretKey");
+                    SeedIfEmpty(KeyMinioEndpoint, minio, "endpoint");
+                    Logger.Log("AppSettings: MinIO fields synced from appsettings.json");
+                }
+            }
+        }
+        catch (Exception ex) { Logger.Log($"AppSettings.InitializeMinio: {ex.Message}"); }
     }
 
-    private static void SetFromJson(string key, JsonElement parent, string property)
+    private static void SeedIfEmpty(string key, JsonElement parent, string property)
     {
         if (parent.TryGetProperty(property, out var val) &&
-            !string.IsNullOrWhiteSpace(val.GetString()))
+            !string.IsNullOrWhiteSpace(val.GetString()) &&
+            string.IsNullOrWhiteSpace(Preferences.Default.Get(key, string.Empty)))
             Preferences.Default.Set(key, val.GetString()!);
     }
 
