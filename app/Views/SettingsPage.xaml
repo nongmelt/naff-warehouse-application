@@ -238,7 +238,7 @@
                                                 <TapGestureRecognizer Tapped="OnNavMinio"/>
                                         </Border.GestureRecognizers>
                                         <Label x:Name="NavMinioLabel"
-                                               Text="MinIO Sync"
+                                               Text="MINIO"
                                                FontSize="13"
                                                TextColor="#374151"/>
                                 </Border>
@@ -415,7 +415,7 @@
                                                              Padding="28,24"
                                                              Spacing="20">
 
-                                                <Label Text="MinIO Sync"
+                                                <Label Text="MINIO"
                                                        FontSize="18"
                                                        FontAttributes="Bold"
                                                        TextColor="#111827"
@@ -433,14 +433,13 @@
                                                                        FontSize="14"
                                                                        TextColor="#111827"/>
                                                                 <Entry x:Name="MinioBucketEntry"
-                                                                       Placeholder="e.g. packing-korat"
                                                                        FontSize="13"/>
                                                                 <Label Text="Endpoint URL"
                                                                        FontAttributes="Bold"
                                                                        FontSize="14"
                                                                        TextColor="#111827"/>
                                                                 <Entry x:Name="MinioEndpointEntry"
-                                                                       Placeholder="http://192.168.1.191:9000"
+                                                                       Placeholder="http://"
                                                                        Keyboard="Url"
                                                                        FontSize="13"/>
                                                         </VerticalStackLayout>
