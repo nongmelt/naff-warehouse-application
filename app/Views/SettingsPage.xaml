@@ -4,394 +4,513 @@
              x:Class="app.Views.SettingsPage"
              Shell.NavBarIsVisible="False">
 
-    <ContentPage.Resources>
-        <ResourceDictionary>
-            <Style x:Key="NavOutlineButton"
-                    TargetType="Button">
-                <Setter Property="BackgroundColor"
-                        Value="Transparent"/>
-                <Setter Property="TextColor"
-                        Value="White"/>
-                <Setter Property="BorderColor"
-                        Value="White"/>
-                <Setter Property="BorderWidth"
-                        Value="1"/>
-                <Setter Property="FontSize"
-                        Value="12"/>
-                <Setter Property="Padding"
-                        Value="14,6"/>
-                <Setter Property="CornerRadius"
-                        Value="6"/>
-                <Setter Property="VisualStateManager.VisualStateGroups">
-                    <VisualStateGroupList>
-                        <VisualStateGroup x:Name="CommonStates">
-                            <VisualState x:Name="Normal">
-                                <VisualState.Setters>
-                                    <Setter Property="BackgroundColor"
-                                            Value="Transparent"/>
-                                    <Setter Property="TextColor"
-                                            Value="White"/>
-                                    <Setter Property="BorderColor"
-                                            Value="White"/>
-                                    <Setter Property="BorderWidth"
-                                            Value="1"/>
-                                    <Setter Property="Opacity"
-                                            Value="1"/>
-                                </VisualState.Setters>
-                            </VisualState>
-                            <VisualState x:Name="PointerOver">
-                                <VisualState.Setters>
-                                    <Setter Property="BackgroundColor"
-                                            Value="White"/>
-                                    <Setter Property="TextColor"
-                                            Value="{StaticResource Primary}"/>
-                                    <Setter Property="BorderColor"
-                                            Value="White"/>
-                                    <Setter Property="BorderWidth"
-                                            Value="1"/>
-                                    <Setter Property="Opacity"
-                                            Value="1"/>
-                                </VisualState.Setters>
-                            </VisualState>
-                            <VisualState x:Name="Pressed">
-                                <VisualState.Setters>
-                                    <Setter Property="BackgroundColor"
-                                            Value="#e0e7ff"/>
-                                    <Setter Property="TextColor"
-                                            Value="{StaticResource Primary}"/>
-                                    <Setter Property="BorderColor"
-                                            Value="White"/>
-                                    <Setter Property="Opacity"
-                                            Value="0.85"/>
-                                </VisualState.Setters>
-                            </VisualState>
-                            <VisualState x:Name="Disabled">
-                                <VisualState.Setters>
-                                    <Setter Property="Opacity"
-                                            Value="0.35"/>
-                                </VisualState.Setters>
-                            </VisualState>
-                        </VisualStateGroup>
-                    </VisualStateGroupList>
-                </Setter>
-            </Style>
+        <ContentPage.Resources>
+                <ResourceDictionary>
+                        <Style x:Key="NavOutlineButton"
+                               TargetType="Button">
+                                <Setter Property="BackgroundColor"
+                                        Value="Transparent"/>
+                                <Setter Property="TextColor"
+                                        Value="White"/>
+                                <Setter Property="BorderColor"
+                                        Value="White"/>
+                                <Setter Property="BorderWidth"
+                                        Value="1"/>
+                                <Setter Property="FontSize"
+                                        Value="12"/>
+                                <Setter Property="Padding"
+                                        Value="14,6"/>
+                                <Setter Property="CornerRadius"
+                                        Value="6"/>
+                                <Setter Property="VisualStateManager.VisualStateGroups">
+                                        <VisualStateGroupList>
+                                                <VisualStateGroup x:Name="CommonStates">
+                                                        <VisualState x:Name="Normal">
+                                                                <VisualState.Setters>
+                                                                        <Setter Property="BackgroundColor"
+                                                                                Value="Transparent"/>
+                                                                        <Setter Property="TextColor"
+                                                                                Value="White"/>
+                                                                        <Setter Property="BorderColor"
+                                                                                Value="White"/>
+                                                                        <Setter Property="BorderWidth"
+                                                                                Value="1"/>
+                                                                        <Setter Property="Opacity"
+                                                                                Value="1"/>
+                                                                </VisualState.Setters>
+                                                        </VisualState>
+                                                        <VisualState x:Name="PointerOver">
+                                                                <VisualState.Setters>
+                                                                        <Setter Property="BackgroundColor"
+                                                                                Value="White"/>
+                                                                        <Setter Property="TextColor"
+                                                                                Value="{StaticResource Primary}"/>
+                                                                        <Setter Property="BorderColor"
+                                                                                Value="White"/>
+                                                                        <Setter Property="BorderWidth"
+                                                                                Value="1"/>
+                                                                        <Setter Property="Opacity"
+                                                                                Value="1"/>
+                                                                </VisualState.Setters>
+                                                        </VisualState>
+                                                        <VisualState x:Name="Pressed">
+                                                                <VisualState.Setters>
+                                                                        <Setter Property="BackgroundColor"
+                                                                                Value="#e0e7ff"/>
+                                                                        <Setter Property="TextColor"
+                                                                                Value="{StaticResource Primary}"/>
+                                                                        <Setter Property="BorderColor"
+                                                                                Value="White"/>
+                                                                        <Setter Property="Opacity"
+                                                                                Value="0.85"/>
+                                                                </VisualState.Setters>
+                                                        </VisualState>
+                                                        <VisualState x:Name="Disabled">
+                                                                <VisualState.Setters>
+                                                                        <Setter Property="Opacity"
+                                                                                Value="0.35"/>
+                                                                </VisualState.Setters>
+                                                        </VisualState>
+                                                </VisualStateGroup>
+                                        </VisualStateGroupList>
+                                </Setter>
+                        </Style>
 
-            <!-- Primary-fill button that turns white on hover, stable size -->
-            <Style x:Key="PrimaryActionButton"
-                    TargetType="Button">
-                <Setter Property="BackgroundColor"
-                        Value="{StaticResource Primary}"/>
-                <Setter Property="TextColor"
-                        Value="White"/>
-                <Setter Property="BorderColor"
-                        Value="{StaticResource Primary}"/>
-                <Setter Property="BorderWidth"
-                        Value="1"/>
-                <Setter Property="CornerRadius"
-                        Value="8"/>
-                <Setter Property="FontSize"
-                        Value="14"/>
-                <Setter Property="Padding"
-                        Value="24,12"/>
-                <Setter Property="VisualStateManager.VisualStateGroups">
-                    <VisualStateGroupList>
-                        <VisualStateGroup x:Name="CommonStates">
-                            <VisualState x:Name="Normal">
-                                <VisualState.Setters>
-                                    <Setter Property="BackgroundColor"
-                                            Value="{StaticResource Primary}"/>
-                                    <Setter Property="TextColor"
-                                            Value="White"/>
-                                    <Setter Property="BorderColor"
-                                            Value="{StaticResource Primary}"/>
-                                    <Setter Property="BorderWidth"
-                                            Value="1"/>
-                                    <Setter Property="Opacity"
-                                            Value="1"/>
-                                </VisualState.Setters>
-                            </VisualState>
-                            <VisualState x:Name="PointerOver">
-                                <VisualState.Setters>
-                                    <Setter Property="BackgroundColor"
-                                            Value="White"/>
-                                    <Setter Property="TextColor"
-                                            Value="{StaticResource Primary}"/>
-                                    <Setter Property="BorderColor"
-                                            Value="{StaticResource Primary}"/>
-                                    <Setter Property="BorderWidth"
-                                            Value="1"/>
-                                    <Setter Property="Opacity"
-                                            Value="1"/>
-                                </VisualState.Setters>
-                            </VisualState>
-                            <VisualState x:Name="Pressed">
-                                <VisualState.Setters>
-                                    <Setter Property="BackgroundColor"
-                                            Value="#e0e7ff"/>
-                                    <Setter Property="TextColor"
-                                            Value="{StaticResource Primary}"/>
-                                    <Setter Property="BorderColor"
-                                            Value="{StaticResource Primary}"/>
-                                    <Setter Property="Opacity"
-                                            Value="0.85"/>
-                                </VisualState.Setters>
-                            </VisualState>
-                            <VisualState x:Name="Disabled">
-                                <VisualState.Setters>
-                                    <Setter Property="Opacity"
-                                            Value="0.35"/>
-                                </VisualState.Setters>
-                            </VisualState>
-                        </VisualStateGroup>
-                    </VisualStateGroupList>
-                </Setter>
-            </Style>
-        </ResourceDictionary>
-    </ContentPage.Resources>
+                        <!-- Primary-fill button that turns white on hover, stable size -->
+                        <Style x:Key="PrimaryActionButton"
+                               TargetType="Button">
+                                <Setter Property="BackgroundColor"
+                                        Value="{StaticResource Primary}"/>
+                                <Setter Property="TextColor"
+                                        Value="White"/>
+                                <Setter Property="BorderColor"
+                                        Value="{StaticResource Primary}"/>
+                                <Setter Property="BorderWidth"
+                                        Value="1"/>
+                                <Setter Property="CornerRadius"
+                                        Value="8"/>
+                                <Setter Property="FontSize"
+                                        Value="14"/>
+                                <Setter Property="Padding"
+                                        Value="24,12"/>
+                                <Setter Property="VisualStateManager.VisualStateGroups">
+                                        <VisualStateGroupList>
+                                                <VisualStateGroup x:Name="CommonStates">
+                                                        <VisualState x:Name="Normal">
+                                                                <VisualState.Setters>
+                                                                        <Setter Property="BackgroundColor"
+                                                                                Value="{StaticResource Primary}"/>
+                                                                        <Setter Property="TextColor"
+                                                                                Value="White"/>
+                                                                        <Setter Property="BorderColor"
+                                                                                Value="{StaticResource Primary}"/>
+                                                                        <Setter Property="BorderWidth"
+                                                                                Value="1"/>
+                                                                        <Setter Property="Opacity"
+                                                                                Value="1"/>
+                                                                </VisualState.Setters>
+                                                        </VisualState>
+                                                        <VisualState x:Name="PointerOver">
+                                                                <VisualState.Setters>
+                                                                        <Setter Property="BackgroundColor"
+                                                                                Value="White"/>
+                                                                        <Setter Property="TextColor"
+                                                                                Value="{StaticResource Primary}"/>
+                                                                        <Setter Property="BorderColor"
+                                                                                Value="{StaticResource Primary}"/>
+                                                                        <Setter Property="BorderWidth"
+                                                                                Value="1"/>
+                                                                        <Setter Property="Opacity"
+                                                                                Value="1"/>
+                                                                </VisualState.Setters>
+                                                        </VisualState>
+                                                        <VisualState x:Name="Pressed">
+                                                                <VisualState.Setters>
+                                                                        <Setter Property="BackgroundColor"
+                                                                                Value="#e0e7ff"/>
+                                                                        <Setter Property="TextColor"
+                                                                                Value="{StaticResource Primary}"/>
+                                                                        <Setter Property="BorderColor"
+                                                                                Value="{StaticResource Primary}"/>
+                                                                        <Setter Property="Opacity"
+                                                                                Value="0.85"/>
+                                                                </VisualState.Setters>
+                                                        </VisualState>
+                                                        <VisualState x:Name="Disabled">
+                                                                <VisualState.Setters>
+                                                                        <Setter Property="Opacity"
+                                                                                Value="0.35"/>
+                                                                </VisualState.Setters>
+                                                        </VisualState>
+                                                </VisualStateGroup>
+                                        </VisualStateGroupList>
+                                </Setter>
+                        </Style>
+                </ResourceDictionary>
+        </ContentPage.Resources>
 
-    <Grid RowDefinitions="Auto, *">
+        <Grid RowDefinitions="Auto, *">
 
-        <!-- Header -->
-        <Grid Grid.Row="0"
-              BackgroundColor="{StaticResource Primary}"
-              Padding="16,10">
-            <Label Text="Settings"
-                   TextColor="White"
-                   FontSize="20"
-                   FontAttributes="Bold"
-                   VerticalOptions="Center"/>
-            <Button Text="✕ Close"
-                    Clicked="OnCancel"
-                    Style="{StaticResource NavOutlineButton}"
-                    HorizontalOptions="End"/>
-        </Grid>
-
-        <!-- Sidebar + Content — 3 cols: sidebar | 1px divider | content -->
-        <Grid Grid.Row="1"
-                ColumnDefinitions="200, 1, *"
-                ColumnSpacing="0">
-
-            <!-- Sidebar -->
-            <VerticalStackLayout Grid.Column="0"
-                    BackgroundColor="White"
-                    Spacing="0">
-
-                <!-- GENERAL -->
-                <Label Text="GENERAL"
-                       FontSize="10"
-                       FontAttributes="Bold"
-                       TextColor="#9ca3af"
-                       Margin="16,20,16,4"/>
-
-                <Border x:Name="NavGeneralBorder"
-                        BackgroundColor="#eff6ff"
-                        Stroke="Transparent"
-                        StrokeShape="RoundRectangle 6"
-                        Padding="12,9"
-                        Margin="8,2">
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnNavGeneral"/>
-                    </Border.GestureRecognizers>
-                    <Label x:Name="NavGeneralLabel"
-                           Text="General"
-                           FontSize="13"
-                           FontAttributes="Bold"
-                           TextColor="#2563eb"/>
-                </Border>
-
-                <!-- BACKEND -->
-                <Label Text="BACKEND"
-                       FontSize="10"
-                       FontAttributes="Bold"
-                       TextColor="#9ca3af"
-                       Margin="16,20,16,4"/>
-
-                <Border x:Name="NavApiBorder"
-                        BackgroundColor="Transparent"
-                        Stroke="Transparent"
-                        StrokeShape="RoundRectangle 6"
-                        Padding="12,9"
-                        Margin="8,2">
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnNavApi"/>
-                    </Border.GestureRecognizers>
-                    <Label x:Name="NavApiLabel"
-                           Text="Backend API"
-                           FontSize="13"
-                           TextColor="#374151"/>
-                </Border>
-
-            </VerticalStackLayout>
-
-            <!-- Divider -->
-            <BoxView Grid.Column="1"
-                    BackgroundColor="#e5e7eb"/>
-
-            <!-- Content area — single ScrollView; panels are sequential (no overlay) -->
-            <ScrollView Grid.Column="2"
-                        BackgroundColor="#f3f4f6">
-                <VerticalStackLayout>
-
-                    <!-- ── General Panel ── -->
-                    <VerticalStackLayout x:Name="PanelGeneral"
-                                         IsVisible="True"
-                                         Padding="28,24"
-                                         Spacing="20">
-
-                        <Label Text="General"
-                               FontSize="18"
+                <!-- Header -->
+                <Grid Grid.Row="0"
+                      BackgroundColor="{StaticResource Primary}"
+                      Padding="16,10">
+                        <Label Text="Settings"
+                               TextColor="White"
+                               FontSize="20"
                                FontAttributes="Bold"
-                               TextColor="#111827"
-                               Margin="0,0,0,4"/>
-
-                        <!-- Video Folder -->
-                        <Border Stroke="#d1d5db"
-                                StrokeThickness="1"
-                                StrokeShape="RoundRectangle 8"
-                                BackgroundColor="White"
-                                Padding="16">
-                            <VerticalStackLayout Spacing="8">
-                                <Label Text="Video Destination Folder"
-                                       FontAttributes="Bold"
-                                       FontSize="14"
-                                       TextColor="#111827"/>
-                                <Label Text="Recordings are saved into a date-stamped sub-folder inside this directory."
-                                       FontSize="12"
-                                       TextColor="#6b7280"/>
-                                <Grid ColumnDefinitions="*, Auto"
-                                      ColumnSpacing="8">
-                                    <Entry x:Name="VideoFolderEntry"
-                                           Grid.Column="0"
-                                           Placeholder="e.g. C:\Users\Videos"
-                                           FontSize="13"
-                                           VerticalOptions="Center"/>
-                                    <Button Grid.Column="1"
-                                            Text="Browse…"
-                                            Clicked="OnBrowseFolder"
-                                            WidthRequest="90"
-                                            FontSize="13"
-                                            Padding="0,8"
-                                            CornerRadius="6"/>
-                                </Grid>
-                            </VerticalStackLayout>
-                        </Border>
-
-                        <!-- Webhook URL -->
-                        <Border Stroke="#d1d5db"
-                                StrokeThickness="1"
-                                StrokeShape="RoundRectangle 8"
-                                BackgroundColor="White"
-                                Padding="16">
-                            <VerticalStackLayout Spacing="8">
-                                <Label Text="n8n Webhook URL"
-                                       FontAttributes="Bold"
-                                       FontSize="14"
-                                       TextColor="#111827"/>
-                                <Label Text="The full webhook URL that receives barcode and video file notifications."
-                                       FontSize="12"
-                                       TextColor="#6b7280"/>
-                                <Entry x:Name="WebhookUrlEntry"
-                                       Placeholder="http://localhost:5678/webhook-test/..."
-                                       FontSize="13"
-                                       Keyboard="Url"/>
-                            </VerticalStackLayout>
-                        </Border>
-
-                        <!-- Save row -->
-                        <Grid ColumnDefinitions="*, Auto">
-                            <Label x:Name="GeneralSavedLabel"
-                                   Grid.Column="0"
-                                   Text="✓ Saved"
-                                   TextColor="#16a34a"
-                                   FontSize="13"
-                                   IsVisible="False"
-                                   VerticalOptions="Center"/>
-                            <Button Grid.Column="1"
-                                    Text="Save"
-                                    Clicked="OnSaveGeneral"
-                                    Style="{StaticResource PrimaryActionButton}"/>
-                        </Grid>
-
-                    </VerticalStackLayout>
-
-                    <!-- ── Backend API Panel ── -->
-                    <VerticalStackLayout x:Name="PanelApi"
-                                         IsVisible="False"
-                                         Padding="28,24"
-                                         Spacing="16">
-
-                        <Label Text="Backend API"
-                               FontSize="18"
-                               FontAttributes="Bold"
-                               TextColor="#111827"
-                               Margin="0,0,0,4"/>
-
-                        <!-- Notification card -->
-                        <Border x:Name="NotificationCard"
-                                IsVisible="False"
-                                StrokeThickness="1"
-                                StrokeShape="RoundRectangle 8"
-                                Padding="16,14">
-                            <Grid ColumnDefinitions="*, Auto"
-                                  ColumnSpacing="12">
-                                <Label x:Name="NotificationMessageLabel"
-                                       Grid.Column="0"
-                                       FontSize="13"
-                                       FontAttributes="Bold"
-                                       VerticalOptions="Center"/>
-                                <Button x:Name="RetryButton"
-                                        Grid.Column="1"
-                                        Text="Retry"
-                                        Clicked="OnRetryConnection"
-                                        FontSize="11"
-                                        CornerRadius="6"
-                                        Padding="14,4"
-                                        BorderWidth="1"
-                                        VerticalOptions="Center">
-                                    <Button.GestureRecognizers>
-                                        <PointerGestureRecognizer
-                                            PointerEntered="OnRetryButtonEntered"
-                                            PointerExited="OnRetryButtonExited"/>
-                                    </Button.GestureRecognizers>
-                                </Button>
-                            </Grid>
-                        </Border>
-
-                        <!-- API URL card -->
-                        <Border Stroke="#d1d5db"
-                                StrokeThickness="1"
-                                StrokeShape="RoundRectangle 8"
-                                BackgroundColor="White"
-                                Padding="24">
-                            <VerticalStackLayout Spacing="12">
-                                <Label Text="API URL"
-                                       FontAttributes="Bold"
-                                       FontSize="15"
-                                       TextColor="#111827"/>
-                                <Label Text="Base URL of the backend service. The desktop app sends all database requests here instead of connecting to PostgreSQL directly."
-                                       FontSize="12"
-                                       TextColor="#6b7280"/>
-                                <Entry x:Name="ApiUrlEntry"
-                                       Placeholder="http://localhost:8080"
-                                       Keyboard="Url"
-                                       FontSize="13"
-                                       VerticalOptions="Center"/>
-                            </VerticalStackLayout>
-                        </Border>
-
-                        <!-- Save button -->
-                        <Button Text="Save &amp; Test"
-                                Clicked="OnSaveApi"
-                                Style="{StaticResource PrimaryActionButton}"
+                               VerticalOptions="Center"/>
+                        <Button Text="✕ Close"
+                                Clicked="OnCancel"
+                                Style="{StaticResource NavOutlineButton}"
                                 HorizontalOptions="End"/>
+                </Grid>
 
-                    </VerticalStackLayout>
+                <!-- Sidebar + Content — 3 cols: sidebar | 1px divider | content -->
+                <Grid Grid.Row="1"
+                      ColumnDefinitions="200, 1, *"
+                      ColumnSpacing="0">
 
-                </VerticalStackLayout>
-            </ScrollView>
+                        <!-- Sidebar -->
+                        <VerticalStackLayout Grid.Column="0"
+                                             BackgroundColor="White"
+                                             Spacing="0">
+
+                                <!-- GENERAL -->
+                                <Label Text="GENERAL"
+                                       FontSize="10"
+                                       FontAttributes="Bold"
+                                       TextColor="#9ca3af"
+                                       Margin="16,20,16,4"/>
+
+                                <Border x:Name="NavGeneralBorder"
+                                        BackgroundColor="#eff6ff"
+                                        Stroke="Transparent"
+                                        StrokeShape="RoundRectangle 6"
+                                        Padding="12,9"
+                                        Margin="8,2">
+                                        <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnNavGeneral"/>
+                                        </Border.GestureRecognizers>
+                                        <Label x:Name="NavGeneralLabel"
+                                               Text="General"
+                                               FontSize="13"
+                                               FontAttributes="Bold"
+                                               TextColor="#2563eb"/>
+                                </Border>
+
+                                <!-- BACKEND -->
+                                <Label Text="BACKEND"
+                                       FontSize="10"
+                                       FontAttributes="Bold"
+                                       TextColor="#9ca3af"
+                                       Margin="16,20,16,4"/>
+
+                                <Border x:Name="NavApiBorder"
+                                        BackgroundColor="Transparent"
+                                        Stroke="Transparent"
+                                        StrokeShape="RoundRectangle 6"
+                                        Padding="12,9"
+                                        Margin="8,2">
+                                        <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnNavApi"/>
+                                        </Border.GestureRecognizers>
+                                        <Label x:Name="NavApiLabel"
+                                               Text="Backend API"
+                                               FontSize="13"
+                                               TextColor="#374151"/>
+                                </Border>
+
+                                <!-- SYNC -->
+                                <Label Text="Video Storage"
+                                       FontSize="10"
+                                       FontAttributes="Bold"
+                                       TextColor="#9ca3af"
+                                       Margin="16,20,16,4"/>
+
+                                <Border x:Name="NavMinioBorder"
+                                        BackgroundColor="Transparent"
+                                        Stroke="Transparent"
+                                        StrokeShape="RoundRectangle 6"
+                                        Padding="12,9"
+                                        Margin="8,2">
+                                        <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnNavMinio"/>
+                                        </Border.GestureRecognizers>
+                                        <Label x:Name="NavMinioLabel"
+                                               Text="MinIO Sync"
+                                               FontSize="13"
+                                               TextColor="#374151"/>
+                                </Border>
+
+                        </VerticalStackLayout>
+
+                        <!-- Divider -->
+                        <BoxView Grid.Column="1"
+                                 BackgroundColor="#e5e7eb"/>
+
+                        <!-- Content area — single ScrollView; panels are sequential (no overlay) -->
+                        <ScrollView Grid.Column="2"
+                                    BackgroundColor="#f3f4f6">
+                                <VerticalStackLayout>
+
+                                        <!-- ── General Panel ── -->
+                                        <VerticalStackLayout x:Name="PanelGeneral"
+                                                             IsVisible="True"
+                                                             Padding="28,24"
+                                                             Spacing="20">
+
+                                                <Label Text="General"
+                                                       FontSize="18"
+                                                       FontAttributes="Bold"
+                                                       TextColor="#111827"
+                                                       Margin="0,0,0,4"/>
+
+                                                <!-- Video Folder -->
+                                                <Border Stroke="#d1d5db"
+                                                        StrokeThickness="1"
+                                                        StrokeShape="RoundRectangle 8"
+                                                        BackgroundColor="White"
+                                                        Padding="16">
+                                                        <VerticalStackLayout Spacing="8">
+                                                                <Label Text="Video Destination Folder"
+                                                                       FontAttributes="Bold"
+                                                                       FontSize="14"
+                                                                       TextColor="#111827"/>
+                                                                <Label Text="Recordings are saved into a date-stamped sub-folder inside this directory."
+                                                                       FontSize="12"
+                                                                       TextColor="#6b7280"/>
+                                                                <Grid ColumnDefinitions="*, Auto"
+                                                                      ColumnSpacing="8">
+                                                                        <Entry x:Name="VideoFolderEntry"
+                                                                               Grid.Column="0"
+                                                                               Placeholder="e.g. C:\Users\Videos"
+                                                                               FontSize="13"
+                                                                               VerticalOptions="Center"/>
+                                                                        <Button Grid.Column="1"
+                                                                                Text="Browse…"
+                                                                                Clicked="OnBrowseFolder"
+                                                                                WidthRequest="90"
+                                                                                FontSize="13"
+                                                                                Padding="0,8"
+                                                                                CornerRadius="6"/>
+                                                                </Grid>
+                                                        </VerticalStackLayout>
+                                                </Border>
+
+                                                <!-- Webhook URL -->
+                                                <Border Stroke="#d1d5db"
+                                                        StrokeThickness="1"
+                                                        StrokeShape="RoundRectangle 8"
+                                                        BackgroundColor="White"
+                                                        Padding="16">
+                                                        <VerticalStackLayout Spacing="8">
+                                                                <Label Text="n8n Webhook URL"
+                                                                       FontAttributes="Bold"
+                                                                       FontSize="14"
+                                                                       TextColor="#111827"/>
+                                                                <Label Text="The full webhook URL that receives barcode and video file notifications."
+                                                                       FontSize="12"
+                                                                       TextColor="#6b7280"/>
+                                                                <Entry x:Name="WebhookUrlEntry"
+                                                                       Placeholder="http://localhost:5678/webhook-test/..."
+                                                                       FontSize="13"
+                                                                       Keyboard="Url"/>
+                                                        </VerticalStackLayout>
+                                                </Border>
+
+                                                <!-- Save row -->
+                                                <Grid ColumnDefinitions="*, Auto">
+                                                        <Label x:Name="GeneralSavedLabel"
+                                                               Grid.Column="0"
+                                                               Text="✓ Saved"
+                                                               TextColor="#16a34a"
+                                                               FontSize="13"
+                                                               IsVisible="False"
+                                                               VerticalOptions="Center"/>
+                                                        <Button Grid.Column="1"
+                                                                Text="Save"
+                                                                Clicked="OnSaveGeneral"
+                                                                Style="{StaticResource PrimaryActionButton}"/>
+                                                </Grid>
+
+                                        </VerticalStackLayout>
+
+                                        <!-- ── Backend API Panel ── -->
+                                        <VerticalStackLayout x:Name="PanelApi"
+                                                             IsVisible="False"
+                                                             Padding="28,24"
+                                                             Spacing="16">
+
+                                                <Label Text="Backend API"
+                                                       FontSize="18"
+                                                       FontAttributes="Bold"
+                                                       TextColor="#111827"
+                                                       Margin="0,0,0,4"/>
+
+                                                <!-- Notification card -->
+                                                <Border x:Name="NotificationCard"
+                                                        IsVisible="False"
+                                                        StrokeThickness="1"
+                                                        StrokeShape="RoundRectangle 8"
+                                                        Padding="16,14">
+                                                        <Grid ColumnDefinitions="*, Auto"
+                                                              ColumnSpacing="12">
+                                                                <Label x:Name="NotificationMessageLabel"
+                                                                       Grid.Column="0"
+                                                                       FontSize="13"
+                                                                       FontAttributes="Bold"
+                                                                       VerticalOptions="Center"/>
+                                                                <Button x:Name="RetryButton"
+                                                                        Grid.Column="1"
+                                                                        Text="Retry"
+                                                                        Clicked="OnRetryConnection"
+                                                                        FontSize="11"
+                                                                        CornerRadius="6"
+                                                                        Padding="14,4"
+                                                                        BorderWidth="1"
+                                                                        VerticalOptions="Center">
+                                                                        <Button.GestureRecognizers>
+                                                                                <PointerGestureRecognizer
+                                                                                        PointerEntered="OnRetryButtonEntered"
+                                                                                        PointerExited="OnRetryButtonExited"/>
+                                                                        </Button.GestureRecognizers>
+                                                                </Button>
+                                                        </Grid>
+                                                </Border>
+
+                                                <!-- API URL card -->
+                                                <Border Stroke="#d1d5db"
+                                                        StrokeThickness="1"
+                                                        StrokeShape="RoundRectangle 8"
+                                                        BackgroundColor="White"
+                                                        Padding="24">
+                                                        <VerticalStackLayout Spacing="12">
+                                                                <Label Text="API URL"
+                                                                       FontAttributes="Bold"
+                                                                       FontSize="15"
+                                                                       TextColor="#111827"/>
+                                                                <Label Text="Base URL of the backend service. The desktop app sends all database requests here instead of connecting to PostgreSQL directly."
+                                                                       FontSize="12"
+                                                                       TextColor="#6b7280"/>
+                                                                <Entry x:Name="ApiUrlEntry"
+                                                                       Placeholder="http://localhost:8080"
+                                                                       Keyboard="Url"
+                                                                       FontSize="13"
+                                                                       VerticalOptions="Center"/>
+                                                        </VerticalStackLayout>
+                                                </Border>
+
+                                                <!-- Save button -->
+                                                <Button Text="Save &amp; Test"
+                                                        Clicked="OnSaveApi"
+                                                        Style="{StaticResource PrimaryActionButton}"
+                                                        HorizontalOptions="End"/>
+
+                                        </VerticalStackLayout>
+
+                                        <!-- ── MinIO Sync Panel ── -->
+                                        <VerticalStackLayout x:Name="PanelMinio"
+                                                             IsVisible="False"
+                                                             Padding="28,24"
+                                                             Spacing="20">
+
+                                                <Label Text="MinIO Sync"
+                                                       FontSize="18"
+                                                       FontAttributes="Bold"
+                                                       TextColor="#111827"
+                                                       Margin="0,0,0,4"/>
+
+                                                <!-- PC Name -->
+                                                <Border Stroke="#d1d5db"
+                                                        StrokeThickness="1"
+                                                        StrokeShape="RoundRectangle 8"
+                                                        BackgroundColor="White"
+                                                        Padding="16">
+                                                        <VerticalStackLayout Spacing="8">
+                                                                <Label Text="PC Name"
+                                                                       FontAttributes="Bold"
+                                                                       FontSize="14"
+                                                                       TextColor="#111827"/>
+                                                                <Label Text="Identifies this station as the upload source folder in MinIO and in log file names."
+                                                                       FontSize="12"
+                                                                       TextColor="#6b7280"/>
+                                                                <Entry x:Name="MinioPcNameEntry"
+                                                                       FontSize="13"/>
+                                                        </VerticalStackLayout>
+                                                </Border>
+
+                                                <!-- Bucket + Endpoint -->
+                                                <Border Stroke="#d1d5db"
+                                                        StrokeThickness="1"
+                                                        StrokeShape="RoundRectangle 8"
+                                                        BackgroundColor="White"
+                                                        Padding="16">
+                                                        <VerticalStackLayout Spacing="12">
+                                                                <Label Text="Bucket"
+                                                                       FontAttributes="Bold"
+                                                                       FontSize="14"
+                                                                       TextColor="#111827"/>
+                                                                <Entry x:Name="MinioBucketEntry"
+                                                                       Placeholder="e.g. packing-korat"
+                                                                       FontSize="13"/>
+                                                                <Label Text="Endpoint URL"
+                                                                       FontAttributes="Bold"
+                                                                       FontSize="14"
+                                                                       TextColor="#111827"/>
+                                                                <Entry x:Name="MinioEndpointEntry"
+                                                                       Placeholder="http://192.168.1.191:9000"
+                                                                       Keyboard="Url"
+                                                                       FontSize="13"/>
+                                                        </VerticalStackLayout>
+                                                </Border>
+
+                                                <!-- Credentials -->
+                                                <Border Stroke="#d1d5db"
+                                                        StrokeThickness="1"
+                                                        StrokeShape="RoundRectangle 8"
+                                                        BackgroundColor="White"
+                                                        Padding="16">
+                                                        <VerticalStackLayout Spacing="12">
+                                                                <Label Text="Credentials"
+                                                                       FontAttributes="Bold"
+                                                                       FontSize="14"
+                                                                       TextColor="#111827"/>
+                                                                <Label Text="Access Key ID"
+                                                                       FontSize="12"
+                                                                       TextColor="#6b7280"/>
+                                                                <Entry x:Name="MinioAccessKeyEntry"
+                                                                       FontSize="13"/>
+                                                                <Label Text="Secret Access Key"
+                                                                       FontSize="12"
+                                                                       TextColor="#6b7280"/>
+                                                                <Entry x:Name="MinioSecretKeyEntry"
+                                                                       FontSize="13"
+                                                                       IsPassword="True"/>
+                                                        </VerticalStackLayout>
+                                                </Border>
+
+                                                <!-- Save row -->
+                                                <Grid ColumnDefinitions="*, Auto">
+                                                        <Label x:Name="MinioSavedLabel"
+                                                               Grid.Column="0"
+                                                               TextColor="#16a34a"
+                                                               FontSize="13"
+                                                               IsVisible="False"
+                                                               VerticalOptions="Center"/>
+                                                        <Button Grid.Column="1"
+                                                                Text="Save"
+                                                                Clicked="OnSaveMinio"
+                                                                Style="{StaticResource PrimaryActionButton}"/>
+                                                </Grid>
+
+                                        </VerticalStackLayout>
+
+                                </VerticalStackLayout>
+                        </ScrollView>
+
+                </Grid>
 
         </Grid>
-
-    </Grid>
 
 </ContentPage>

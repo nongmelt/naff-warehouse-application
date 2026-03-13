@@ -20,9 +20,14 @@ public partial class SettingsPage : ContentPage
     protected override void OnAppearing()
     {
         base.OnAppearing();
-        VideoFolderEntry.Text = AppSettings.VideoFolder;
-        WebhookUrlEntry.Text  = AppSettings.WebhookUrl;
-        ApiUrlEntry.Text      = AppSettings.ApiUrl;
+        VideoFolderEntry.Text    = AppSettings.VideoFolder;
+        WebhookUrlEntry.Text     = AppSettings.WebhookUrl;
+        ApiUrlEntry.Text         = AppSettings.ApiUrl;
+        MinioPcNameEntry.Text    = AppSettings.MinioPcName;
+        MinioBucketEntry.Text    = AppSettings.MinioBucket;
+        MinioEndpointEntry.Text  = AppSettings.MinioEndpoint;
+        MinioAccessKeyEntry.Text = AppSettings.MinioAccessKey;
+        MinioSecretKeyEntry.Text = AppSettings.MinioSecretKey;
     }
 
     // ── Navigation ───────────────────────────────────────────────────────────
@@ -34,13 +39,16 @@ public partial class SettingsPage : ContentPage
 
     private void OnNavGeneral(object sender, TappedEventArgs e) => ShowPanel("general");
     private void OnNavApi(object sender, TappedEventArgs e)     => ShowPanel("api");
+    private void OnNavMinio(object sender, TappedEventArgs e)   => ShowPanel("minio");
 
     private void ShowPanel(string panel)
     {
         PanelGeneral.IsVisible = panel == "general";
         PanelApi.IsVisible     = panel == "api";
+        PanelMinio.IsVisible   = panel == "minio";
         SetNavActive(NavGeneralBorder, NavGeneralLabel, panel == "general");
         SetNavActive(NavApiBorder,     NavApiLabel,     panel == "api");
+        SetNavActive(NavMinioBorder,   NavMinioLabel,   panel == "minio");
     }
 
     private static void SetNavActive(Border border, Label label, bool active)
@@ -66,6 +74,34 @@ public partial class SettingsPage : ContentPage
         Logger.Log($"Settings saved — VideoFolder: {AppSettings.VideoFolder}, WebhookUrl: {AppSettings.WebhookUrl}");
         GeneralSavedLabel.IsVisible = true;
         Dispatcher.DispatchDelayed(TimeSpan.FromSeconds(3), () => GeneralSavedLabel.IsVisible = false);
+    }
+
+    // ── MinIO Sync ────────────────────────────────────────────────────────────
+
+    private void OnSaveMinio(object sender, EventArgs e)
+    {
+        AppSettings.MinioPcName    = MinioPcNameEntry.Text?.Trim()    ?? string.Empty;
+        AppSettings.MinioBucket    = MinioBucketEntry.Text?.Trim()    ?? string.Empty;
+        AppSettings.MinioEndpoint  = MinioEndpointEntry.Text?.Trim()  ?? string.Empty;
+        AppSettings.MinioAccessKey = MinioAccessKeyEntry.Text?.Trim() ?? string.Empty;
+        AppSettings.MinioSecretKey = MinioSecretKeyEntry.Text?.Trim() ?? string.Empty;
+
+        string statusText;
+        try
+        {
+            ScriptService.RegenerateScripts();
+            Logger.Log("MinIO settings saved and scripts regenerated.");
+            statusText = "✓ Saved — scripts updated";
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ScriptService.RegenerateScripts failed: {ex.Message}");
+            statusText = "✓ Saved — script update failed (check logs)";
+        }
+
+        MinioSavedLabel.Text      = statusText;
+        MinioSavedLabel.IsVisible = true;
+        Dispatcher.DispatchDelayed(TimeSpan.FromSeconds(4), () => MinioSavedLabel.IsVisible = false);
     }
 
     // ── Backend API ───────────────────────────────────────────────────────────

@@ -11,6 +11,13 @@ public static class AppSettings
     private const string KeyApiUrl = "settings.api_url";
     private const string KeySeeded = "settings.seeded.v3";
 
+    private const string KeyMinioPcName   = "settings.minio.pc_name";
+    private const string KeyMinioBucket   = "settings.minio.bucket";
+    private const string KeyMinioAccess   = "settings.minio.access_key";
+    private const string KeyMinioSecret   = "settings.minio.secret_key";
+    private const string KeyMinioEndpoint = "settings.minio.endpoint";
+    private const string KeyMinioSeeded   = "settings.minio.seeded.v1";
+
     public static readonly string DefaultVideoFolder =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Warehouse");
 
@@ -63,6 +70,37 @@ public static class AppSettings
             // Mark seeded even on failure so we don't retry every launch
             Preferences.Default.Set(KeySeeded, true);
         }
+
+        // ── MinIO seeding (separate flag so existing installs pick up new fields) ──
+        if (!Preferences.Default.Get(KeyMinioSeeded, false))
+        {
+            try
+            {
+                var configPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+                if (File.Exists(configPath))
+                {
+                    var doc = JsonDocument.Parse(File.ReadAllText(configPath)).RootElement;
+                    if (doc.TryGetProperty("minio", out var minio))
+                    {
+                        SetFromJson(KeyMinioPcName,   minio, "pcName");
+                        SetFromJson(KeyMinioBucket,   minio, "bucket");
+                        SetFromJson(KeyMinioAccess,   minio, "accessKey");
+                        SetFromJson(KeyMinioSecret,   minio, "secretKey");
+                        SetFromJson(KeyMinioEndpoint, minio, "endpoint");
+                        Logger.Log("AppSettings: seeded MinIO settings from appsettings.json");
+                    }
+                }
+            }
+            catch (Exception ex) { Logger.Log($"AppSettings.InitializeMinio: {ex.Message}"); }
+            finally { Preferences.Default.Set(KeyMinioSeeded, true); }
+        }
+    }
+
+    private static void SetFromJson(string key, JsonElement parent, string property)
+    {
+        if (parent.TryGetProperty(property, out var val) &&
+            !string.IsNullOrWhiteSpace(val.GetString()))
+            Preferences.Default.Set(key, val.GetString()!);
     }
 
     // ── Settings ─────────────────────────────────────────────────────────────
@@ -83,5 +121,35 @@ public static class AppSettings
     {
         get => Preferences.Default.Get(KeyApiUrl, DefaultApiUrl);
         set => Preferences.Default.Set(KeyApiUrl, value);
+    }
+
+    public static string MinioPcName
+    {
+        get => Preferences.Default.Get(KeyMinioPcName, Environment.MachineName);
+        set => Preferences.Default.Set(KeyMinioPcName, value);
+    }
+
+    public static string MinioBucket
+    {
+        get => Preferences.Default.Get(KeyMinioBucket, string.Empty);
+        set => Preferences.Default.Set(KeyMinioBucket, value);
+    }
+
+    public static string MinioAccessKey
+    {
+        get => Preferences.Default.Get(KeyMinioAccess, string.Empty);
+        set => Preferences.Default.Set(KeyMinioAccess, value);
+    }
+
+    public static string MinioSecretKey
+    {
+        get => Preferences.Default.Get(KeyMinioSecret, string.Empty);
+        set => Preferences.Default.Set(KeyMinioSecret, value);
+    }
+
+    public static string MinioEndpoint
+    {
+        get => Preferences.Default.Get(KeyMinioEndpoint, string.Empty);
+        set => Preferences.Default.Set(KeyMinioEndpoint, value);
     }
 }
