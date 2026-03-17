@@ -2,6 +2,7 @@ using app.Services;
 using CommunityToolkit.Maui.Core;
 using CommunityToolkit.Maui.Views;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.IO.Ports;
 using System.Text.RegularExpressions;
 #if WINDOWS
@@ -24,6 +25,10 @@ public partial class StationView : ContentView, IDisposable
     private CancellationTokenSource? _recordingCts;
     private Task? _recordingTask;
     private Stream? _recordedStream;
+
+    // Diagnostics
+    private DateTime _recordingStartedAt;
+    private static readonly TimeSpan RecordingDurationWarnThreshold = TimeSpan.FromMinutes(5);
 
     // Serializes barcode events so rapid double-scans cannot interleave state
     private readonly SemaphoreSlim _barcodeLock = new(1, 1);
@@ -514,9 +519,17 @@ public partial class StationView : ContentView, IDisposable
     {
         try
         {
+            _recordingStartedAt = DateTime.UtcNow;
+            var memBefore = GC.GetTotalMemory(false);
+            Logger.Log($"Station {_stationId}: [DIAG] Memory before start: {memBefore / 1_048_576.0:F1} MB");
+
+            var sw = Stopwatch.StartNew();
             _recordingCts = new CancellationTokenSource();
             _recordingTask = CameraFeed.StartVideoRecording(_recordingCts.Token);
-            Logger.Log($"Station {_stationId}: Recording started for barcode {barcode}");
+            sw.Stop();
+
+            Logger.Log($"Station {_stationId}: Recording started for barcode {barcode} " +
+                       $"(StartVideoRecording call: {sw.ElapsedMilliseconds} ms)");
         }
         catch (Exception ex)
         {
@@ -526,15 +539,33 @@ public partial class StationView : ContentView, IDisposable
 
     private async Task<string?> StopRecordingAsync()
     {
-        // Capture the editable station name (backing field — no UI access needed).
         var stationName = SanitizeFileName(_stationName);
-
         try
         {
             if (_recordingTask == null) return null;
 
+            // Duration warning
+            var duration = DateTime.UtcNow - _recordingStartedAt;
+            if (duration > RecordingDurationWarnThreshold)
+                Logger.Log($"Station {_stationId}: [WARN] Long recording: " +
+                           $"{duration.TotalMinutes:F1} min — high RAM usage expected");
+
+            Logger.Log($"Station {_stationId}: [DIAG] Memory before StopVideoRecording: " +
+                       $"{GC.GetTotalMemory(false) / 1_048_576.0:F1} MB");
+
+            // Show UI feedback before the CPU-heavy encoding begins
+            UpdateStatus("⏳ Saving...");
+            await MainThread.InvokeOnMainThreadAsync(() => SavingOverlay.IsVisible = true);
+
+            // Phase 1: Encoding (most likely freeze source)
+            var swStop = Stopwatch.StartNew();
             _recordedStream = await CameraFeed.StopVideoRecording(CancellationToken.None);
             await _recordingTask;
+            swStop.Stop();
+
+            var streamMb = _recordedStream?.Length / 1_048_576.0 ?? 0;
+            Logger.Log($"Station {_stationId}: [DIAG] StopVideoRecording: {swStop.ElapsedMilliseconds} ms | " +
+                       $"Stream: {streamMb:F1} MB | Memory: {GC.GetTotalMemory(false) / 1_048_576.0:F1} MB");
 
             if (_recordedStream == null || _recordedStream.Length == 0)
                 throw new Exception("Recorded stream is empty");
@@ -542,13 +573,18 @@ public partial class StationView : ContentView, IDisposable
             var dir = Path.Combine(AppSettings.VideoFolder, DateTime.Now.ToString("yyyy-MM-dd"));
             Directory.CreateDirectory(dir);
 
-            // Format: {station_name}_{barcode}_{date}_{time}.mp4  (spaces in name → dash)
             var prefix   = stationName.Replace(' ', '-');
             var filePath = Path.Combine(dir, $"{prefix}_{_activeBarcode}_{DateTime.Now:yyyyMMdd_HHmmss}.mp4");
             _recordedStream.Position = 0;
+
+            // Phase 2: Disk write
+            var swWrite = Stopwatch.StartNew();
             await using var fs = File.Create(filePath);
             await _recordedStream.CopyToAsync(fs);
+            swWrite.Stop();
 
+            Logger.Log($"Station {_stationId}: [DIAG] CopyToAsync: {swWrite.ElapsedMilliseconds} ms | " +
+                       $"Memory: {GC.GetTotalMemory(false) / 1_048_576.0:F1} MB");
             Logger.Log($"Station {_stationId}: Video saved to {filePath}");
             return filePath;
         }
@@ -564,6 +600,11 @@ public partial class StationView : ContentView, IDisposable
             _recordingCts?.Dispose();
             _recordingCts = null;
             _recordingTask = null;
+
+            Logger.Log($"Station {_stationId}: [DIAG] Memory after stream dispose: " +
+                       $"{GC.GetTotalMemory(false) / 1_048_576.0:F1} MB");
+
+            await MainThread.InvokeOnMainThreadAsync(() => SavingOverlay.IsVisible = false);
         }
     }
 

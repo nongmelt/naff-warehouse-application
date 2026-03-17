@@ -99,6 +99,23 @@
                            FontAttributes="Bold"
                            HorizontalTextAlignment="Center"/></Border>
 
+                <!-- Saving / encoding overlay — shown between stop-scan and file write completing -->
+                <Border x:Name="SavingOverlay"
+                        IsVisible="False"
+                        BackgroundColor="#CC000000"
+                        StrokeShape="RoundRectangle 8"
+                        StrokeThickness="0"
+                        Padding="16,10"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center"
+                        InputTransparent="True">
+                    <Label Text="⏳ Saving..."
+                           TextColor="White"
+                           FontSize="16"
+                           FontAttributes="Bold"
+                           HorizontalOptions="Center"/>
+                </Border>
+
             </Grid>
 
             <!-- ── Row 1: Collapsible controls panel (hidden by default) ── -->
