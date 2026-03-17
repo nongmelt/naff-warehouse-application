@@ -1,14 +1,15 @@
 using app.Services;
 using CommunityToolkit.Maui.Core;
 using CommunityToolkit.Maui.Views;
+using System.Collections.Concurrent;
 using System.IO.Ports;
-using System.Runtime.Versioning;
-using System.Management;
 using System.Text.RegularExpressions;
+#if WINDOWS
+using System.Management;
+#endif
 
 namespace app.Controls;
 
-[SupportedOSPlatform("windows")]
 public partial class StationView : ContentView, IDisposable
 {
     private readonly int _stationId;
@@ -49,6 +50,90 @@ public partial class StationView : ContentView, IDisposable
 
     // Prevents OnCameraSelected from firing while the picker is being populated
     private bool _loadingDevices;
+
+    // ── Cross-station camera registry ─────────────────────────────────────────
+
+    /// <summary>
+    /// Tracks every station's current camera selection.
+    /// Key = stationId, Value = (index into _availableCameras, station display name).
+    /// cameraIndex == -1 means no camera selected.
+    /// </summary>
+    private static readonly ConcurrentDictionary<int, (int CameraIndex, string StationName)>
+        _stationCameraMap = new();
+
+    /// <summary>Fired whenever any station selects or deselects a camera.</summary>
+    public static event Action? AnyCameraSelectionChanged;
+
+    private void RegisterCameraSelection(int cameraIndex)
+    {
+        _stationCameraMap[_stationId] = (cameraIndex, _stationName);
+        AnyCameraSelectionChanged?.Invoke();
+    }
+
+    private void OnAnyCameraSelectionChanged() =>
+        MainThread.BeginInvokeOnMainThread(RefreshCameraPickerLabels);
+
+    /// <summary>
+    /// Rebuilds the camera picker display names from the already-loaded camera list —
+    /// no device re-fetch. Called when another station changes its selection.
+    /// </summary>
+    private void RefreshCameraPickerLabels()
+    {
+        if (_availableCameras.Count == 0) return;
+        var prev = CameraPicker.SelectedIndex;
+        _loadingDevices = true;
+        try
+        {
+            CameraPicker.ItemsSource = BuildCameraDisplayNames();
+            if (prev >= 0 && prev < ((System.Collections.IList)CameraPicker.ItemsSource).Count)
+                CameraPicker.SelectedIndex = prev;
+        }
+        finally { _loadingDevices = false; }
+    }
+
+    /// <summary>
+    /// Builds camera picker items.
+    /// Appends " #N" to cameras that share a name so users can distinguish them,
+    /// and appends "  (in use – StationX)" for cameras held by another station.
+    /// </summary>
+    private List<string> BuildCameraDisplayNames()
+    {
+        // How many cameras share each name
+        var nameCounts = _availableCameras
+            .GroupBy(c => c.Name)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        // Indices in use by OTHER stations
+        var inUseByOthers = _stationCameraMap
+            .Where(kv => kv.Key != _stationId && kv.Value.CameraIndex >= 0)
+            .ToDictionary(kv => kv.Value.CameraIndex, kv => kv.Value.StationName);
+
+        var occurrence = new Dictionary<string, int>();
+        var items = new List<string> { "(None)" };
+
+        for (int i = 0; i < _availableCameras.Count; i++)
+        {
+            var cam = _availableCameras[i];
+            string name;
+
+            if (nameCounts[cam.Name] > 1)
+            {
+                occurrence[cam.Name] = occurrence.GetValueOrDefault(cam.Name) + 1;
+                name = $"{cam.Name} #{occurrence[cam.Name]}";
+            }
+            else
+            {
+                name = cam.Name;
+            }
+
+            if (inUseByOthers.TryGetValue(i, out var usingStation))
+                name += $"  (in use \u2013 {usingStation})";
+
+            items.Add(name);
+        }
+
+        return items;
+    }
 
     // ── Selection ─────────────────────────────────────────────────────────────
 
@@ -116,6 +201,10 @@ public partial class StationView : ContentView, IDisposable
         StationNameEntry.IsVisible = false;
         StationNameLabel.IsVisible = true;
         EditNameButton.IsVisible = true;
+        // Update station name in the registry so other stations' "in use" labels stay accurate
+        if (_stationCameraMap.TryGetValue(_stationId, out var entry))
+            _stationCameraMap[_stationId] = (entry.CameraIndex, _stationName);
+        AnyCameraSelectionChanged?.Invoke();
     }
 
     // ── Controls panel toggle ────────────────────────────────────────────────
@@ -157,6 +246,7 @@ public partial class StationView : ContentView, IDisposable
         InitializeComponent();
         _stationName = $"Station {stationId}";
         StationNameLabel.Text = _stationName;
+        AnyCameraSelectionChanged += OnAnyCameraSelectionChanged;
         // Load devices AFTER the view (and its CameraView handler) is fully in the visual tree
         Loaded += OnViewLoaded;
     }
@@ -176,9 +266,6 @@ public partial class StationView : ContentView, IDisposable
         {
             // Enumerate cameras — safe to call any time; returns empty list if handler not ready
             _availableCameras = (await CameraFeed.GetAvailableCameras(CancellationToken.None)).ToList();
-            // Index 0 is always "(None)"; real cameras start at index 1
-            var cameraItems = new List<string> { "(None)" };
-            cameraItems.AddRange(_availableCameras.Select(c => c.Name));
 
             // Enumerate COM ports with friendly device names
             _comPorts = await GetFriendlyComPortsAsync();
@@ -191,10 +278,12 @@ public partial class StationView : ContentView, IDisposable
                 // Camera — skip re-population when locked to preserve the user's fixed selection
                 if (!_cameraLocked)
                 {
-                    var prevCamera = CameraPicker.SelectedItem as string;
+                    // Preserve selected index (stable within a session even if names changed)
+                    var prevIdx = CameraPicker.SelectedIndex;
+                    var cameraItems = BuildCameraDisplayNames();
                     CameraPicker.ItemsSource = cameraItems;
-                    if (prevCamera != null && prevCamera != "(None)" && cameraItems.Contains(prevCamera))
-                        CameraPicker.SelectedItem = prevCamera;
+                    if (prevIdx > 0 && prevIdx < cameraItems.Count)
+                        CameraPicker.SelectedIndex = prevIdx;
                 }
 
                 // Scanner — same: restore by port name, or skip entirely when locked
@@ -243,6 +332,7 @@ public partial class StationView : ContentView, IDisposable
         // Index 0 = "(None)" — detach and done
         if (idx == 0)
         {
+            RegisterCameraSelection(-1);
             Logger.Log($"Station {_stationId}: Camera detached");
             VideoCountBadge.IsVisible = false;
             UpdateStatusFromDevices();
@@ -256,6 +346,7 @@ public partial class StationView : ContentView, IDisposable
         var camera = _availableCameras[cameraIdx];
         try
         {
+            RegisterCameraSelection(cameraIdx);
             CameraFeed.SelectedCamera = camera;
             CameraFeed.IsVisible = true;
             NoCameraPlaceholder.IsVisible = false;
@@ -526,14 +617,13 @@ public partial class StationView : ContentView, IDisposable
     }
 
     /// <summary>
-    /// Queries Win32_PnPEntity (WMI / Device Manager) for every Ports-class device.
-    /// This covers all USB-to-serial adapters (CH340, CP2102, PL2303, FTDI, etc.)
-    /// whether they are plugged in directly or through a USB hub, because WMI reads
-    /// the full Device Manager tree — not just WinRT-compatible interfaces.
-    /// Falls back to plain SerialPort.GetPortNames() if WMI is unavailable.
+    /// Enumerates available serial ports with friendly display names.
+    /// On Windows: queries WMI (Win32_PnPEntity) for USB-to-serial adapters with full device names.
+    /// On macOS: lists /dev/tty.* and /dev/cu.* USB serial devices from IOKit via SerialPort.GetPortNames().
     /// </summary>
     private static Task<List<ComPortEntry>> GetFriendlyComPortsAsync() => Task.Run(() =>
     {
+#if WINDOWS
         var result = new List<ComPortEntry>();
         try
         {
@@ -574,6 +664,30 @@ public partial class StationView : ContentView, IDisposable
             .OrderBy(p => int.TryParse(p[3..], out var n) ? n : 999)
             .Select(p => new ComPortEntry(p, p))
             .ToList();
+#elif MACCATALYST
+        // On macOS, USB serial adapters appear as /dev/tty.* (call-in) or /dev/cu.* (call-out).
+        // We prefer /dev/cu.* for outgoing connections (more reliable for USB scanners).
+        var ports = SerialPort.GetPortNames();
+        Logger.Log($"GetFriendlyComPortsAsync: {ports.Length} port(s) on macOS");
+
+        return ports
+            .Where(p => p.StartsWith("/dev/cu.", StringComparison.Ordinal)
+                     || p.StartsWith("/dev/tty.", StringComparison.Ordinal))
+            .OrderBy(p => p)
+            .Select(p =>
+            {
+                var label = p.StartsWith("/dev/cu.", StringComparison.Ordinal)
+                    ? p["/dev/cu.".Length..]
+                    : p["/dev/tty.".Length..];
+                return new ComPortEntry(p, $"{label} — {p}");
+            })
+            .ToList();
+#else
+        return SerialPort.GetPortNames()
+            .OrderBy(p => p)
+            .Select(p => new ComPortEntry(p, p))
+            .ToList();
+#endif
     });
 
     /// <summary>Replaces characters that are illegal in Windows file names with underscores.</summary>
@@ -605,6 +719,10 @@ public partial class StationView : ContentView, IDisposable
 
     public void Dispose()
     {
+        AnyCameraSelectionChanged -= OnAnyCameraSelectionChanged;
+        _stationCameraMap.TryRemove(_stationId, out _);
+        AnyCameraSelectionChanged?.Invoke(); // release "in use" label on other stations
+
         CloseSerialPort();
         if (_cameraPreviewActive)
         {
