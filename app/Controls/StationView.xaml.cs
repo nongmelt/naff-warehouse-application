@@ -9,7 +9,6 @@ using System.Text.RegularExpressions;
 using System.Management;
 using Windows.Devices.Enumeration;
 using Windows.Media.Capture;
-using Windows.Media.MediaProperties;
 using Windows.Storage;
 #endif
 
@@ -26,11 +25,9 @@ public partial class StationView : ContentView, IDisposable
     // Recording state
     private string? _activeBarcode;
     private bool _isRecording;
-#if !WINDOWS
     private CancellationTokenSource? _recordingCts;
     private Task? _recordingTask;
     private Stream? _recordedStream;
-#endif
 
     // Diagnostics
     private DateTime _recordingStartedAt;
@@ -545,24 +542,12 @@ public partial class StationView : ContentView, IDisposable
                 throw new InvalidOperationException("No camera selected");
 
             var targetName = _availableCameras[cameraIdx].Name;
-
-            // Count how many cameras with the same name appear before cameraIdx in _availableCameras.
-            // CommunityToolkit enumerates via the same DeviceInformation.FindAllAsync call, so the
-            // ordinal position is stable — this lets us distinguish identical cameras correctly.
-            var occurrenceIndex = _availableCameras
-                .Take(cameraIdx)
-                .Count(c => string.Equals(c.Name, targetName, StringComparison.OrdinalIgnoreCase));
-
-            var devices        = await DeviceInformation.FindAllAsync(DeviceClass.VideoCapture);
-            var matchingByName = devices
-                .Where(d => string.Equals(d.Name, targetName, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-            var device = occurrenceIndex < matchingByName.Count
-                ? matchingByName[occurrenceIndex]
-                : null;
+            var devices    = await DeviceInformation.FindAllAsync(DeviceClass.VideoCapture);
+            var device     = devices.FirstOrDefault(d =>
+                string.Equals(d.Name, targetName, StringComparison.OrdinalIgnoreCase));
 
             if (device == null)
-                throw new InvalidOperationException($"Video device not found: {targetName} (occurrence {occurrenceIndex})");
+                throw new InvalidOperationException($"Video device not found: {targetName}");
 
             // ── Resolve output path (timestamped at START of recording) ───────────
             var stationSafe = SanitizeFileName(_stationName).Replace(' ', '-');
@@ -915,11 +900,9 @@ public partial class StationView : ContentView, IDisposable
             try { CameraFeed.StopCameraPreview(); } catch { }
             _cameraPreviewActive = false;
         }
-#if !WINDOWS
         _recordingCts?.Cancel();
         _recordingCts?.Dispose();
         _recordedStream?.Dispose();
-#endif
 #if WINDOWS
         _winStartTask  = null; // don't await — app is shutting down
         try { _mediaCapture?.Dispose(); } catch { }
