@@ -1,0 +1,94 @@
+name: Build Windows Installer
+
+on:
+  push:
+    branches:
+      - main
+      - 'dev-*'
+  pull_request:
+    branches:
+      - main
+      - 'dev-*'
+  workflow_dispatch:
+
+jobs:
+  # Fast compile check — runs on every push/PR
+  check:
+    name: Compile Check
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install MAUI Windows workload
+        run: dotnet workload install maui-windows
+
+      - name: Restore dependencies
+        run: dotnet restore app/app.csproj -r win-x64
+
+      - name: Build (compile only)
+        run: >
+          dotnet build app/app.csproj
+          -c Release
+          -f net10.0-windows10.0.19041.0
+          -r win-x64
+          --no-restore
+
+  # Full installer build — only on push to main or dev-* (not PRs)
+  build:
+    name: Build Installer
+    runs-on: windows-latest
+    needs: check
+    if: github.event_name != 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set build environment
+        shell: bash
+        run: |
+          if [[ "${{ github.ref_name }}" == "main" ]]; then
+            echo "APP_VERSION=1.2" >> $GITHUB_ENV
+            echo "ARTIFACT_NAME=warehouse-installer" >> $GITHUB_ENV
+          else
+            echo "APP_VERSION=dev-1.2" >> $GITHUB_ENV
+            echo "ARTIFACT_NAME=warehouse-installer-dev" >> $GITHUB_ENV
+          fi
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install MAUI Windows workload
+        run: dotnet workload install maui-windows
+
+      - name: Restore dependencies
+        run: dotnet restore app/app.csproj
+
+      - name: Publish app (win-x64, self-contained)
+        run: >
+          dotnet publish app/app.csproj
+          -c Release
+          -f net10.0-windows10.0.19041.0
+          -r win-x64
+          --self-contained true
+          /p:PublishSingleFile=false
+
+      - name: Build installer with InnoSetup
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.4
+        with:
+          path: setup.iss
+          options: /O+ /DMyAppVersion=${{ env.APP_VERSION }}
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: installer/*.exe
+          retention-days: 30
