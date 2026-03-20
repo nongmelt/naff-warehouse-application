@@ -573,8 +573,8 @@ public partial class StationView : ContentView, IDisposable
             var dir = Path.Combine(AppSettings.VideoFolder, DateTime.Now.ToString("yyyy-MM-dd"));
             Directory.CreateDirectory(dir);
 
-            var prefix   = stationName.Replace(' ', '-');
-            var filePath = Path.Combine(dir, $"{prefix}_{_activeBarcode}_{DateTime.Now:yyyyMMdd_HHmmss}.mp4");
+            var prefix = stationName.Replace(' ', '-');
+            var filePath = Path.Combine(dir, prefix, $"{prefix}_{_activeBarcode}_{DateTime.Now:yyyyMMdd_HHmmss}.mp4");
             _recordedStream.Position = 0;
 
             // Phase 2: Disk write
@@ -616,16 +616,16 @@ public partial class StationView : ContentView, IDisposable
     /// <summary>Sets StatusLabel based on which devices are currently connected.</summary>
     private void UpdateStatusFromDevices()
     {
-        bool hasCamera  = _cameraPreviewActive;
+        bool hasCamera = _cameraPreviewActive;
         bool hasScanner = _serialPort?.IsOpen == true;
         string portName = _serialPort?.PortName ?? "";
 
         string status = (hasCamera, hasScanner) switch
         {
             (false, false) => "Waiting for camera and scanner",
-            (true,  false) => "Camera ready · Waiting for scanner",
-            (false, true)  => $"Waiting for camera · Scanner ready ({portName})",
-            (true,  true)  => $"Camera ready · Scanner ready ({portName})",
+            (true, false) => "Camera ready · Waiting for scanner",
+            (false, true) => $"Waiting for camera · Scanner ready ({portName})",
+            (true, true) => $"Camera ready · Scanner ready ({portName})",
         };
         UpdateStatus(status);
     }
@@ -639,7 +639,7 @@ public partial class StationView : ContentView, IDisposable
     {
         try
         {
-            var dir    = Path.Combine(AppSettings.VideoFolder, DateTime.Now.ToString("yyyy-MM-dd"));
+            var dir = Path.Combine(AppSettings.VideoFolder, DateTime.Now.ToString("yyyy-MM-dd"));
             var prefix = SanitizeFileName(_stationName).Replace(' ', '-');
             _videoCount = Directory.Exists(dir)
                 ? Directory.GetFiles(dir, $"{prefix}_*.mp4").Length
@@ -647,7 +647,7 @@ public partial class StationView : ContentView, IDisposable
 
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
-                VideoCountLabel.Text      = _videoCount.ToString();
+                VideoCountLabel.Text = _videoCount.ToString();
                 VideoCountBadge.IsVisible = _cameraPreviewActive;
             });
         }
