@@ -7,9 +7,6 @@ using System.IO.Ports;
 using System.Text.RegularExpressions;
 #if WINDOWS
 using System.Management;
-using Windows.Devices.Enumeration;
-using Windows.Media.Capture;
-using Windows.Storage;
 #endif
 
 namespace app.Controls;
@@ -32,14 +29,6 @@ public partial class StationView : ContentView, IDisposable
     // Diagnostics
     private DateTime _recordingStartedAt;
     private static readonly TimeSpan RecordingDurationWarnThreshold = TimeSpan.FromMinutes(5);
-
-#if WINDOWS
-    // Native Windows recording: MediaCapture writes directly to a StorageFile on disk.
-    // CommunityToolkit CameraView keeps its own preview session; Windows allows concurrent access.
-    private MediaCapture? _mediaCapture;
-    private Task?         _winStartTask;   // tracks async init so StopRecording can await it safely
-    private string?       _winOutputPath;
-#endif
 
     // Serializes barcode events so rapid double-scans cannot interleave state
     private readonly SemaphoreSlim _barcodeLock = new(1, 1);
@@ -526,124 +515,8 @@ public partial class StationView : ContentView, IDisposable
 
     // ── Recording ───────────────────────────────────────────────────────────
 
-#if WINDOWS
-    private async Task StartRecordingNativeWinAsync(string barcode, int cameraIdx)
-    {
-        try
-        {
-            _recordingStartedAt = DateTime.UtcNow;
-            Logger.Log($"Station {_stationId}: [DIAG] Win native recording — Memory before start: " +
-                       $"{GC.GetTotalMemory(false) / 1_048_576.0:F1} MB");
-
-            var sw = Stopwatch.StartNew();
-
-            // ── Match picker selection to a Windows camera device ─────────────────
-            if (cameraIdx < 0 || cameraIdx >= _availableCameras.Count)
-                throw new InvalidOperationException("No camera selected");
-
-            var targetName = _availableCameras[cameraIdx].Name;
-            var devices    = await DeviceInformation.FindAllAsync(DeviceClass.VideoCapture);
-            var device     = devices.FirstOrDefault(d =>
-                string.Equals(d.Name, targetName, StringComparison.OrdinalIgnoreCase));
-
-            if (device == null)
-                throw new InvalidOperationException($"Video device not found: {targetName}");
-
-            // ── Resolve output path (timestamped at START of recording) ───────────
-            var stationSafe = SanitizeFileName(_stationName).Replace(' ', '-');
-            var dir         = Path.Combine(AppSettings.VideoFolder, DateTime.Now.ToString("yyyy-MM-dd"));
-            Directory.CreateDirectory(dir);
-            var filename    = $"{stationSafe}_{barcode}_{DateTime.Now:yyyyMMdd_HHmmss}.mp4";
-            _winOutputPath  = Path.Combine(dir, filename);
-
-            // StorageFolder is required by MediaCapture API; dir already created above
-            var folder = await StorageFolder.GetFolderFromPathAsync(dir);
-            var sf     = await folder.CreateFileAsync(filename, CreationCollisionOption.ReplaceExisting);
-
-            // ── Initialize MediaCapture and start recording ───────────────────────
-            _mediaCapture = new MediaCapture();
-            await _mediaCapture.InitializeAsync(new MediaCaptureInitializationSettings
-            {
-                VideoDeviceId        = device.Id,
-                StreamingCaptureMode = StreamingCaptureMode.Video, // video-only; no microphone entitlement needed
-                MediaCategory        = MediaCategory.Other,
-            });
-
-            // VideoEncodingQuality.Auto uses the camera's native resolution
-            await _mediaCapture.StartRecordToStorageFileAsync(
-                MediaEncodingProfile.CreateMp4(VideoEncodingQuality.Auto), sf);
-
-            sw.Stop();
-            Logger.Log($"Station {_stationId}: Recording started for barcode {barcode} " +
-                       $"(Win native init+start: {sw.ElapsedMilliseconds} ms)");
-        }
-        catch (Exception ex)
-        {
-            Logger.Log($"Station {_stationId} StartRecordingNativeWinAsync: {ex}");
-            _mediaCapture?.Dispose();
-            _mediaCapture  = null;
-            _winOutputPath = null;
-        }
-    }
-
-    private async Task<string?> StopRecordingNativeWinAsync(string stationName)
-    {
-        try
-        {
-            // Wait for async initialization to complete before stopping
-            if (_winStartTask != null)
-                await _winStartTask;
-
-            if (_mediaCapture == null)
-            {
-                Logger.Log($"Station {_stationId}: StopRecordingNativeWinAsync — no active session");
-                return null;
-            }
-
-            // StopRecordAsync just flushes remaining frames — fast, no re-encode, no RAM spike
-            var swStop = Stopwatch.StartNew();
-            await _mediaCapture.StopRecordAsync();
-            swStop.Stop();
-
-            var fi     = new FileInfo(_winOutputPath!);
-            var sizeMb = fi.Exists ? fi.Length / 1_048_576.0 : 0;
-            Logger.Log($"Station {_stationId}: [DIAG] StopRecordAsync: {swStop.ElapsedMilliseconds} ms | " +
-                       $"File: {sizeMb:F1} MB | Memory: {GC.GetTotalMemory(false) / 1_048_576.0:F1} MB " +
-                       $"(direct-to-disk — no in-memory stream)");
-
-            if (!fi.Exists || fi.Length == 0)
-                throw new Exception($"Output file missing or empty: {_winOutputPath}");
-
-            Logger.Log($"Station {_stationId}: Video saved to {_winOutputPath}");
-            return _winOutputPath;
-        }
-        catch (Exception ex)
-        {
-            Logger.Log($"Station {_stationId} StopRecordingNativeWinAsync: {ex}");
-            return null;
-        }
-        finally
-        {
-            _mediaCapture?.Dispose();
-            _mediaCapture  = null;
-            _winStartTask  = null;
-            _winOutputPath = null;
-            Logger.Log($"Station {_stationId}: [DIAG] Win MediaCapture disposed — Memory: " +
-                       $"{GC.GetTotalMemory(false) / 1_048_576.0:F1} MB");
-        }
-    }
-#endif
-
     private void StartRecording(string barcode)
     {
-#if WINDOWS
-        // Capture picker index on the main thread before any await crosses thread boundaries
-        var cameraIdx = CameraPicker.SelectedIndex - 1;
-        _winStartTask = StartRecordingNativeWinAsync(barcode, cameraIdx);
-        _ = _winStartTask.ContinueWith(
-            t => Logger.Log($"Station {_stationId} StartRecording unhandled fault: {t.Exception}"),
-            TaskContinuationOptions.OnlyOnFaulted);
-#else
         try
         {
             _recordingStartedAt = DateTime.UtcNow;
@@ -651,7 +524,7 @@ public partial class StationView : ContentView, IDisposable
             Logger.Log($"Station {_stationId}: [DIAG] Memory before start: {memBefore / 1_048_576.0:F1} MB");
 
             var sw = Stopwatch.StartNew();
-            _recordingCts  = new CancellationTokenSource();
+            _recordingCts = new CancellationTokenSource();
             _recordingTask = CameraFeed.StartVideoRecording(_recordingCts.Token);
             sw.Stop();
 
@@ -662,7 +535,6 @@ public partial class StationView : ContentView, IDisposable
         {
             Logger.Log($"Station {_stationId} StartRecording: {ex}");
         }
-#endif
     }
 
     private async Task<string?> StopRecordingAsync()
@@ -670,24 +542,22 @@ public partial class StationView : ContentView, IDisposable
         var stationName = SanitizeFileName(_stationName);
         try
         {
-            // ── Common preamble (all platforms) ───────────────────────────────────
+            if (_recordingTask == null) return null;
+
+            // Duration warning
             var duration = DateTime.UtcNow - _recordingStartedAt;
             if (duration > RecordingDurationWarnThreshold)
-                Logger.Log($"Station {_stationId}: [WARN] Long recording: {duration.TotalMinutes:F1} min");
+                Logger.Log($"Station {_stationId}: [WARN] Long recording: " +
+                           $"{duration.TotalMinutes:F1} min — high RAM usage expected");
 
-            Logger.Log($"Station {_stationId}: [DIAG] Memory before stop: " +
+            Logger.Log($"Station {_stationId}: [DIAG] Memory before StopVideoRecording: " +
                        $"{GC.GetTotalMemory(false) / 1_048_576.0:F1} MB");
 
+            // Show UI feedback before the CPU-heavy encoding begins
             UpdateStatus("⏳ Saving...");
             await MainThread.InvokeOnMainThreadAsync(() => SavingOverlay.IsVisible = true);
 
-            // ── Platform branch ───────────────────────────────────────────────────
-#if WINDOWS
-            return await StopRecordingNativeWinAsync(stationName);
-#else
-            if (_recordingTask == null) return null;
-
-            // Phase 1: Encoding (toolkit in-memory path — non-Windows only)
+            // Phase 1: Encoding (most likely freeze source)
             var swStop = Stopwatch.StartNew();
             _recordedStream = await CameraFeed.StopVideoRecording(CancellationToken.None);
             await _recordingTask;
@@ -700,8 +570,9 @@ public partial class StationView : ContentView, IDisposable
             if (_recordedStream == null || _recordedStream.Length == 0)
                 throw new Exception("Recorded stream is empty");
 
-            var dir      = Path.Combine(AppSettings.VideoFolder, DateTime.Now.ToString("yyyy-MM-dd"));
+            var dir = Path.Combine(AppSettings.VideoFolder, DateTime.Now.ToString("yyyy-MM-dd"));
             Directory.CreateDirectory(dir);
+
             var prefix   = stationName.Replace(' ', '-');
             var filePath = Path.Combine(dir, $"{prefix}_{_activeBarcode}_{DateTime.Now:yyyyMMdd_HHmmss}.mp4");
             _recordedStream.Position = 0;
@@ -716,7 +587,6 @@ public partial class StationView : ContentView, IDisposable
                        $"Memory: {GC.GetTotalMemory(false) / 1_048_576.0:F1} MB");
             Logger.Log($"Station {_stationId}: Video saved to {filePath}");
             return filePath;
-#endif
         }
         catch (Exception ex)
         {
@@ -725,15 +595,15 @@ public partial class StationView : ContentView, IDisposable
         }
         finally
         {
-#if !WINDOWS
             _recordedStream?.Dispose();
             _recordedStream = null;
             _recordingCts?.Dispose();
-            _recordingCts   = null;
-            _recordingTask  = null;
+            _recordingCts = null;
+            _recordingTask = null;
+
             Logger.Log($"Station {_stationId}: [DIAG] Memory after stream dispose: " +
                        $"{GC.GetTotalMemory(false) / 1_048_576.0:F1} MB");
-#endif
+
             await MainThread.InvokeOnMainThreadAsync(() => SavingOverlay.IsVisible = false);
         }
     }
@@ -903,10 +773,5 @@ public partial class StationView : ContentView, IDisposable
         _recordingCts?.Cancel();
         _recordingCts?.Dispose();
         _recordedStream?.Dispose();
-#if WINDOWS
-        _winStartTask  = null; // don't await — app is shutting down
-        try { _mediaCapture?.Dispose(); } catch { }
-        _mediaCapture = null;
-#endif
     }
 }
