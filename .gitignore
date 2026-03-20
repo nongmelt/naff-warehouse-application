@@ -103,6 +103,8 @@ StyleCopReport.xml
 *.svclog
 *.scc
 *.env
+.env
+*.env.local
 
 # Visual Studio profiler
 *.psess
