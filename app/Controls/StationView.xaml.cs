@@ -570,11 +570,11 @@ public partial class StationView : ContentView, IDisposable
             if (_recordedStream == null || _recordedStream.Length == 0)
                 throw new Exception("Recorded stream is empty");
 
-            var dir = Path.Combine(AppSettings.VideoFolder, DateTime.Now.ToString("yyyy-MM-dd"));
+            var prefix = stationName.Replace(' ', '-');
+            var dir = Path.Combine(AppSettings.VideoFolder, DateTime.Now.ToString("yyyy-MM-dd"), prefix);
             Directory.CreateDirectory(dir);
 
-            var prefix = stationName.Replace(' ', '-');
-            var filePath = Path.Combine(dir, prefix, $"{prefix}_{_activeBarcode}_{DateTime.Now:yyyyMMdd_HHmmss}.mp4");
+            var filePath = Path.Combine(dir, $"{prefix}_{_activeBarcode}_{DateTime.Now:yyyyMMdd_HHmmss}.mp4");
             _recordedStream.Position = 0;
 
             // Phase 2: Disk write
@@ -639,8 +639,8 @@ public partial class StationView : ContentView, IDisposable
     {
         try
         {
-            var dir = Path.Combine(AppSettings.VideoFolder, DateTime.Now.ToString("yyyy-MM-dd"));
             var prefix = SanitizeFileName(_stationName).Replace(' ', '-');
+            var dir = Path.Combine(AppSettings.VideoFolder, DateTime.Now.ToString("yyyy-MM-dd"), prefix);
             _videoCount = Directory.Exists(dir)
                 ? Directory.GetFiles(dir, $"{prefix}_*.mp4").Length
                 : 0;
@@ -682,7 +682,7 @@ public partial class StationView : ContentView, IDisposable
                 if (!m.Success) continue;
 
                 var portName = $"COM{m.Groups[1].Value}";
-                var label    = name[..m.Index].Trim().TrimEnd(',', '-', ' ');
+                var label = name[..m.Index].Trim().TrimEnd(',', '-', ' ');
                 if (string.IsNullOrWhiteSpace(label)) label = "Serial Device";
 
                 result.Add(new ComPortEntry(portName, $"{label} — {portName}"));
