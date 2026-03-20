@@ -24,7 +24,8 @@ public partial class StationView : ContentView, IDisposable
     private bool _isRecording;
     private CancellationTokenSource? _recordingCts;
     private Task? _recordingTask;
-    private Stream? _recordedStream;
+    private string? _pendingFilePath;
+    private FileStream? _recordingFileStream;
 
     // Diagnostics
     private DateTime _recordingStartedAt;
@@ -463,7 +464,7 @@ public partial class StationView : ContentView, IDisposable
                 StartRecording(barcode);
                 UpdateStatus("🔴 RECORDING");
             }
-            else if (_activeBarcode == barcode)
+            else if (_activeBarcode == barcode || barcode == "Reset")
             {
                 // Second matching scan → stop recording
                 _isRecording = false;
@@ -523,12 +524,24 @@ public partial class StationView : ContentView, IDisposable
             var memBefore = GC.GetTotalMemory(false);
             Logger.Log($"Station {_stationId}: [DIAG] Memory before start: {memBefore / 1_048_576.0:F1} MB");
 
+            // Build the output path now so we can open the file before recording begins
+            var prefix = SanitizeFileName(_stationName).Replace(' ', '-');
+            var dir = Path.Combine(AppSettings.VideoFolder, DateTime.Now.ToString("yyyy-MM-dd"), prefix);
+            Directory.CreateDirectory(dir);
+            _pendingFilePath = Path.Combine(dir, $"{prefix}_{barcode}_{DateTime.Now:yyyyMMdd_HHmmss}.mp4");
+
+            // Open a seekable FileStream — toolkit calls .AsRandomAccessStream() on it internally,
+            // which requires CanSeek = true. Encoded MP4 bytes go straight to disk; no MemoryStream.
+            _recordingFileStream = new FileStream(_pendingFilePath,
+                FileMode.Create, FileAccess.ReadWrite, FileShare.None,
+                bufferSize: 65536, FileOptions.Asynchronous);
+
             var sw = Stopwatch.StartNew();
             _recordingCts = new CancellationTokenSource();
-            _recordingTask = CameraFeed.StartVideoRecording(_recordingCts.Token);
+            _recordingTask = CameraFeed.StartVideoRecording(_recordingFileStream, _recordingCts.Token);
             sw.Stop();
 
-            Logger.Log($"Station {_stationId}: Recording started for barcode {barcode} " +
+            Logger.Log($"Station {_stationId}: Recording started for barcode {barcode} → {_pendingFilePath} " +
                        $"(StartVideoRecording call: {sw.ElapsedMilliseconds} ms)");
         }
         catch (Exception ex)
@@ -539,7 +552,6 @@ public partial class StationView : ContentView, IDisposable
 
     private async Task<string?> StopRecordingAsync()
     {
-        var stationName = SanitizeFileName(_stationName);
         try
         {
             if (_recordingTask == null) return null;
@@ -548,43 +560,40 @@ public partial class StationView : ContentView, IDisposable
             var duration = DateTime.UtcNow - _recordingStartedAt;
             if (duration > RecordingDurationWarnThreshold)
                 Logger.Log($"Station {_stationId}: [WARN] Long recording: " +
-                           $"{duration.TotalMinutes:F1} min — high RAM usage expected");
+                           $"{duration.TotalMinutes:F1} min");
 
             Logger.Log($"Station {_stationId}: [DIAG] Memory before StopVideoRecording: " +
                        $"{GC.GetTotalMemory(false) / 1_048_576.0:F1} MB");
 
-            // Show UI feedback before the CPU-heavy encoding begins
+            // Show UI feedback
             UpdateStatus("⏳ Saving...");
             await MainThread.InvokeOnMainThreadAsync(() => SavingOverlay.IsVisible = true);
 
-            // Phase 1: Encoding (most likely freeze source)
             var swStop = Stopwatch.StartNew();
-            _recordedStream = await CameraFeed.StopVideoRecording(CancellationToken.None);
+
+            // Signal toolkit to finish encoding and flush remaining bytes to the FileStream
+            _ = await CameraFeed.StopVideoRecording(CancellationToken.None);
             await _recordingTask;
+
+            // Flush and close the FileStream — all MP4 data is now on disk
+            if (_recordingFileStream != null)
+            {
+                await _recordingFileStream.FlushAsync();
+                await _recordingFileStream.DisposeAsync();
+                _recordingFileStream = null;
+            }
+
             swStop.Stop();
 
-            var streamMb = _recordedStream?.Length / 1_048_576.0 ?? 0;
+            var filePath = _pendingFilePath;
+            _pendingFilePath = null;
+
+            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+                throw new Exception("Recording file missing after stop");
+
+            var fileMb = new FileInfo(filePath).Length / 1_048_576.0;
             Logger.Log($"Station {_stationId}: [DIAG] StopVideoRecording: {swStop.ElapsedMilliseconds} ms | " +
-                       $"Stream: {streamMb:F1} MB | Memory: {GC.GetTotalMemory(false) / 1_048_576.0:F1} MB");
-
-            if (_recordedStream == null || _recordedStream.Length == 0)
-                throw new Exception("Recorded stream is empty");
-
-            var prefix = stationName.Replace(' ', '-');
-            var dir = Path.Combine(AppSettings.VideoFolder, DateTime.Now.ToString("yyyy-MM-dd"), prefix);
-            Directory.CreateDirectory(dir);
-
-            var filePath = Path.Combine(dir, $"{prefix}_{_activeBarcode}_{DateTime.Now:yyyyMMdd_HHmmss}.mp4");
-            _recordedStream.Position = 0;
-
-            // Phase 2: Disk write
-            var swWrite = Stopwatch.StartNew();
-            await using var fs = File.Create(filePath);
-            await _recordedStream.CopyToAsync(fs);
-            swWrite.Stop();
-
-            Logger.Log($"Station {_stationId}: [DIAG] CopyToAsync: {swWrite.ElapsedMilliseconds} ms | " +
-                       $"Memory: {GC.GetTotalMemory(false) / 1_048_576.0:F1} MB");
+                       $"File: {fileMb:F1} MB | Memory: {GC.GetTotalMemory(false) / 1_048_576.0:F1} MB");
             Logger.Log($"Station {_stationId}: Video saved to {filePath}");
             return filePath;
         }
@@ -595,13 +604,17 @@ public partial class StationView : ContentView, IDisposable
         }
         finally
         {
-            _recordedStream?.Dispose();
-            _recordedStream = null;
+            if (_recordingFileStream != null)
+            {
+                await _recordingFileStream.DisposeAsync();
+                _recordingFileStream = null;
+            }
             _recordingCts?.Dispose();
             _recordingCts = null;
             _recordingTask = null;
+            _pendingFilePath = null;
 
-            Logger.Log($"Station {_stationId}: [DIAG] Memory after stream dispose: " +
+            Logger.Log($"Station {_stationId}: [DIAG] Memory after recording: " +
                        $"{GC.GetTotalMemory(false) / 1_048_576.0:F1} MB");
 
             await MainThread.InvokeOnMainThreadAsync(() => SavingOverlay.IsVisible = false);
@@ -772,6 +785,7 @@ public partial class StationView : ContentView, IDisposable
         }
         _recordingCts?.Cancel();
         _recordingCts?.Dispose();
-        _recordedStream?.Dispose();
+        _recordingFileStream?.Dispose();
+        _recordingFileStream = null;
     }
 }
