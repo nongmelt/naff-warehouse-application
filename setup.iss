@@ -1,5 +1,5 @@
 #define MyAppName      "Warehouse"
-#define MyAppVersion   "1.2-dev"
+#define MyAppVersion   "dev-1.2.1"
 #define MyAppPublisher "NAF Stationery"
 #define MyAppExeName   "Warehouse.exe"
 #define MyAppDir       "app\bin\Release\net10.0-windows10.0.19041.0\win-x64\publish"
@@ -132,7 +132,7 @@ begin
   ApiPage := CreateCustomPage(wpWelcome, 'Backend API',
     'Enter the base URL of the backend service that this app connects to.');
 
-  AddLabel(ApiPage, 'API URL (e.g. http://192.168.1.10:8080):', 0);
+  AddLabel(ApiPage, 'API URL (e.g. http://192.168.0.1:8080):', 0);
   ApiUrlEdit := AddEdit(ApiPage, 20, 'http://localhost:8080', False);
 
   // ── Webhook page ───────────────────────────────────────────────────────────
@@ -171,7 +171,7 @@ begin
   AddLabel(MinioPage, 'Secret Access Key:', 88);
   SecretKeyEdit := AddEdit(MinioPage, 104, '', True);
 
-  AddLabel(MinioPage, 'Endpoint URL (e.g. http://192.168.1.191:9000):', 132);
+  AddLabel(MinioPage, 'Endpoint URL (e.g. http://192.168.0.1:9000):', 132);
   EndpointEdit := AddEdit(MinioPage, 148, 'http://', False);
 end;
 
