@@ -118,7 +118,7 @@
         </ResourceDictionary>
     </ContentPage.Resources>
 
-    <Grid RowDefinitions="Auto, Auto, *">
+    <Grid RowDefinitions="Auto, Auto, Auto, *">
 
         <!-- Header bar -->
         <Grid Grid.Row="0"
@@ -227,31 +227,218 @@
                            FontSize="11"
                            TextColor="#6b7280"
                            MinimumHeightRequest="16"/>
+
+                    <!-- History header — hidden when list is empty -->
+                    <Grid x:Name="HistoryHeaderRow"
+                          ColumnDefinitions="*, Auto"
+                          IsVisible="False"
+                          Margin="0,4,0,0">
+                        <Label Grid.Column="0"
+                               Text="Recent searches"
+                               FontSize="11"
+                               TextColor="#9ca3af"
+                               VerticalOptions="Center"/>
+                        <HorizontalStackLayout Grid.Column="1"
+                                               Spacing="12"
+                                               VerticalOptions="Center">
+                            <Label Text="Clear all"
+                                   FontSize="11"
+                                   TextColor="#6b7280"
+                                   VerticalOptions="Center">
+                                <Label.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnHistoryClearAll"/>
+                                </Label.GestureRecognizers>
+                            </Label>
+                            <Label x:Name="HistoryChevron"
+                                   Text="▾"
+                                   FontSize="11"
+                                   TextColor="#6b7280"
+                                   VerticalOptions="Center">
+                                <Label.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnHistoryToggle"/>
+                                </Label.GestureRecognizers>
+                            </Label>
+                        </HorizontalStackLayout>
+                    </Grid>
+
+                    <!-- History dropdown — collapsed by default, populated in code-behind -->
+                    <Border x:Name="HistoryDropdown"
+                            IsVisible="False"
+                            Stroke="#e5e7eb"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 8"
+                            BackgroundColor="White"
+                            Padding="0"
+                            Margin="0,4,0,0">
+                        <ScrollView MaximumHeightRequest="220">
+                            <VerticalStackLayout x:Name="HistoryItemsLayout"
+                                                 Spacing="0"
+                                                 Padding="4,4"/>
+                        </ScrollView>
+                    </Border>
+
                 </VerticalStackLayout>
             </Border>
 
         </Grid>
 
+        <!-- ── Session card + carousel (same row) ────── -->
+        <Grid Grid.Row="2"
+              ColumnDefinitions="Auto, *"
+              ColumnSpacing="12"
+              BackgroundColor="#f3f4f6"
+              Padding="24,0,24,12">
+
+            <!-- Left: session status card (in-memory counters) -->
+            <Border x:Name="SessionCard"
+                    Grid.Column="0"
+                    Stroke="#d1d5db"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 8"
+                    BackgroundColor="White"
+                    Padding="12,10">
+                <VerticalStackLayout Spacing="8">
+                    <Grid ColumnDefinitions="*, Auto">
+                        <Label Grid.Column="0"
+                               Text="Session"
+                               FontAttributes="Bold"
+                               FontSize="13"
+                               TextColor="#111827"
+                               VerticalOptions="Center"/>
+                        <HorizontalStackLayout Grid.Column="1"
+                                               Spacing="3"
+                                               VerticalOptions="Center">
+                            <Label x:Name="SessionTotalLabel"
+                                   Text="0"
+                                   FontSize="15"
+                                   FontAttributes="Bold"
+                                   TextColor="#111827"
+                                   VerticalOptions="Center"/>
+                            <Label Text="orders"
+                                   FontSize="11"
+                                   TextColor="#6b7280"
+                                   VerticalOptions="End"
+                                   Margin="0,0,0,1"/>
+                        </HorizontalStackLayout>
+                    </Grid>
+                    <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+
+                        <!-- Green: Completed (QC Passed) -->
+                        <Border x:Name="SessionCompletedBadge"
+                                BackgroundColor="#f0fdf4"
+                                Stroke="#bbf7d0"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 8"
+                                Padding="10,6">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnSessionCompletedBadgeTapped"/>
+                            </Border.GestureRecognizers>
+                            <HorizontalStackLayout Spacing="5" VerticalOptions="Center">
+                                <BoxView WidthRequest="7" HeightRequest="7"
+                                         Color="#166534" CornerRadius="3.5" VerticalOptions="Center"/>
+                                <Label x:Name="SessionCompletedLabel"
+                                       Text="0" FontSize="18" FontAttributes="Bold"
+                                       TextColor="#166534" VerticalOptions="Center"/>
+                                <Label Text="Completed" FontSize="10"
+                                       TextColor="#166534" VerticalOptions="End" Margin="0,0,0,1"/>
+                            </HorizontalStackLayout>
+                        </Border>
+
+                        <!-- Yellow: Incompleted (QC Hold) -->
+                        <Border x:Name="SessionIncompleteBadge"
+                                BackgroundColor="#fffbeb"
+                                Stroke="#fde68a"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 8"
+                                Padding="10,6">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnSessionIncompleteBadgeTapped"/>
+                            </Border.GestureRecognizers>
+                            <HorizontalStackLayout Spacing="5" VerticalOptions="Center">
+                                <BoxView WidthRequest="7" HeightRequest="7"
+                                         Color="#b45309" CornerRadius="3.5" VerticalOptions="Center"/>
+                                <Label x:Name="SessionIncompleteLabel"
+                                       Text="0" FontSize="18" FontAttributes="Bold"
+                                       TextColor="#b45309" VerticalOptions="Center"/>
+                                <Label Text="Incompleted" FontSize="10"
+                                       TextColor="#b45309" VerticalOptions="End" Margin="0,0,0,1"/>
+                            </HorizontalStackLayout>
+                        </Border>
+
+                        <!-- Blue: Incoming (tracking scanned, no items picked) -->
+                        <Border x:Name="SessionIncomingBadge"
+                                BackgroundColor="#eff6ff"
+                                Stroke="#bfdbfe"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 8"
+                                Padding="10,6">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnSessionIncomingBadgeTapped"/>
+                            </Border.GestureRecognizers>
+                            <HorizontalStackLayout Spacing="5" VerticalOptions="Center">
+                                <BoxView WidthRequest="7" HeightRequest="7"
+                                         Color="#1d4ed8" CornerRadius="3.5" VerticalOptions="Center"/>
+                                <Label x:Name="SessionIncomingLabel"
+                                       Text="0" FontSize="18" FontAttributes="Bold"
+                                       TextColor="#1d4ed8" VerticalOptions="Center"/>
+                                <Label Text="Incoming" FontSize="10"
+                                       TextColor="#1d4ed8" VerticalOptions="End" Margin="0,0,0,1"/>
+                            </HorizontalStackLayout>
+                        </Border>
+
+                    </HorizontalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Right: session carousel — fills all remaining width -->
+            <Border Grid.Column="1"
+                    Stroke="#d1d5db"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 8"
+                    BackgroundColor="White"
+                    Padding="8,8">
+                <ScrollView x:Name="NavRow"
+                            Orientation="Horizontal"
+                            HorizontalScrollBarVisibility="Never"
+                            VerticalOptions="Center">
+                    <HorizontalStackLayout x:Name="CarouselLayout"
+                                           Spacing="6"
+                                           VerticalOptions="Center"/>
+                </ScrollView>
+            </Border>
+
+        </Grid>
+
         <!-- Scrollable results -->
-        <ScrollView Grid.Row="2"
+        <ScrollView x:Name="ResultsScroll"
+                    Grid.Row="3"
                     BackgroundColor="#f3f4f6">
             <VerticalStackLayout Padding="24,0,24,24"
                                  Spacing="0">
 
+                <!-- Not-found card -->
+                <Border x:Name="NotFoundCard"
+                        IsVisible="False"
+                        Stroke="#d1d5db"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 8"
+                        BackgroundColor="White"
+                        Padding="24"
+                        Margin="0,16,0,0">
+                    <Label x:Name="NotFoundLabel"
+                           Text=""
+                           FontSize="16"
+                           FontAttributes="Bold"
+                           TextColor="#111827"
+                           HorizontalOptions="Center"
+                           HorizontalTextAlignment="Center"/>
+                </Border>
+
                 <CollectionView x:Name="ResultsView"
-                                ItemsSource="{Binding Results}"
+                                ItemsSource="{Binding ActiveResults}"
                                 SelectionMode="None">
 
-                    <CollectionView.EmptyView>
-                        <Label x:Name="EmptyLabel"
-                               Text=""
-                               FontSize="13"
-                               TextColor="#9ca3af"
-                               HorizontalOptions="Center"
-                               Margin="0,24"/>
-                    </CollectionView.EmptyView>
-
-                    <CollectionView.ItemTemplate>
+                        <CollectionView.ItemTemplate>
                         <DataTemplate x:DataType="models:PackingList">
                             <VerticalStackLayout Spacing="6"
                                                  Margin="0,16,0,0">

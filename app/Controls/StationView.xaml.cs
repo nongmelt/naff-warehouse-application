@@ -4,6 +4,7 @@ using CommunityToolkit.Maui.Views;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO.Ports;
+using System.Runtime.Versioning;
 using System.Text.RegularExpressions;
 #if WINDOWS
 using System.Management;
@@ -11,6 +12,7 @@ using System.Management;
 
 namespace app.Controls;
 
+[SupportedOSPlatform("windows")]
 public partial class StationView : ContentView, IDisposable
 {
     private readonly int _stationId;

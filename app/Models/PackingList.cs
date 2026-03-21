@@ -7,6 +7,7 @@ using System.Text.Json.Serialization;
 
 namespace app.Models;
 
+[SupportedOSPlatform("windows")]
 public class ProductItem : INotifyPropertyChanged
 {
     [JsonPropertyName("product_name")]      public string Name      { get; set; } = "";

@@ -319,6 +319,29 @@
                                                         </VerticalStackLayout>
                                                 </Border>
 
+                                                <!-- Search History Limit -->
+                                                <Border Stroke="#d1d5db"
+                                                        StrokeThickness="1"
+                                                        StrokeShape="RoundRectangle 8"
+                                                        BackgroundColor="White"
+                                                        Padding="16">
+                                                        <VerticalStackLayout Spacing="8">
+                                                                <Label Text="Search History Limit"
+                                                                       FontAttributes="Bold"
+                                                                       FontSize="14"
+                                                                       TextColor="#111827"/>
+                                                                <Label Text="Maximum number of past searches remembered on this station (1–200)."
+                                                                       FontSize="12"
+                                                                       TextColor="#6b7280"/>
+                                                                <Entry x:Name="SearchHistoryMaxEntry"
+                                                                       Placeholder="50"
+                                                                       Keyboard="Numeric"
+                                                                       FontSize="13"
+                                                                       WidthRequest="120"
+                                                                       HorizontalOptions="Start"/>
+                                                        </VerticalStackLayout>
+                                                </Border>
+
                                                 <!-- Save row -->
                                                 <Grid ColumnDefinitions="*, Auto">
                                                         <Label x:Name="GeneralSavedLabel"
