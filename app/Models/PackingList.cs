@@ -7,6 +7,16 @@ using System.Text.Json.Serialization;
 
 namespace app.Models;
 
+/// <summary>A coloured badge descriptor used by StatusBadges on ProductItem.</summary>
+[SupportedOSPlatform("windows")]
+public class BadgeInfo
+{
+    public string Text        { get; init; } = "";
+    public Color  BgColor     { get; init; } = Colors.Transparent;
+    public Color  FgColor     { get; init; } = Colors.Black;
+    public Color  BorderColor { get; init; } = Colors.Transparent;
+}
+
 [SupportedOSPlatform("windows")]
 public class ProductItem : INotifyPropertyChanged
 {
@@ -31,7 +41,59 @@ public class ProductItem : INotifyPropertyChanged
     /// <summary>Quantity at load time — used to detect whether any picking occurred.</summary>
     [JsonIgnore] public int OriginalQuantity { get; set; }
 
-    [JsonIgnore] public bool HasVariation  => !string.IsNullOrWhiteSpace(Variation);
+    /// <summary>Original required quantity from the order (ProductLists), regardless of picking state.</summary>
+    [JsonIgnore] public int RequiredQuantity { get; set; }
+
+    // ── Product name helpers ──────────────────────────────────────────────────
+
+    /// <summary>Product name without a trailing (important info) parenthetical.</summary>
+    [JsonIgnore] public string BaseName => ExtractBaseName(Name);
+
+    /// <summary>Content inside the trailing (...) at the end of the product name, if present.</summary>
+    [JsonIgnore] public string ImportantInfo => ExtractImportantInfo(Name);
+
+    [JsonIgnore] public bool HasImportantInfo => !string.IsNullOrWhiteSpace(ImportantInfo);
+
+    private static string ExtractBaseName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return name;
+        var trimmed = name.TrimEnd();
+        var lastClose = trimmed.LastIndexOf(')');
+        var lastOpen  = trimmed.LastIndexOf('(');
+        if (lastOpen >= 0 && lastClose == trimmed.Length - 1 && lastClose > lastOpen)
+            return trimmed[..lastOpen].TrimEnd();
+        return name;
+    }
+
+    private static string ExtractImportantInfo(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "";
+        var trimmed = name.TrimEnd();
+        var lastClose = trimmed.LastIndexOf(')');
+        var lastOpen  = trimmed.LastIndexOf('(');
+        if (lastOpen >= 0 && lastClose == trimmed.Length - 1 && lastClose > lastOpen)
+            return trimmed[(lastOpen + 1)..lastClose];
+        return "";
+    }
+
+    [JsonIgnore] public bool HasVariation   => !string.IsNullOrWhiteSpace(Variation);
+    [JsonIgnore] public bool HasNoVariation => !HasVariation;
+
+    // ── Status badges ─────────────────────────────────────────────────────────
+
+    [JsonIgnore] public IReadOnlyList<BadgeInfo> StatusBadges => BuildStatusBadges(_orderQcContext);
+
+    private static IReadOnlyList<BadgeInfo> BuildStatusBadges(string ctx) => ctx.ToLower() switch
+    {
+        "qc passed" or "packed complete" =>
+            [new BadgeInfo { Text = ctx,        BgColor = Color.FromArgb("#dcfce7"), FgColor = Color.FromArgb("#166534"), BorderColor = Color.FromArgb("#86efac") }],
+        "qc hold" =>
+            [new BadgeInfo { Text = "QC Hold",  BgColor = Color.FromArgb("#fef9c3"), FgColor = Color.FromArgb("#713f12"), BorderColor = Color.FromArgb("#fde68a") }],
+        "packed" =>
+            [new BadgeInfo { Text = "Packed",   BgColor = Color.FromArgb("#ffedd5"), FgColor = Color.FromArgb("#9a3412"), BorderColor = Color.FromArgb("#fdba74") }],
+        var s when string.IsNullOrWhiteSpace(s) => [],
+        _ => [new BadgeInfo { Text = ctx,       BgColor = Color.FromArgb("#f3f4f6"), FgColor = Color.FromArgb("#374151"), BorderColor = Color.FromArgb("#e5e7eb") }],
+    };
     [JsonIgnore] public bool IsFullyPicked => Quantity <= 0;
     [JsonIgnore] public Color CardBgColor =>
         IsFullyPicked ||
@@ -67,7 +129,7 @@ public class ProductItem : INotifyPropertyChanged
     public string OrderQcContext
     {
         get => _orderQcContext;
-        set { _orderQcContext = value; OnPropertyChanged(nameof(CardBgColor)); }
+        set { _orderQcContext = value; OnPropertyChanged(nameof(CardBgColor)); OnPropertyChanged(nameof(StatusBadges)); }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -251,6 +313,7 @@ public class PackingList : INotifyPropertyChanged
                 if (origMap.TryGetValue(item.SellerSku, out var origQty))
                     item.Quantity = origQty;
                 item.OriginalQuantity = item.Quantity;
+                item.RequiredQuantity = item.Quantity;
                 item.OrderQcContext   = "";
                 item.IsBeingPicked    = false;
             }
@@ -271,6 +334,18 @@ public class PackingList : INotifyPropertyChanged
             var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
             var list = JsonSerializer.Deserialize<List<ProductItem>>(json, opts) ?? [];
 
+            // Build a map of original required quantities from ProductLists
+            Dictionary<string, int>? requiredMap = null;
+            if (useUpdated && !string.IsNullOrWhiteSpace(ProductLists))
+            {
+                try
+                {
+                    var origList = JsonSerializer.Deserialize<List<ProductItem>>(ProductLists, opts) ?? [];
+                    requiredMap = origList.ToDictionary(p => p.SellerSku, p => p.Quantity);
+                }
+                catch { }
+            }
+
             string ctx;
             if (IsPacked)
                 ctx = IsPackedComplete ? "Packed Complete" : "Packed";
@@ -282,6 +357,9 @@ public class PackingList : INotifyPropertyChanged
             foreach (var item in list)
             {
                 item.OriginalQuantity = item.Quantity;
+                item.RequiredQuantity = requiredMap != null && requiredMap.TryGetValue(item.SellerSku, out var req)
+                    ? req
+                    : item.Quantity;
                 item.OrderQcContext   = ctx;
             }
             return new ObservableCollection<ProductItem>(list);
