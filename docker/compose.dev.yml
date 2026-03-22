@@ -1,0 +1,16 @@
+services:
+  backend-dev:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "0.0.0.0:8081:8080"
+    env_file:
+      - .env.local
+    environment:
+      - ConnectionStrings__Postgres=Host=${DB_POSTGRESDB_HOST};Port=${DB_POSTGRESDB_PORT};Database=${DB_WAREHOUSE_DATABASE};Username=${DB_WAREHOUSE_USER};Password=${DB_WAREHOUSE_PASSWORD}
+
+volumes:
+  n8n_data:
+    external: true
