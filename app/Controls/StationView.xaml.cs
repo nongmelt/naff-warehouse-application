@@ -485,6 +485,15 @@ public partial class StationView : ContentView, IDisposable
                     MainThread.BeginInvokeOnMainThread(() => VideoCountLabel.Text = _videoCount.ToString());
                     UpdateStatusFromDevices(); // ready for next scan immediately
 
+                    // Register video record (status=recorded) then upload to MinIO in background
+                    var videoId = await ApiService.CreateVideoRecordAsync(
+                        finishedBarcode!, filePath, _stationName);
+
+                    if (videoId > 0)
+                        MinioUploadService.UploadAsync(videoId, filePath, finishedBarcode!);
+                    else
+                        Logger.Log($"Station {_stationId}: failed to create video record, skipping upload");
+
                     WebhookService.FireAndRetry(finishedBarcode, filePath, _stationName, sent =>
                     {
                         MainThread.BeginInvokeOnMainThread(async () =>

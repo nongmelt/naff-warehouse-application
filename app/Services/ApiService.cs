@@ -109,10 +109,71 @@ public static class ApiService
         }
     }
 
+    // ── Videos ────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Creates a video record in the backend (status = "recorded") and returns
+    /// the new record id, or -1 on failure.
+    /// </summary>
+    public static async Task<int> CreateVideoRecordAsync(
+        string trackingNumber, string filePath, string stationName)
+    {
+        try
+        {
+            var body    = new CreateVideoRequest(trackingNumber, filePath, Path.GetFileName(filePath), stationName);
+            var json    = JsonSerializer.Serialize(body, JsonOpts);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var resp    = await Http.PostAsync("videos", content);
+            if (!resp.IsSuccessStatusCode)
+            {
+                Logger.Log($"ApiService.CreateVideoRecordAsync: HTTP {(int)resp.StatusCode}");
+                return -1;
+            }
+            var result = await resp.Content.ReadFromJsonAsync<VideoRecord>(JsonOpts);
+            return result?.Id ?? -1;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.CreateVideoRecordAsync: {ex.Message}");
+            return -1;
+        }
+    }
+
+    public static async Task<bool> UpdateVideoStatusAsync(int videoId, string status)
+    {
+        try
+        {
+            var body    = new UpdateVideoStatusRequest(status);
+            var json    = JsonSerializer.Serialize(body, JsonOpts);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var resp    = await Http.PatchAsync($"videos/{videoId}/status", content);
+            if (!resp.IsSuccessStatusCode)
+                Logger.Log($"ApiService.UpdateVideoStatusAsync: HTTP {(int)resp.StatusCode}");
+            return resp.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.UpdateVideoStatusAsync: {ex.Message}");
+            return false;
+        }
+    }
+
     // ── Private DTOs ──────────────────────────────────────────────────────────
 
     private record StatusRequest(
         [property: JsonPropertyName("status")]              string  Status,
         [property: JsonPropertyName("updatedProductLists")] string  UpdatedProductLists,
         [property: JsonPropertyName("checkedBy")]           string? CheckedBy);
+
+    private record CreateVideoRequest(
+        [property: JsonPropertyName("trackingNumber")] string TrackingNumber,
+        [property: JsonPropertyName("filePath")]       string FilePath,
+        [property: JsonPropertyName("fileName")]       string FileName,
+        [property: JsonPropertyName("stationName")]    string StationName);
+
+    private record UpdateVideoStatusRequest(
+        [property: JsonPropertyName("status")] string Status);
+
+    private record VideoRecord(
+        [property: JsonPropertyName("id")] int Id);
 }
