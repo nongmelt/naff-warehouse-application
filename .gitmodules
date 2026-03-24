@@ -1,3 +1,6 @@
 [submodule "backend"]
 	path = backend
 	url = git@github.com:nongmelt/naff-warehouse-backend.git
+[submodule "frontend"]
+	path = frontend
+	url = git@github.com:nongmelt/naff-warehouse-frontend.git
