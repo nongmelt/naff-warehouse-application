@@ -29,7 +29,7 @@ services:
 
   backend:
     build:
-      context: ../backend
+      context: ../backend-legacy
       dockerfile: Dockerfile
     restart: always
     ports:
