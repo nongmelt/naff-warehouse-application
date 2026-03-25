@@ -37,7 +37,7 @@ public static class MinioUploadService
         if (!File.Exists(filePath))
         {
             Logger.Log($"MinioUploadService: file not found at {filePath}");
-            await ApiService.UpdateVideoStatusAsync(videoId, "failed");
+            await ApiService.UpdateVideoStatusAsync(videoId, "Failed");
             return;
         }
 
@@ -47,7 +47,7 @@ public static class MinioUploadService
         {
             try
             {
-                await ApiService.UpdateVideoStatusAsync(videoId, "uploading");
+                await ApiService.UpdateVideoStatusAsync(videoId, "Uploading");
 
                 // MinIO SDK requires host:port only — strip scheme if present
                 var uri = endpoint.StartsWith("http://") || endpoint.StartsWith("https://")
@@ -73,12 +73,12 @@ public static class MinioUploadService
                     .WithObjectSize(size)
                     .WithContentType("video/mp4"));
 
-                await ApiService.UpdateVideoStatusAsync(videoId, "uploaded");
+                await ApiService.UpdateVideoStatusAsync(videoId, "Uploaded");
                 Logger.Log($"MinioUploadService: uploaded {objectName} ({size / 1_048_576.0:F1} MB)");
 
                 // Validate the file exists on MinIO
                 bool exists = await ObjectExistsAsync(minio, bucket, objectName);
-                await ApiService.UpdateVideoStatusAsync(videoId, exists ? "completed" : "failed");
+                await ApiService.UpdateVideoStatusAsync(videoId, exists ? "Completed" : "Failed");
 
                 if (exists)
                 {
@@ -103,7 +103,7 @@ public static class MinioUploadService
 
         // All retries exhausted
         Logger.Log($"MinioUploadService: giving up after {MaxRetries} attempts for video {videoId}");
-        await ApiService.UpdateVideoStatusAsync(videoId, "failed");
+        await ApiService.UpdateVideoStatusAsync(videoId, "Failed");
     }
 
     private static async Task<bool> ObjectExistsAsync(IMinioClient minio, string bucket, string objectName)
