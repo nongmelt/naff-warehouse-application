@@ -493,16 +493,6 @@ public partial class StationView : ContentView, IDisposable
                         MinioUploadService.UploadAsync(videoId, filePath, finishedBarcode!);
                     else
                         Logger.Log($"Station {_stationId}: failed to create video record, skipping upload");
-
-                    WebhookService.FireAndRetry(finishedBarcode, filePath, _stationName, sent =>
-                    {
-                        MainThread.BeginInvokeOnMainThread(async () =>
-                        {
-                            UpdateStatus(sent ? "✓ Webhook sent" : "⚠ Webhook failed");
-                            await Task.Delay(2000);
-                            UpdateStatusFromDevices();
-                        });
-                    });
                 }
                 else
                 {
@@ -577,7 +567,7 @@ public partial class StationView : ContentView, IDisposable
                        $"{GC.GetTotalMemory(false) / 1_048_576.0:F1} MB");
 
             // Show UI feedback
-            UpdateStatus("⏳ Saving...");
+            // UpdateStatus("⏳ Saving...");
             await MainThread.InvokeOnMainThreadAsync(() => SavingOverlay.IsVisible = true);
 
             var swStop = Stopwatch.StartNew();
