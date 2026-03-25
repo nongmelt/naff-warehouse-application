@@ -80,8 +80,16 @@ public static class MinioUploadService
                 bool exists = await ObjectExistsAsync(minio, bucket, objectName);
                 await ApiService.UpdateVideoStatusAsync(videoId, exists ? "completed" : "failed");
 
-                if (!exists)
+                if (exists)
+                {
+                    var remoteFilePath = $"{bucket}/{objectName}";
+                    await ApiService.UpdateVideoRemotePathAsync(videoId, remoteFilePath);
+                    Logger.Log($"MinioUploadService: remote_file_path saved as {remoteFilePath}");
+                }
+                else
+                {
                     Logger.Log($"MinioUploadService: post-upload validation failed for {objectName}");
+                }
 
                 return; // success
             }

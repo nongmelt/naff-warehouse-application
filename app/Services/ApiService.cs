@@ -158,6 +158,25 @@ public static class ApiService
         }
     }
 
+    public static async Task<bool> UpdateVideoRemotePathAsync(int videoId, string remoteFilePath)
+    {
+        try
+        {
+            var body    = new UpdateVideoRemotePathRequest(remoteFilePath);
+            var json    = JsonSerializer.Serialize(body, JsonOpts);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var resp    = await Http.PatchAsync($"videos/{videoId}/remote-path", content);
+            if (!resp.IsSuccessStatusCode)
+                Logger.Log($"ApiService.UpdateVideoRemotePathAsync: HTTP {(int)resp.StatusCode}");
+            return resp.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.UpdateVideoRemotePathAsync: {ex.Message}");
+            return false;
+        }
+    }
+
     // ── Private DTOs ──────────────────────────────────────────────────────────
 
     private record StatusRequest(
@@ -173,6 +192,9 @@ public static class ApiService
 
     private record UpdateVideoStatusRequest(
         [property: JsonPropertyName("status")] string Status);
+
+    private record UpdateVideoRemotePathRequest(
+        [property: JsonPropertyName("remoteFilePath")] string RemoteFilePath);
 
     private record VideoRecord(
         [property: JsonPropertyName("id")] int Id);
