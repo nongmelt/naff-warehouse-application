@@ -465,6 +465,7 @@ public partial class StationView : ContentView, IDisposable
                 RecordingBorder.IsVisible = true;
                 StartRecording(barcode);
                 UpdateStatus("🔴 RECORDING");
+                _ = ApiService.UpdatePackingStatusByScanAsync(barcode, "Packing");
             }
             else if (_activeBarcode == barcode || barcode == "Reset")
             {
@@ -485,9 +486,14 @@ public partial class StationView : ContentView, IDisposable
                     MainThread.BeginInvokeOnMainThread(() => VideoCountLabel.Text = _videoCount.ToString());
                     UpdateStatusFromDevices(); // ready for next scan immediately
 
-                    // Register video record (status=recorded) then upload to MinIO in background
+                    var stationLabel = $"{Environment.MachineName}-{_stationName.Replace(' ', '-')}";
+
+                    // Update packing status to Packed
+                    _ = ApiService.UpdatePackingStatusByScanAsync(finishedBarcode!, "Packed", stationLabel);
+
+                    // Register video record (status=Recorded) then upload to MinIO in background
                     var videoId = await ApiService.CreateVideoRecordAsync(
-                        finishedBarcode!, filePath, $"{Environment.MachineName}-{_stationName.Replace(' ', '-')}");
+                        finishedBarcode!, filePath, stationLabel);
 
                     if (videoId > 0)
                         MinioUploadService.UploadAsync(videoId, filePath, finishedBarcode!);

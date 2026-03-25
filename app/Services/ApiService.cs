@@ -139,6 +139,31 @@ public static class ApiService
         }
     }
 
+    /// <summary>
+    /// Updates packing status by scan input (tracking number or order number).
+    /// Pass packedBy only when status is "Packed".
+    /// </summary>
+    public static async Task<bool> UpdatePackingStatusByScanAsync(
+        string barcode, string status, string? packedBy = null)
+    {
+        try
+        {
+            var body    = new ScanStatusRequest(status, packedBy);
+            var json    = JsonSerializer.Serialize(body, JsonOpts);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var resp    = await Http.PatchAsync(
+                $"packing-lists/scan/{Uri.EscapeDataString(barcode)}/status", content);
+            if (!resp.IsSuccessStatusCode)
+                Logger.Log($"ApiService.UpdatePackingStatusByScanAsync: HTTP {(int)resp.StatusCode}");
+            return resp.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.UpdatePackingStatusByScanAsync: {ex.Message}");
+            return false;
+        }
+    }
+
     public static async Task<bool> UpdateVideoStatusAsync(int videoId, string status)
     {
         try
@@ -195,6 +220,10 @@ public static class ApiService
 
     private record UpdateVideoRemotePathRequest(
         [property: JsonPropertyName("remoteFilePath")] string RemoteFilePath);
+
+    private record ScanStatusRequest(
+        [property: JsonPropertyName("status")]   string  Status,
+        [property: JsonPropertyName("packedBy")] string? PackedBy);
 
     private record VideoRecord(
         [property: JsonPropertyName("id")] int Id);
