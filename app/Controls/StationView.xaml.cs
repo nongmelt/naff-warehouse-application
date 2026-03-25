@@ -447,6 +447,12 @@ public partial class StationView : ContentView, IDisposable
         {
             Logger.Log($"Station {_stationId}: Barcode received: {barcode}");
 
+            if (barcode.Contains('-'))
+            {
+                Logger.Log($"Station {_stationId}: Barcode ignored (contains dash): {barcode}");
+                return;
+            }
+
             if (_activeBarcode == null)
             {
                 // First scan → start recording
