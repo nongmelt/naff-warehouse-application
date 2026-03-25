@@ -45,11 +45,9 @@
 		<SupportedOSPlatformVersion
 			Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
 			21.0</SupportedOSPlatformVersion> -->
-		<SupportedOSPlatformVersion
-			Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
 			10.0.19041.0</SupportedOSPlatformVersion>
-		<TargetPlatformMinVersion
-			Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
 			10.0.19041.0</TargetPlatformMinVersion>
 	</PropertyGroup>
 
@@ -83,7 +81,7 @@
 		<PackageReference Include="CommunityToolkit.Maui" Version="13.0.0" />
 		<PackageReference Include="CommunityToolkit.Maui.Camera" Version="5.0.0" />
 		<PackageReference Include="CommunityToolkit.Maui.MediaElement" Version="7.0.0" />
-		<PackageReference Include="Minio" Version="6.0.3" />
+		<PackageReference Include="Minio" Version="7.0.0" />
 		<PackageReference Include="System.IO.Ports" Version="9.0.0" />
 		<PackageReference Include="System.Management" Version="9.0.0" />
 	</ItemGroup>
