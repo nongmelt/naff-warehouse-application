@@ -487,7 +487,7 @@ public partial class StationView : ContentView, IDisposable
 
                     // Register video record (status=recorded) then upload to MinIO in background
                     var videoId = await ApiService.CreateVideoRecordAsync(
-                        finishedBarcode!, filePath, _stationName);
+                        finishedBarcode!, filePath, $"{Environment.MachineName}-{_stationName.Replace(' ', '-')}");
 
                     if (videoId > 0)
                         MinioUploadService.UploadAsync(videoId, filePath, finishedBarcode!);
@@ -539,7 +539,7 @@ public partial class StationView : ContentView, IDisposable
             var prefix = SanitizeFileName(_stationName).Replace(' ', '-');
             var dir = Path.Combine(AppSettings.VideoFolder, DateTime.Now.ToString("yyyy-MM-dd"), prefix);
             Directory.CreateDirectory(dir);
-            _pendingFilePath = Path.Combine(dir, $"{prefix}_{barcode}_{DateTime.Now:yyyyMMdd_HHmmss}.mp4");
+            _pendingFilePath = Path.Combine(dir, $"{DateTime.Now:yyyyMMdd_HHmmss}_{Environment.MachineName}_{prefix}_{barcode}.mp4");
 
             // Open a seekable FileStream — toolkit calls .AsRandomAccessStream() on it internally,
             // which requires CanSeek = true. Encoded MP4 bytes go straight to disk; no MemoryStream.
