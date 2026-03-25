@@ -20,10 +20,10 @@ public static class MinioUploadService
 
     private static async Task RunAsync(int videoId, string filePath, string trackingNumber)
     {
-        var endpoint  = AppSettings.MinioEndpoint;
+        var endpoint = AppSettings.MinioEndpoint;
         var accessKey = AppSettings.MinioAccessKey;
         var secretKey = AppSettings.MinioSecretKey;
-        var bucket    = AppSettings.MinioBucket;
+        var bucket = AppSettings.MinioBucket;
 
         if (string.IsNullOrWhiteSpace(endpoint) ||
             string.IsNullOrWhiteSpace(accessKey) ||
@@ -41,7 +41,7 @@ public static class MinioUploadService
             return;
         }
 
-        var objectName = $"{trackingNumber}/{Path.GetFileName(filePath)}";
+        var objectName = $"{DateTime.Now.ToString("yyyy-MM-dd")}/{Path.GetFileName(filePath)}";
 
         for (int attempt = 1; attempt <= MaxRetries; attempt++)
         {
@@ -49,10 +49,19 @@ public static class MinioUploadService
             {
                 await ApiService.UpdateVideoStatusAsync(videoId, "uploading");
 
-                var minio = new MinioClient()
-                    .WithEndpoint(endpoint)
-                    .WithCredentials(accessKey, secretKey)
-                    .Build();
+                // MinIO SDK requires host:port only — strip scheme if present
+                var uri = endpoint.StartsWith("http://") || endpoint.StartsWith("https://")
+                    ? new Uri(endpoint)
+                    : new Uri("http://" + endpoint);
+                var host = uri.Authority; // "host:port" without scheme
+                var useSSL = uri.Scheme == "https";
+
+                var builder = new MinioClient()
+                    .WithEndpoint(host)
+                    .WithCredentials(accessKey, secretKey);
+                if (useSSL)
+                    builder = builder.WithSSL();
+                var minio = builder.Build();
 
                 using var stream = File.OpenRead(filePath);
                 var size = stream.Length;
