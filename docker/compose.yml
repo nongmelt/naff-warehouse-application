@@ -27,7 +27,7 @@ services:
       - n8n_data:/home/node/.n8n
       - ./local-files:/files
 
-  backend:
+  backend-legacy:
     build:
       context: ../backend-legacy
       dockerfile: Dockerfile
@@ -39,6 +39,15 @@ services:
     environment:
       - ConnectionStrings__Postgres=Host=${DB_POSTGRESDB_HOST};Port=${DB_POSTGRESDB_PORT};Database=${DB_WAREHOUSE_DATABASE};Username=${DB_WAREHOUSE_USER};Password=${DB_WAREHOUSE_PASSWORD}
 
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:8081:8080"
+    env_file:
+      - .env
 volumes:
   n8n_data:
     external: true
