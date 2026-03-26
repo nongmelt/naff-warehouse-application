@@ -1,7 +1,8 @@
 services:
-  postgres:
+  db:
     image: postgres:18.3
-    container_name: postgres
+    container_name: warehouse-postgres
+    restart: unless-stopped
     env_file:
       - .env
     environment:
@@ -14,9 +15,8 @@ services:
       - postgres_network
     volumes:
       - postgresql_data:/var/lib/postgresql/18.3/docker
-    restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U warehouse_admin -d warehouse_db -h localhost"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} -h localhost"]
       interval: 10s
       timeout: 5s
       retries: 5

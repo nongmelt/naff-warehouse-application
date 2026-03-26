@@ -269,6 +269,7 @@ public partial class StationView : ContentView, IDisposable
 
     public async Task LoadDevicesAsync()
     {
+        if (_loadingDevices) return;
         _loadingDevices = true;
         try
         {
@@ -447,6 +448,12 @@ public partial class StationView : ContentView, IDisposable
         {
             Logger.Log($"Station {_stationId}: Barcode received: {barcode}");
 
+            if (barcode.Contains('-'))
+            {
+                Logger.Log($"Station {_stationId}: Barcode ignored (contains dash): {barcode}");
+                return;
+            }
+
             if (_activeBarcode == null)
             {
                 // First scan → start recording
@@ -465,6 +472,7 @@ public partial class StationView : ContentView, IDisposable
                 RecordingBorder.IsVisible = true;
                 StartRecording(barcode);
                 UpdateStatus("🔴 RECORDING");
+                _ = ApiService.UpdatePackingStatusByScanAsync(barcode, "Packing");
             }
             else if (_activeBarcode == barcode || barcode == "Reset")
             {
@@ -485,15 +493,19 @@ public partial class StationView : ContentView, IDisposable
                     MainThread.BeginInvokeOnMainThread(() => VideoCountLabel.Text = _videoCount.ToString());
                     UpdateStatusFromDevices(); // ready for next scan immediately
 
-                    WebhookService.FireAndRetry(finishedBarcode, filePath, _stationName, sent =>
-                    {
-                        MainThread.BeginInvokeOnMainThread(async () =>
-                        {
-                            UpdateStatus(sent ? "✓ Webhook sent" : "⚠ Webhook failed");
-                            await Task.Delay(2000);
-                            UpdateStatusFromDevices();
-                        });
-                    });
+                    var stationLabel = $"{Environment.MachineName}-{_stationName.Replace(' ', '-')}";
+
+                    // Update packing status to Packed
+                    _ = ApiService.UpdatePackingStatusByScanAsync(finishedBarcode!, "Packed", stationLabel);
+
+                    // Register video record (status=Recorded) then upload to MinIO in background
+                    var videoId = await ApiService.CreateVideoRecordAsync(
+                        finishedBarcode!, filePath, stationLabel);
+
+                    if (videoId > 0)
+                        MinioUploadService.UploadAsync(videoId, filePath, finishedBarcode!);
+                    else
+                        Logger.Log($"Station {_stationId}: failed to create video record, skipping upload");
                 }
                 else
                 {
@@ -530,7 +542,7 @@ public partial class StationView : ContentView, IDisposable
             var prefix = SanitizeFileName(_stationName).Replace(' ', '-');
             var dir = Path.Combine(AppSettings.VideoFolder, DateTime.Now.ToString("yyyy-MM-dd"), prefix);
             Directory.CreateDirectory(dir);
-            _pendingFilePath = Path.Combine(dir, $"{prefix}_{barcode}_{DateTime.Now:yyyyMMdd_HHmmss}.mp4");
+            _pendingFilePath = Path.Combine(dir, $"{DateTime.Now:yyyyMMdd_HHmmss}_{Environment.MachineName}_{prefix}_{barcode}.mp4");
 
             // Open a seekable FileStream — toolkit calls .AsRandomAccessStream() on it internally,
             // which requires CanSeek = true. Encoded MP4 bytes go straight to disk; no MemoryStream.
@@ -568,7 +580,7 @@ public partial class StationView : ContentView, IDisposable
                        $"{GC.GetTotalMemory(false) / 1_048_576.0:F1} MB");
 
             // Show UI feedback
-            UpdateStatus("⏳ Saving...");
+            // UpdateStatus("⏳ Saving...");
             await MainThread.InvokeOnMainThreadAsync(() => SavingOverlay.IsVisible = true);
 
             var swStop = Stopwatch.StartNew();
@@ -650,14 +662,14 @@ public partial class StationView : ContentView, IDisposable
     /// and sets <see cref="_videoCount"/>. Called once at startup; afterwards the counter
     /// is incremented in-memory each time the app saves a new file.
     /// </summary>
-    private async Task LoadTodayVideoCountAsync()
+    public async Task LoadTodayVideoCountAsync()
     {
         try
         {
             var prefix = SanitizeFileName(_stationName).Replace(' ', '-');
             var dir = Path.Combine(AppSettings.VideoFolder, DateTime.Now.ToString("yyyy-MM-dd"), prefix);
             _videoCount = Directory.Exists(dir)
-                ? Directory.GetFiles(dir, $"{prefix}_*.mp4").Length
+                ? Directory.GetFiles(dir, $"*_{prefix}_*.mp4").Length
                 : 0;
 
             await MainThread.InvokeOnMainThreadAsync(() =>

@@ -144,6 +144,7 @@ public partial class MainPage : ContentPage
         base.OnAppearing();
         // Re-enumerate devices after returning from any modal (e.g. Settings)
         _ = Task.WhenAll(_stations.Select(s => s.LoadDevicesAsync()));
+        _ = Task.WhenAll(_stations.Select(s => s.LoadTodayVideoCountAsync()));
     }
 
     protected override void OnDisappearing()
