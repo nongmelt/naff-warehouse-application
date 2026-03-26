@@ -7,6 +7,8 @@ namespace app.Services;
 
 public static class Logger
 {
+    private static readonly object _lock = new();
+
     static string LogFile
     {
         get
@@ -21,7 +23,10 @@ public static class Logger
     {
         var line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {message}";
         Debug.WriteLine(line);
-        File.AppendAllText(LogFile, line + Environment.NewLine);
+        lock (_lock)
+        {
+            File.AppendAllText(LogFile, line + Environment.NewLine);
+        }
     }
 
     public static void Log(Exception ex)
