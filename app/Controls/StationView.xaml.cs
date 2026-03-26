@@ -669,7 +669,7 @@ public partial class StationView : ContentView, IDisposable
             var prefix = SanitizeFileName(_stationName).Replace(' ', '-');
             var dir = Path.Combine(AppSettings.VideoFolder, DateTime.Now.ToString("yyyy-MM-dd"), prefix);
             _videoCount = Directory.Exists(dir)
-                ? Directory.GetFiles(dir, $"{prefix}_*.mp4").Length
+                ? Directory.GetFiles(dir, $"*_{prefix}_*.mp4").Length
                 : 0;
 
             await MainThread.InvokeOnMainThreadAsync(() =>
