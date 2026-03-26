@@ -269,6 +269,7 @@ public partial class StationView : ContentView, IDisposable
 
     public async Task LoadDevicesAsync()
     {
+        if (_loadingDevices) return;
         _loadingDevices = true;
         try
         {
@@ -661,7 +662,7 @@ public partial class StationView : ContentView, IDisposable
     /// and sets <see cref="_videoCount"/>. Called once at startup; afterwards the counter
     /// is incremented in-memory each time the app saves a new file.
     /// </summary>
-    private async Task LoadTodayVideoCountAsync()
+    public async Task LoadTodayVideoCountAsync()
     {
         try
         {
