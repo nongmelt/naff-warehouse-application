@@ -20,9 +20,10 @@ public partial class SettingsPage : ContentPage
     protected override void OnAppearing()
     {
         base.OnAppearing();
-        VideoFolderEntry.Text    = AppSettings.VideoFolder;
-        WebhookUrlEntry.Text     = AppSettings.WebhookUrl;
-        ApiUrlEntry.Text         = AppSettings.ApiUrl;
+        VideoFolderEntry.Text       = AppSettings.VideoFolder;
+        WebhookUrlEntry.Text        = AppSettings.WebhookUrl;
+        ApiUrlEntry.Text            = AppSettings.ApiUrl;
+        SearchHistoryMaxEntry.Text  = AppSettings.SearchHistoryMaxItems.ToString();
         MinioBucketEntry.Text    = AppSettings.MinioBucket;
         MinioEndpointEntry.Text  = AppSettings.MinioEndpoint;
         MinioAccessKeyEntry.Text = AppSettings.MinioAccessKey;
@@ -70,6 +71,8 @@ public partial class SettingsPage : ContentPage
     {
         AppSettings.VideoFolder = VideoFolderEntry.Text?.Trim() ?? AppSettings.DefaultVideoFolder;
         AppSettings.WebhookUrl  = WebhookUrlEntry.Text?.Trim()  ?? AppSettings.DefaultWebhookUrl;
+        if (int.TryParse(SearchHistoryMaxEntry.Text?.Trim(), out var maxHistory) && maxHistory >= 1)
+            AppSettings.SearchHistoryMaxItems = maxHistory;
         Logger.Log($"Settings saved — VideoFolder: {AppSettings.VideoFolder}, WebhookUrl: {AppSettings.WebhookUrl}");
         GeneralSavedLabel.IsVisible = true;
         Dispatcher.DispatchDelayed(TimeSpan.FromSeconds(3), () => GeneralSavedLabel.IsVisible = false);

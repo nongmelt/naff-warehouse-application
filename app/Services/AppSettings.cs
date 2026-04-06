@@ -11,9 +11,9 @@ public static class AppSettings
     private const string KeyApiUrl = "settings.api_url";
     private const string KeySeeded = "settings.seeded.v3";
 
-    private const string KeyMinioBucket   = "settings.minio.bucket";
-    private const string KeyMinioAccess   = "settings.minio.access_key";
-    private const string KeyMinioSecret   = "settings.minio.secret_key";
+    private const string KeyMinioBucket = "settings.minio.bucket";
+    private const string KeyMinioAccess = "settings.minio.access_key";
+    private const string KeyMinioSecret = "settings.minio.secret_key";
     private const string KeyMinioEndpoint = "settings.minio.endpoint";
 
     public static readonly string DefaultVideoFolder =
@@ -76,9 +76,9 @@ public static class AppSettings
                 var doc = JsonDocument.Parse(File.ReadAllText(configPath)).RootElement;
                 if (doc.TryGetProperty("minio", out var minio))
                 {
-                    SeedIfEmpty(KeyMinioBucket,   minio, "bucket");
-                    SeedIfEmpty(KeyMinioAccess,   minio, "accessKey");
-                    SeedIfEmpty(KeyMinioSecret,   minio, "secretKey");
+                    SeedIfEmpty(KeyMinioBucket, minio, "bucket");
+                    SeedIfEmpty(KeyMinioAccess, minio, "accessKey");
+                    SeedIfEmpty(KeyMinioSecret, minio, "secretKey");
                     SeedIfEmpty(KeyMinioEndpoint, minio, "endpoint");
                     Logger.Log("AppSettings: MinIO fields synced from appsettings.json");
                 }
@@ -137,5 +137,13 @@ public static class AppSettings
     {
         get => Preferences.Default.Get(KeyMinioEndpoint, string.Empty);
         set => Preferences.Default.Set(KeyMinioEndpoint, value);
+    }
+
+    private const string KeySearchHistoryMax = "search.history.max";
+
+    public static int SearchHistoryMaxItems
+    {
+        get => Preferences.Default.Get(KeySearchHistoryMax, 50);
+        set => Preferences.Default.Set(KeySearchHistoryMax, Math.Max(1, value));
     }
 }

@@ -4,6 +4,7 @@ using CommunityToolkit.Maui.Views;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO.Ports;
+using System.Runtime.Versioning;
 using System.Text.RegularExpressions;
 #if WINDOWS
 using System.Management;
@@ -11,6 +12,7 @@ using System.Management;
 
 namespace app.Controls;
 
+[SupportedOSPlatform("windows")]
 public partial class StationView : ContentView, IDisposable
 {
     private readonly int _stationId;
@@ -24,7 +26,8 @@ public partial class StationView : ContentView, IDisposable
     private bool _isRecording;
     private CancellationTokenSource? _recordingCts;
     private Task? _recordingTask;
-    private Stream? _recordedStream;
+    private string? _pendingFilePath;
+    private FileStream? _recordingFileStream;
 
     // Diagnostics
     private DateTime _recordingStartedAt;
@@ -266,6 +269,7 @@ public partial class StationView : ContentView, IDisposable
 
     public async Task LoadDevicesAsync()
     {
+        if (_loadingDevices) return;
         _loadingDevices = true;
         try
         {
@@ -444,6 +448,12 @@ public partial class StationView : ContentView, IDisposable
         {
             Logger.Log($"Station {_stationId}: Barcode received: {barcode}");
 
+            if (barcode.Contains('-'))
+            {
+                Logger.Log($"Station {_stationId}: Barcode ignored (contains dash): {barcode}");
+                return;
+            }
+
             if (_activeBarcode == null)
             {
                 // First scan → start recording
@@ -462,8 +472,9 @@ public partial class StationView : ContentView, IDisposable
                 RecordingBorder.IsVisible = true;
                 StartRecording(barcode);
                 UpdateStatus("🔴 RECORDING");
+                _ = ApiService.UpdatePackingStatusByScanAsync(barcode, "Packing");
             }
-            else if (_activeBarcode == barcode)
+            else if (_activeBarcode == barcode || barcode == "Reset")
             {
                 // Second matching scan → stop recording
                 _isRecording = false;
@@ -482,15 +493,19 @@ public partial class StationView : ContentView, IDisposable
                     MainThread.BeginInvokeOnMainThread(() => VideoCountLabel.Text = _videoCount.ToString());
                     UpdateStatusFromDevices(); // ready for next scan immediately
 
-                    WebhookService.FireAndRetry(finishedBarcode, filePath, _stationName, sent =>
-                    {
-                        MainThread.BeginInvokeOnMainThread(async () =>
-                        {
-                            UpdateStatus(sent ? "✓ Webhook sent" : "⚠ Webhook failed");
-                            await Task.Delay(2000);
-                            UpdateStatusFromDevices();
-                        });
-                    });
+                    var stationLabel = $"{Environment.MachineName}-{_stationName.Replace(' ', '-')}";
+
+                    // Update packing status to Packed
+                    _ = ApiService.UpdatePackingStatusByScanAsync(finishedBarcode!, "Packed", stationLabel);
+
+                    // Register video record (status=Recorded) then upload to MinIO in background
+                    var videoId = await ApiService.CreateVideoRecordAsync(
+                        finishedBarcode!, filePath, stationLabel);
+
+                    if (videoId > 0)
+                        MinioUploadService.UploadAsync(videoId, filePath, finishedBarcode!);
+                    else
+                        Logger.Log($"Station {_stationId}: failed to create video record, skipping upload");
                 }
                 else
                 {
@@ -523,12 +538,24 @@ public partial class StationView : ContentView, IDisposable
             var memBefore = GC.GetTotalMemory(false);
             Logger.Log($"Station {_stationId}: [DIAG] Memory before start: {memBefore / 1_048_576.0:F1} MB");
 
+            // Build the output path now so we can open the file before recording begins
+            var prefix = SanitizeFileName(_stationName).Replace(' ', '-');
+            var dir = Path.Combine(AppSettings.VideoFolder, DateTime.Now.ToString("yyyy-MM-dd"), prefix);
+            Directory.CreateDirectory(dir);
+            _pendingFilePath = Path.Combine(dir, $"{DateTime.Now:yyyyMMdd_HHmmss}_{Environment.MachineName}_{prefix}_{barcode}.mp4");
+
+            // Open a seekable FileStream — toolkit calls .AsRandomAccessStream() on it internally,
+            // which requires CanSeek = true. Encoded MP4 bytes go straight to disk; no MemoryStream.
+            _recordingFileStream = new FileStream(_pendingFilePath,
+                FileMode.Create, FileAccess.ReadWrite, FileShare.None,
+                bufferSize: 65536, FileOptions.Asynchronous);
+
             var sw = Stopwatch.StartNew();
             _recordingCts = new CancellationTokenSource();
-            _recordingTask = CameraFeed.StartVideoRecording(_recordingCts.Token);
+            _recordingTask = CameraFeed.StartVideoRecording(_recordingFileStream, _recordingCts.Token);
             sw.Stop();
 
-            Logger.Log($"Station {_stationId}: Recording started for barcode {barcode} " +
+            Logger.Log($"Station {_stationId}: Recording started for barcode {barcode} → {_pendingFilePath} " +
                        $"(StartVideoRecording call: {sw.ElapsedMilliseconds} ms)");
         }
         catch (Exception ex)
@@ -539,7 +566,6 @@ public partial class StationView : ContentView, IDisposable
 
     private async Task<string?> StopRecordingAsync()
     {
-        var stationName = SanitizeFileName(_stationName);
         try
         {
             if (_recordingTask == null) return null;
@@ -548,43 +574,40 @@ public partial class StationView : ContentView, IDisposable
             var duration = DateTime.UtcNow - _recordingStartedAt;
             if (duration > RecordingDurationWarnThreshold)
                 Logger.Log($"Station {_stationId}: [WARN] Long recording: " +
-                           $"{duration.TotalMinutes:F1} min — high RAM usage expected");
+                           $"{duration.TotalMinutes:F1} min");
 
             Logger.Log($"Station {_stationId}: [DIAG] Memory before StopVideoRecording: " +
                        $"{GC.GetTotalMemory(false) / 1_048_576.0:F1} MB");
 
-            // Show UI feedback before the CPU-heavy encoding begins
-            UpdateStatus("⏳ Saving...");
+            // Show UI feedback
+            // UpdateStatus("⏳ Saving...");
             await MainThread.InvokeOnMainThreadAsync(() => SavingOverlay.IsVisible = true);
 
-            // Phase 1: Encoding (most likely freeze source)
             var swStop = Stopwatch.StartNew();
-            _recordedStream = await CameraFeed.StopVideoRecording(CancellationToken.None);
+
+            // Signal toolkit to finish encoding and flush remaining bytes to the FileStream
+            _ = await CameraFeed.StopVideoRecording(CancellationToken.None);
             await _recordingTask;
+
+            // Flush and close the FileStream — all MP4 data is now on disk
+            if (_recordingFileStream != null)
+            {
+                await _recordingFileStream.FlushAsync();
+                await _recordingFileStream.DisposeAsync();
+                _recordingFileStream = null;
+            }
+
             swStop.Stop();
 
-            var streamMb = _recordedStream?.Length / 1_048_576.0 ?? 0;
+            var filePath = _pendingFilePath;
+            _pendingFilePath = null;
+
+            if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath))
+                throw new Exception("Recording file missing after stop");
+
+            var fileMb = new FileInfo(filePath).Length / 1_048_576.0;
             Logger.Log($"Station {_stationId}: [DIAG] StopVideoRecording: {swStop.ElapsedMilliseconds} ms | " +
-                       $"Stream: {streamMb:F1} MB | Memory: {GC.GetTotalMemory(false) / 1_048_576.0:F1} MB");
-
-            if (_recordedStream == null || _recordedStream.Length == 0)
-                throw new Exception("Recorded stream is empty");
-
-            var dir = Path.Combine(AppSettings.VideoFolder, DateTime.Now.ToString("yyyy-MM-dd"));
-            Directory.CreateDirectory(dir);
-
-            var prefix   = stationName.Replace(' ', '-');
-            var filePath = Path.Combine(dir, $"{prefix}_{_activeBarcode}_{DateTime.Now:yyyyMMdd_HHmmss}.mp4");
-            _recordedStream.Position = 0;
-
-            // Phase 2: Disk write
-            var swWrite = Stopwatch.StartNew();
-            await using var fs = File.Create(filePath);
-            await _recordedStream.CopyToAsync(fs);
-            swWrite.Stop();
-
-            Logger.Log($"Station {_stationId}: [DIAG] CopyToAsync: {swWrite.ElapsedMilliseconds} ms | " +
-                       $"Memory: {GC.GetTotalMemory(false) / 1_048_576.0:F1} MB");
+                       $"File: {fileMb:F1} MB | Memory: {GC.GetTotalMemory(false) / 1_048_576.0:F1} MB");
             Logger.Log($"Station {_stationId}: Video saved to {filePath}");
             return filePath;
         }
@@ -595,13 +618,17 @@ public partial class StationView : ContentView, IDisposable
         }
         finally
         {
-            _recordedStream?.Dispose();
-            _recordedStream = null;
+            if (_recordingFileStream != null)
+            {
+                await _recordingFileStream.DisposeAsync();
+                _recordingFileStream = null;
+            }
             _recordingCts?.Dispose();
             _recordingCts = null;
             _recordingTask = null;
+            _pendingFilePath = null;
 
-            Logger.Log($"Station {_stationId}: [DIAG] Memory after stream dispose: " +
+            Logger.Log($"Station {_stationId}: [DIAG] Memory after recording: " +
                        $"{GC.GetTotalMemory(false) / 1_048_576.0:F1} MB");
 
             await MainThread.InvokeOnMainThreadAsync(() => SavingOverlay.IsVisible = false);
@@ -616,16 +643,16 @@ public partial class StationView : ContentView, IDisposable
     /// <summary>Sets StatusLabel based on which devices are currently connected.</summary>
     private void UpdateStatusFromDevices()
     {
-        bool hasCamera  = _cameraPreviewActive;
+        bool hasCamera = _cameraPreviewActive;
         bool hasScanner = _serialPort?.IsOpen == true;
         string portName = _serialPort?.PortName ?? "";
 
         string status = (hasCamera, hasScanner) switch
         {
             (false, false) => "Waiting for camera and scanner",
-            (true,  false) => "Camera ready · Waiting for scanner",
-            (false, true)  => $"Waiting for camera · Scanner ready ({portName})",
-            (true,  true)  => $"Camera ready · Scanner ready ({portName})",
+            (true, false) => "Camera ready · Waiting for scanner",
+            (false, true) => $"Waiting for camera · Scanner ready ({portName})",
+            (true, true) => $"Camera ready · Scanner ready ({portName})",
         };
         UpdateStatus(status);
     }
@@ -635,19 +662,19 @@ public partial class StationView : ContentView, IDisposable
     /// and sets <see cref="_videoCount"/>. Called once at startup; afterwards the counter
     /// is incremented in-memory each time the app saves a new file.
     /// </summary>
-    private async Task LoadTodayVideoCountAsync()
+    public async Task LoadTodayVideoCountAsync()
     {
         try
         {
-            var dir    = Path.Combine(AppSettings.VideoFolder, DateTime.Now.ToString("yyyy-MM-dd"));
             var prefix = SanitizeFileName(_stationName).Replace(' ', '-');
+            var dir = Path.Combine(AppSettings.VideoFolder, DateTime.Now.ToString("yyyy-MM-dd"), prefix);
             _videoCount = Directory.Exists(dir)
-                ? Directory.GetFiles(dir, $"{prefix}_*.mp4").Length
+                ? Directory.GetFiles(dir, $"*_{prefix}_*.mp4").Length
                 : 0;
 
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
-                VideoCountLabel.Text      = _videoCount.ToString();
+                VideoCountLabel.Text = _videoCount.ToString();
                 VideoCountBadge.IsVisible = _cameraPreviewActive;
             });
         }
@@ -682,7 +709,7 @@ public partial class StationView : ContentView, IDisposable
                 if (!m.Success) continue;
 
                 var portName = $"COM{m.Groups[1].Value}";
-                var label    = name[..m.Index].Trim().TrimEnd(',', '-', ' ');
+                var label = name[..m.Index].Trim().TrimEnd(',', '-', ' ');
                 if (string.IsNullOrWhiteSpace(label)) label = "Serial Device";
 
                 result.Add(new ComPortEntry(portName, $"{label} — {portName}"));
@@ -772,6 +799,7 @@ public partial class StationView : ContentView, IDisposable
         }
         _recordingCts?.Cancel();
         _recordingCts?.Dispose();
-        _recordedStream?.Dispose();
+        _recordingFileStream?.Dispose();
+        _recordingFileStream = null;
     }
 }
