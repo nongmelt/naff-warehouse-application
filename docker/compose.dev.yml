@@ -7,26 +7,21 @@ services:
       ports:
         - "0.0.0.0:8082:8080"
       env_file:
-        - .env
+        - .env.local
   frontend-dev:
     build:
       context: ../frontend
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
-        - NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL}
-        - NEXT_PUBLIC_MINIO_URL=${NEXT_PUBLIC_MINIO_URL}
-        - NEXT_PUBLIC_MINIO_BUCKET=${NEXT_PUBLIC_MINIO_BUCKET}
+        - NEXT_PUBLIC_API_URL=http://localhost:8082
+        - NEXT_PUBLIC_WS_URL=ws://localhost:8082/packing-lists/events
+        - NEXT_PUBLIC_MINIO_URL=http://localhost:9000
+        - NEXT_PUBLIC_MINIO_BUCKET=warehouse-dev
     restart: unless-stopped
     ports:
-      - "0.0.0.0:3000:3000"
+      - "0.0.0.0:3001:3000"
     env_file:
-      - .env
-    environment:
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
-      - NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL}
-      - NEXT_PUBLIC_MINIO_URL=${NEXT_PUBLIC_MINIO_URL}
-      - NEXT_PUBLIC_MINIO_BUCKET=${NEXT_PUBLIC_MINIO_BUCKET}
+      - .env.local
 volumes:
   n8n_data:
     external: true

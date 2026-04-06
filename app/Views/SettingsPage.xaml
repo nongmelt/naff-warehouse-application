@@ -266,34 +266,59 @@
                                                        TextColor="#111827"
                                                        Margin="0,0,0,4"/>
 
-                                                <!-- Video Folder -->
+                                                <!-- Video Destination Folders -->
                                                 <Border Stroke="#d1d5db"
                                                         StrokeThickness="1"
                                                         StrokeShape="RoundRectangle 8"
                                                         BackgroundColor="White"
                                                         Padding="16">
-                                                        <VerticalStackLayout Spacing="8">
-                                                                <Label Text="Video Destination Folder"
+                                                        <VerticalStackLayout Spacing="10">
+                                                                <Label Text="Video Destination Folders"
                                                                        FontAttributes="Bold"
                                                                        FontSize="14"
                                                                        TextColor="#111827"/>
-                                                                <Label Text="Recordings are saved into a date-stamped sub-folder inside this directory."
+                                                                <Label Text="Folders are tried in order. The first with sufficient free space is used. Add fallback drives below."
                                                                        FontSize="12"
                                                                        TextColor="#6b7280"/>
-                                                                <Grid ColumnDefinitions="*, Auto"
-                                                                      ColumnSpacing="8">
-                                                                        <Entry x:Name="VideoFolderEntry"
-                                                                               Grid.Column="0"
-                                                                               Placeholder="e.g. C:\Users\Videos"
-                                                                               FontSize="13"
+
+                                                                <!-- Dynamic folder rows are built here at runtime -->
+                                                                <VerticalStackLayout x:Name="VideoFoldersStack"
+                                                                                     Spacing="6"/>
+
+                                                                <!-- Add Folder button -->
+                                                                <Button Text="+ Add Folder"
+                                                                        Clicked="OnAddVideoFolder"
+                                                                        HorizontalOptions="Start"
+                                                                        FontSize="13"
+                                                                        Padding="14,7"
+                                                                        CornerRadius="6"
+                                                                        BackgroundColor="#eff6ff"
+                                                                        TextColor="#2563eb"
+                                                                        BorderColor="#bfdbfe"
+                                                                        BorderWidth="1"/>
+
+                                                                <!-- Threshold -->
+                                                                <Grid ColumnDefinitions="*, Auto, Auto"
+                                                                      ColumnSpacing="8"
+                                                                      Margin="0,4,0,0">
+                                                                        <Label Grid.Column="0"
+                                                                               Text="Minimum free space before fallback (GB)"
+                                                                               FontSize="12"
+                                                                               TextColor="#374151"
                                                                                VerticalOptions="Center"/>
-                                                                        <Button Grid.Column="1"
-                                                                                Text="Browse…"
-                                                                                Clicked="OnBrowseFolder"
-                                                                                WidthRequest="90"
-                                                                                FontSize="13"
-                                                                                Padding="0,8"
-                                                                                CornerRadius="6"/>
+                                                                        <Entry x:Name="MinFreeSpaceEntry"
+                                                                               Grid.Column="1"
+                                                                               Placeholder="10"
+                                                                               Keyboard="Numeric"
+                                                                               FontSize="13"
+                                                                               WidthRequest="70"
+                                                                               HorizontalOptions="End"
+                                                                               VerticalOptions="Center"/>
+                                                                        <Label Grid.Column="2"
+                                                                               Text="GB"
+                                                                               FontSize="12"
+                                                                               TextColor="#6b7280"
+                                                                               VerticalOptions="Center"/>
                                                                 </Grid>
                                                         </VerticalStackLayout>
                                                 </Border>
