@@ -540,7 +540,7 @@ public partial class StationView : ContentView, IDisposable
 
             // Build the output path now so we can open the file before recording begins
             var prefix = SanitizeFileName(_stationName).Replace(' ', '-');
-            var dir = Path.Combine(AppSettings.VideoFolder, DateTime.Now.ToString("yyyy-MM-dd"), prefix);
+            var dir = Path.Combine(AppSettings.GetAvailableVideoFolder(), DateTime.Now.ToString("yyyy-MM-dd"), prefix);
             Directory.CreateDirectory(dir);
             _pendingFilePath = Path.Combine(dir, $"{DateTime.Now:yyyyMMdd_HHmmss}_{Environment.MachineName}_{prefix}_{barcode}.mp4");
 

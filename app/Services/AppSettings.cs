@@ -7,6 +7,8 @@ namespace app.Services;
 public static class AppSettings
 {
     private const string KeyVideoFolder = "settings.video_folder";
+    private const string KeyVideoFolders = "settings.video_folders";            // semicolon-separated ordered list
+    private const string KeyVideoFolderMinFreeSpace = "settings.video_folder_min_free_bytes";
     private const string KeyWebhookUrl = "settings.webhook_url";
     private const string KeyApiUrl = "settings.api_url";
     private const string KeySeeded = "settings.seeded.v3";
@@ -55,6 +57,23 @@ public static class AppSettings
                     else
                         Preferences.Default.Remove(KeyVideoFolder);
 
+                    // Seed ordered folder list (new multi-path feature)
+                    if (doc.TryGetProperty("videoFolders", out var vfs) &&
+                        vfs.ValueKind == JsonValueKind.Array)
+                    {
+                        var paths = vfs.EnumerateArray()
+                            .Select(e => e.GetString())
+                            .Where(s => !string.IsNullOrWhiteSpace(s))
+                            .Select(s => s!)
+                            .ToList();
+                        if (paths.Count > 0)
+                            Preferences.Default.Set(KeyVideoFolders, string.Join(";", paths));
+                    }
+
+                    if (doc.TryGetProperty("videoFolderMinFreeGb", out var minFree) &&
+                        minFree.TryGetInt64(out var minFreeGb) && minFreeGb > 0)
+                        Preferences.Default.Set(KeyVideoFolderMinFreeSpace, minFreeGb * 1_073_741_824L);
+
                     if (doc.TryGetProperty("apiUrl", out var api) &&
                         !string.IsNullOrWhiteSpace(api.GetString()))
                         Preferences.Default.Set(KeyApiUrl, api.GetString()!);
@@ -97,10 +116,141 @@ public static class AppSettings
 
     // ── Settings ─────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Ordered list of video destination folders. Primary folder first, fallbacks after.
+    /// Stored as a semicolon-separated string. Falls back to the legacy single-folder key
+    /// for backward compatibility with existing installations.
+    /// </summary>
+    public static List<string> VideoFolders
+    {
+        get
+        {
+            var raw = Preferences.Default.Get(KeyVideoFolders, string.Empty);
+            if (!string.IsNullOrWhiteSpace(raw))
+            {
+                var list = raw.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+                if (list.Count > 0) return list;
+            }
+            // Legacy fallback: single folder key
+            var legacy = Preferences.Default.Get(KeyVideoFolder, string.Empty);
+            return string.IsNullOrWhiteSpace(legacy)
+                ? [DefaultVideoFolder]
+                : [legacy];
+        }
+        set
+        {
+            var filtered = (value ?? [])
+                .Where(p => !string.IsNullOrWhiteSpace(p))
+                .ToList();
+            Preferences.Default.Set(KeyVideoFolders, string.Join(";", filtered));
+        }
+    }
+
+    /// <summary>
+    /// Minimum free space (bytes) required on a drive before falling back to the next folder.
+    /// Default: 10 GB.
+    /// </summary>
+    public static long VideoFolderMinFreeSpaceBytes
+    {
+        get => Preferences.Default.Get(KeyVideoFolderMinFreeSpace, 10_737_418_240L);
+        set => Preferences.Default.Set(KeyVideoFolderMinFreeSpace, value);
+    }
+
+    /// <summary>
+    /// First path from the VideoFolders list (backward-compatible alias used by
+    /// LoadTodayVideoCountAsync and ScriptService which always reference the primary folder).
+    /// Setting this replaces the entire list with a single entry.
+    /// </summary>
     public static string VideoFolder
     {
-        get => Preferences.Default.Get(KeyVideoFolder, DefaultVideoFolder);
-        set => Preferences.Default.Set(KeyVideoFolder, value);
+        get => VideoFolders[0];
+        set => VideoFolders = [value];
+    }
+
+    /// <summary>
+    /// Evaluates the ordered VideoFolders list and returns the first path whose drive
+    /// is accessible and has free space above VideoFolderMinFreeSpaceBytes.
+    ///
+    /// Fallback tiers:
+    ///   1. First path with drive ready AND free space above threshold.
+    ///   2. First accessible path (below threshold) — logs a warning, recording continues.
+    ///   3. DefaultVideoFolder — logs critical, used only when no path is accessible at all.
+    ///
+    /// UNC paths (\\server\share\...): DriveInfo does not apply; accessibility is checked
+    /// via Directory.Exists instead and the free-space threshold is skipped.
+    /// </summary>
+    public static string GetAvailableVideoFolder()
+    {
+        var paths = VideoFolders;
+        var threshold = VideoFolderMinFreeSpaceBytes;
+        string? firstAccessible = null;
+        double firstAccessibleFreeGb = 0;
+
+        for (int i = 0; i < paths.Count; i++)
+        {
+            var path = paths[i];
+            var label = i == 0 ? "primary" : $"fallback #{i}";
+
+            try
+            {
+                var root = Path.GetPathRoot(path);
+                bool isUnc = path.StartsWith(@"\\") || path.StartsWith("//");
+
+                if (isUnc)
+                {
+                    // For UNC paths: only check reachability, skip free-space threshold.
+                    if (Directory.Exists(path))
+                    {
+                        Logger.Log($"[VideoFolder] Selected {path} ({label}, UNC — space check skipped)");
+                        return path;
+                    }
+                    Logger.Log($"[VideoFolder] Skipping {path} ({label}): UNC path not reachable");
+                    continue;
+                }
+
+                if (string.IsNullOrEmpty(root))
+                {
+                    Logger.Log($"[VideoFolder] Skipping {path} ({label}): cannot determine drive root");
+                    continue;
+                }
+
+                var drive = new DriveInfo(root);
+                if (!drive.IsReady)
+                {
+                    Logger.Log($"[VideoFolder] Skipping {path} ({label}): drive not ready");
+                    continue;
+                }
+
+                var freeGb = drive.AvailableFreeSpace / 1_073_741_824.0;
+
+                if (firstAccessible is null)
+                {
+                    firstAccessible = path;
+                    firstAccessibleFreeGb = freeGb;
+                }
+
+                if (drive.AvailableFreeSpace >= threshold)
+                {
+                    Logger.Log($"[VideoFolder] Selected {path} ({label}): {freeGb:F1} GB free");
+                    return path;
+                }
+
+                Logger.Log($"[VideoFolder] {path} ({label}): {freeGb:F1} GB free — below threshold, trying next");
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"[VideoFolder] Skipping {path} ({label}): {ex.Message}");
+            }
+        }
+
+        if (firstAccessible is not null)
+        {
+            Logger.Log($"[VideoFolder] WARNING: All folders below threshold. Using first accessible {firstAccessible} ({firstAccessibleFreeGb:F1} GB free). Recording continues.");
+            return firstAccessible;
+        }
+
+        Logger.Log($"[VideoFolder] CRITICAL: No accessible video folder found. Falling back to default {DefaultVideoFolder}");
+        return DefaultVideoFolder;
     }
 
     public static string WebhookUrl
