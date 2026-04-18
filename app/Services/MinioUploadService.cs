@@ -1,5 +1,7 @@
+using app.Workflows;
 using Minio;
 using Minio.DataModel.Args;
+using System.Diagnostics;
 using System.Runtime.Versioning;
 
 namespace app.Services;
@@ -45,9 +47,10 @@ public static class MinioUploadService
 
         for (int attempt = 1; attempt <= MaxRetries; attempt++)
         {
+            var sw = Stopwatch.StartNew();
             try
             {
-                await ApiService.UpdateVideoStatusAsync(videoId, "Uploading");
+                await ApiService.UpdateVideoStatusAsync(videoId, "Uploading", uploadAttempts: attempt);
 
                 // MinIO SDK requires host:port only — strip scheme if present
                 var uri = endpoint.StartsWith("http://") || endpoint.StartsWith("https://")
@@ -73,37 +76,128 @@ public static class MinioUploadService
                     .WithObjectSize(size)
                     .WithContentType("video/mp4"));
 
-                await ApiService.UpdateVideoStatusAsync(videoId, "Uploaded");
+                await ApiService.UpdateVideoStatusAsync(videoId, "Uploaded", uploadAttempts: attempt);
+                sw.Stop();
                 Logger.Log($"MinioUploadService: uploaded {objectName} ({size / 1_048_576.0:F1} MB)");
 
-                // Validate the file exists on MinIO
+                StationEvents.Emit(
+                    workflowName: "Packing",
+                    stepId:       "upload_succeeded",
+                    trigger:      "upload_response",
+                    trackingNumber: trackingNumber,
+                    fromState:    "uploading",
+                    toState:      "uploaded",
+                    payload: new Dictionary<string, object?>
+                    {
+                        ["videoId"]            = videoId,
+                        ["attempt"]            = attempt,
+                        ["durationMs"]         = sw.ElapsedMilliseconds,
+                        ["responseStatus"]     = "200",
+                        ["videoFileSizeBytes"] = size,
+                    });
+
+                // Validate the file exists on MinIO (HEAD-style verify)
                 bool exists = await ObjectExistsAsync(minio, bucket, objectName);
-                await ApiService.UpdateVideoStatusAsync(videoId, exists ? "Completed" : "Failed");
+                await ApiService.UpdateVideoStatusAsync(videoId, exists ? "Completed" : "Failed",
+                    failureReason: exists ? null : "remote_missing");
 
                 if (exists)
                 {
+                    // Successful upload — if this video had previously failed and
+                    // was pending re-upload, drop it from the queue.
+                    ReuploadQueue.Complete(videoId);
+
                     var remoteFilePath = $"{bucket}/{objectName}";
                     await ApiService.UpdateVideoRemotePathAsync(videoId, remoteFilePath);
                     Logger.Log($"MinioUploadService: remote_file_path saved as {remoteFilePath}");
+
+                    StationEvents.Emit(
+                        workflowName: "Packing",
+                        stepId:       "verified",
+                        trigger:      "verify_remote",
+                        trackingNumber: trackingNumber,
+                        fromState:    "uploaded",
+                        toState:      "completed",
+                        payload: new Dictionary<string, object?>
+                        {
+                            ["videoId"]        = videoId,
+                            ["responseStatus"] = "200",
+                        });
                 }
                 else
                 {
                     Logger.Log($"MinioUploadService: post-upload validation failed for {objectName}");
+                    StationEvents.Emit(
+                        workflowName: "Packing",
+                        stepId:       "verify_missing",
+                        trigger:      "verify_remote",
+                        trackingNumber: trackingNumber,
+                        fromState:    "uploaded",
+                        toState:      "failed",
+                        payload: new Dictionary<string, object?>
+                        {
+                            ["videoId"]        = videoId,
+                            ["reason"]         = "remote_missing",
+                            ["responseStatus"] = "404",
+                        });
+                    await ApiService.NotifyManualUploadNeededAsync(videoId);
                 }
 
                 return; // success
             }
             catch (Exception ex)
             {
+                sw.Stop();
                 Logger.Log($"MinioUploadService: attempt {attempt}/{MaxRetries} failed — {ex.Message}");
-                if (attempt < MaxRetries)
+
+                var reason = ClassifyFailure(ex);
+                var isLast = attempt >= MaxRetries;
+
+                StationEvents.Emit(
+                    workflowName: "Packing",
+                    stepId:       isLast ? "upload_failed" : "upload_retry",
+                    trigger:      "upload_response",
+                    trackingNumber: trackingNumber,
+                    fromState:    "uploading",
+                    toState:      isLast ? "failed" : "uploading",
+                    payload: new Dictionary<string, object?>
+                    {
+                        ["videoId"]    = videoId,
+                        ["attempt"]    = attempt,
+                        ["durationMs"] = sw.ElapsedMilliseconds,
+                        ["reason"]     = reason,
+                        ["detail"]     = ex.Message,
+                    });
+
+                if (!isLast)
                     await Task.Delay(TimeSpan.FromSeconds(attempt * 2));
             }
         }
 
-        // All retries exhausted
+        // All retries exhausted — persist the local path so a dashboard-initiated
+        // retry (via UploadCommandListener) can find the file to re-upload.
         Logger.Log($"MinioUploadService: giving up after {MaxRetries} attempts for video {videoId}");
-        await ApiService.UpdateVideoStatusAsync(videoId, "Failed");
+        await ApiService.UpdateVideoStatusAsync(videoId, "Failed",
+            failureReason: "unknown", uploadAttempts: MaxRetries);
+        ReuploadQueue.Enqueue(videoId, filePath, trackingNumber, "unknown");
+        await ApiService.NotifyManualUploadNeededAsync(videoId);
+    }
+
+    /// <summary>
+    /// Maps exceptions to stable reason codes that land in
+    /// <c>workflow_events.payload.reason</c> and <c>packing_videos.failure_reason</c>.
+    /// The dashboard groups retry metrics by these codes, so the mapping is the contract —
+    /// keep it in sync with the list in PackingWorkflow's xmldoc.
+    /// </summary>
+    private static string ClassifyFailure(Exception ex)
+    {
+        var msg = ex.Message.ToLowerInvariant();
+        if (ex is TaskCanceledException || ex is TimeoutException || msg.Contains("timeout")) return "network_timeout";
+        if (msg.Contains("refused") || msg.Contains("connection"))                            return "connection_refused";
+        if (msg.Contains("403") || msg.Contains("401") || msg.Contains("signature") || msg.Contains("access denied"))
+                                                                                              return "auth_failure";
+        if (msg.Contains("disk") || msg.Contains("space"))                                    return "disk_full";
+        return "unknown";
     }
 
     private static async Task<bool> ObjectExistsAsync(IMinioClient minio, string bucket, string objectName)

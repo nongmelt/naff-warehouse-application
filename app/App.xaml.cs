@@ -10,6 +10,13 @@ public partial class App : Application
 	public App()
 	{
 		Services.AppSettings.Initialize();
+		Services.UploadCommandListener.Start();
+		_ = Task.Run(async () =>
+		{
+			Services.AppSettings.ResolvedStationId =
+				await Services.ApiService.ResolveStationIdAsync(Environment.MachineName);
+			Services.Logger.Log($"App: station resolved → id={Services.AppSettings.ResolvedStationId}");
+		});
 		InitializeComponent();
 	}
 

@@ -1,5 +1,6 @@
 using app.Models;
 using app.Services;
+using app.Workflows;
 using Microsoft.Maui.Controls.Shapes;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -40,6 +41,40 @@ public partial class OrderSearchPage : ContentPage
 
     // Orders that were "To be packed" when first scanned this session — the only ones counted in SessionCard
     private readonly HashSet<int> _qualifiedPackingIds = [];
+
+    // Increments on every QC mutation within a scan session — shipped on workflow_events
+    // so analytics can answer "which SKUs get scanned first on average?"
+    private int _sequenceInSession;
+
+    private int NextSequence() => ++_sequenceInSession;
+
+    private void EmitQcEvent(
+        string stepId,
+        string trigger,
+        string? trackingNumber,
+        string? fromState,
+        string? toState,
+        Dictionary<string, object?>? payload = null,
+        bool bumpSequence = true)
+    {
+        StationEvents.Emit(
+            workflowName: "QC",
+            stepId:       stepId,
+            trigger:      trigger,
+            trackingNumber: trackingNumber,
+            fromState:    fromState,
+            toState:      toState,
+            stationId:    AppSettings.ResolvedStationId,
+            stationType:  "QC",
+            @operator:    StationName,
+            sequenceInSession: bumpSequence ? NextSequence() : _sequenceInSession,
+            payload: payload);
+    }
+
+    private string? CurrentTrackingNumber =>
+        _sessionIndex >= 0 && _sessionIndex < _sessions.Count
+            ? _sessions[_sessionIndex].Query
+            : null;
 
     public ObservableCollection<PackingList> Results { get; } = new();
     public ObservableCollection<PackingList> ActiveResults { get; } = new();
@@ -199,12 +234,12 @@ public partial class OrderSearchPage : ContentPage
     // ── Search ───────────────────────────────────────────────────────────────
 
     private async void OnSearchClicked(object sender, EventArgs e)
-        => await ExecuteSearchAsync(SearchEntry.Text?.Trim() ?? "");
+        => await ExecuteSearchAsync(SearchEntry.Text?.Trim() ?? "", trigger: "manual_search");
 
     private async void OnSearchCommitted(object sender, EventArgs e)
-        => await ExecuteSearchAsync(SearchEntry.Text?.Trim() ?? "");
+        => await ExecuteSearchAsync(SearchEntry.Text?.Trim() ?? "", trigger: "manual_search");
 
-    private async Task ExecuteSearchAsync(string input, List<PackingList>? preloaded = null)
+    private async Task ExecuteSearchAsync(string input, List<PackingList>? preloaded = null, string trigger = "tracking_scan")
     {
         if (string.IsNullOrWhiteSpace(input) || _isSearching) return;
         SearchEntry.Text = string.Empty;
@@ -274,6 +309,23 @@ public partial class OrderSearchPage : ContentPage
 
         _orderLoaded = rows.Count > 0;
         ResetSessionStatCounts();
+
+        // New tracking scan resets the sequence counter — analytics treats the
+        // counter as "nth mutation of this session", where a session is one
+        // tracking scan's worth of picking.
+        _sequenceInSession = 0;
+        EmitQcEvent(
+            stepId:    "tracking_scanned",
+            trigger:   trigger,
+            trackingNumber: input,
+            fromState: "idle",
+            toState:   rows.Count > 0 ? "order-loaded" : "idle",
+            payload: new Dictionary<string, object?>
+            {
+                ["trackingNumber"] = input,
+                ["ordersFound"]    = rows.Count,
+            });
+
         BuildCarouselUI();
         if (!isSameQuery) _ = AnimateAllCarouselCardsAsync();
         UpdateSessionStats();
@@ -293,9 +345,10 @@ public partial class OrderSearchPage : ContentPage
     {
         // Auto-deduct 1 from the previous pending item before handling the new scan
         if (_pendingSkuProduct != null)
-            ApplySkuDeduction(_pendingSkuProduct, "1");
+            ApplySkuDeduction(_pendingSkuProduct, "1", DeductionSource.AutoPrior);
 
         ProductItem? found = null;
+        PackingList? foundOrder = null;
         bool blockedByQcPassed = false;
 
         foreach (var order in Results)
@@ -316,11 +369,24 @@ public partial class OrderSearchPage : ContentPage
             }
 
             found = match;
+            foundOrder = order;
             break;
         }
 
         if (found == null)
         {
+            var reason = blockedByQcPassed ? "qc-passed-locked" : "not-in-order";
+            EmitQcEvent(
+                stepId:    "item_scan_rejected",
+                trigger:   "sku_scan",
+                trackingNumber: CurrentTrackingNumber,
+                fromState: "picking",
+                toState:   "picking",
+                payload: new Dictionary<string, object?>
+                {
+                    ["sku"]    = barcode,
+                    ["reason"] = reason,
+                });
             UpdateSearchStatus(blockedByQcPassed
                 ? $"SKU '{barcode}' belongs to a QC Passed order — no changes allowed"
                 : $"SKU '{barcode}' not found in this order");
@@ -332,10 +398,33 @@ public partial class OrderSearchPage : ContentPage
         if (found.Quantity == 1)
         {
             // Only one left — deduct immediately, no input needed
-            ApplySkuDeduction(found, "1");
+            EmitQcEvent(
+                stepId:    "item_scanned_auto",
+                trigger:   "sku_scan",
+                trackingNumber: foundOrder?.TrackingNumber,
+                fromState: "picking",
+                toState:   "picking",
+                payload: new Dictionary<string, object?>
+                {
+                    ["sku"]       = barcode,
+                    ["qtyBefore"] = found.Quantity,
+                    ["qtyAfter"]  = 0,
+                });
+            ApplySkuDeduction(found, "1", DeductionSource.ScanAuto);
         }
         else
         {
+            EmitQcEvent(
+                stepId:    "item_scanned_await_qty",
+                trigger:   "sku_scan",
+                trackingNumber: foundOrder?.TrackingNumber,
+                fromState: "picking",
+                toState:   "picking",
+                payload: new Dictionary<string, object?>
+                {
+                    ["sku"]          = barcode,
+                    ["qtyRemaining"] = found.Quantity,
+                });
             found.IsBeingPicked = true;
             FocusItemEntry(found);
             var label = found.Name + (found.HasVariation ? $" · {found.Variation}" : "");
@@ -344,10 +433,20 @@ public partial class OrderSearchPage : ContentPage
         }
     }
 
+    // Differentiates which user action triggered a deduction — so ApplySkuDeduction
+    // emits the right workflow_event (manual qty entry vs card tap vs a prior auto-complete).
+    private enum DeductionSource
+    {
+        AutoPrior,   // pending item auto-deducted because user moved on to the next scan/tap
+        ScanAuto,    // scan matched a qty=1 row — immediate deduct; event already emitted in HandleSkuScan
+        ManualQty,   // user typed a number in the qty entry
+        CardTap,     // user tapped the qty area on a card
+    }
+
     private void OnPickQtyEntryCompleted(object sender, EventArgs e)
     {
         if (sender is Entry entry && entry.BindingContext is ProductItem item)
-            ApplySkuDeduction(item, entry.Text);
+            ApplySkuDeduction(item, entry.Text, DeductionSource.ManualQty);
     }
 
     private void OnPickQtyTextChanged(object sender, TextChangedEventArgs e)
@@ -365,7 +464,7 @@ public partial class OrderSearchPage : ContentPage
             entry.Text = item.Quantity.ToString();
     }
 
-    private void ApplySkuDeduction(ProductItem item, string? qtyText)
+    private void ApplySkuDeduction(ProductItem item, string? qtyText, DeductionSource source)
     {
         if (!int.TryParse(qtyText?.Trim(), out var qty)) qty = 1; // invalid input → default 1
         qty = Math.Max(0, Math.Min(qty, item.Quantity));           // clamp [0, remaining]
@@ -377,6 +476,31 @@ public partial class OrderSearchPage : ContentPage
             if (item == _pendingSkuProduct) _pendingSkuProduct = null;
             UpdateSearchStatus($"{item.SellerSku} — no deduction (0 entered)");
             return;
+        }
+
+        // Emit the action-origin event BEFORE mutating, so qtyBefore/qtyAfter reflect the change.
+        // ScanAuto is already reported in HandleSkuScan (as item_scanned_auto); skip here.
+        // AutoPrior is a housekeeping side-effect (not a user action on this item) → no event.
+        if (source is DeductionSource.ManualQty or DeductionSource.CardTap)
+        {
+            var owner = Results.FirstOrDefault(o => o.ParsedProducts.Contains(item));
+            var stepId = source == DeductionSource.ManualQty ? "manual_qty_entered" : "card_clicked";
+            var trigger = source == DeductionSource.ManualQty ? "qty_entered" : "card_tap";
+            var payload = new Dictionary<string, object?>
+            {
+                ["sku"]       = item.SellerSku,
+                ["qtyBefore"] = item.Quantity,
+                ["qtyAfter"]  = item.Quantity - qty,
+            };
+            if (source == DeductionSource.ManualQty) payload["qtyEntered"] = qty;
+            else                                     payload["qtyDeducted"] = qty;
+            EmitQcEvent(
+                stepId:    stepId,
+                trigger:   trigger,
+                trackingNumber: owner?.TrackingNumber,
+                fromState: "picking",
+                toState:   "picking",
+                payload:   payload);
         }
 
         item.Quantity -= qty;
@@ -413,6 +537,7 @@ public partial class OrderSearchPage : ContentPage
             if (order.ParsedProducts.All(p => p.IsFullyPicked)) continue;  // QC Passed path
             if (!order.ParsedProducts.Any(p => p.Quantity != p.OriginalQuantity)) continue;
 
+            var wasHeld = string.Equals(order.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase);
             var updatedJson = JsonSerializer.Serialize(order.ParsedProducts.ToList(),
                 new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
             var now = DateTime.UtcNow;
@@ -425,6 +550,23 @@ public partial class OrderSearchPage : ContentPage
                 // Do NOT set OrderQcContext here — cards stay white while the user is scanning.
                 BuildCarouselUI();
                 UpdateSessionStats();
+
+                // Only emit on the first transition into QC Hold — subsequent deductions
+                // on the same held order would drown out the genuine state change.
+                if (!wasHeld)
+                {
+                    EmitQcEvent(
+                        stepId:    "order_held",
+                        trigger:   "qty_deduction",
+                        trackingNumber: order.TrackingNumber,
+                        fromState: "picking",
+                        toState:   "held",
+                        bumpSequence: false,
+                        payload: new Dictionary<string, object?>
+                        {
+                            ["itemsRemaining"] = order.ParsedProducts.Count(p => !p.IsFullyPicked),
+                        });
+                }
             }
         }
     }
@@ -453,6 +595,18 @@ public partial class OrderSearchPage : ContentPage
                 order.CheckedAt = now;
                 foreach (var p in order.ParsedProducts)
                     p.OrderQcContext = "QC Passed";
+
+                EmitQcEvent(
+                    stepId:    "order_passed",
+                    trigger:   "qc_complete",
+                    trackingNumber: order.TrackingNumber,
+                    fromState: "picking",
+                    toState:   "passed",
+                    payload: new Dictionary<string, object?>
+                    {
+                        ["checkedBy"]   = StationName,
+                        ["itemsPicked"] = order.ParsedProducts.Count,
+                    });
             }
             UpdateSearchStatus(ok
                 ? $"✓ {order.TrackingNumber} — QC Passed · {StationName}"
@@ -489,6 +643,18 @@ public partial class OrderSearchPage : ContentPage
                 order.CheckedAt = now;
                 foreach (var p in order.ParsedProducts)
                     p.OrderQcContext = "QC Hold";
+
+                EmitQcEvent(
+                    stepId:    "order_held",
+                    trigger:   "leave_page",
+                    trackingNumber: order.TrackingNumber,
+                    fromState: "picking",
+                    toState:   "held",
+                    bumpSequence: false,
+                    payload: new Dictionary<string, object?>
+                    {
+                        ["itemsRemaining"] = order.ParsedProducts.Count(p => !p.IsFullyPicked),
+                    });
             }
             Logger.Log($"OrderSearch: {order.TrackingNumber} → QC Hold ({(ok ? "saved" : "DB failed")})");
         }
@@ -535,13 +701,13 @@ public partial class OrderSearchPage : ContentPage
         if (item.Quantity <= 0) { UpdateSearchStatus($"{item.SellerSku} — already fully picked"); return; }
 
         if (_pendingSkuProduct != null)
-            ApplySkuDeduction(_pendingSkuProduct, "1");
+            ApplySkuDeduction(_pendingSkuProduct, "1", DeductionSource.AutoPrior);
 
         _pendingSkuProduct = item;
 
         if (item.Quantity == 1)
         {
-            ApplySkuDeduction(item, "1");
+            ApplySkuDeduction(item, "1", DeductionSource.CardTap);
         }
         else
         {
@@ -580,6 +746,8 @@ public partial class OrderSearchPage : ContentPage
     {
         if (sender is not VisualElement el || el.BindingContext is not PackingList order) return;
 
+        var previousStatus = order.PackingStatus;
+
         var ok = await ApiService.ResetQcHoldAsync(order.PackingId);
         if (!ok)
         {
@@ -604,6 +772,18 @@ public partial class OrderSearchPage : ContentPage
         order.CheckedAt = null;
         order.UpdatedProductLists = null;
         order.ResetToOriginalQuantities();
+
+        EmitQcEvent(
+            stepId:    "order_reset",
+            trigger:   "reset_clicked",
+            trackingNumber: order.TrackingNumber,
+            fromState: string.Equals(previousStatus, "QC Passed", StringComparison.OrdinalIgnoreCase) ? "passed" : "held",
+            toState:   "idle",
+            bumpSequence: false,
+            payload: new Dictionary<string, object?>
+            {
+                ["previousStatus"] = previousStatus,
+            });
 
         UpdateSearchStatus($"↺ {order.TrackingNumber} — reset to original");
         Logger.Log($"OrderSearch: {order.TrackingNumber} → reset QC Hold");
@@ -900,7 +1080,7 @@ public partial class OrderSearchPage : ContentPage
         if (_sessions.Count == 0 || index == _sessionIndex) return;
 
         if (_pendingSkuProduct != null)
-            ApplySkuDeduction(_pendingSkuProduct, "1");
+            ApplySkuDeduction(_pendingSkuProduct, "1", DeductionSource.AutoPrior);
 
         _sessionIndex = index;
         var session = _sessions[_sessionIndex];

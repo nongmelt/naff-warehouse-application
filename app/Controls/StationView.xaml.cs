@@ -1,4 +1,5 @@
 using app.Services;
+using app.Workflows;
 using CommunityToolkit.Maui.Core;
 using CommunityToolkit.Maui.Views;
 using System.Collections.Concurrent;
@@ -454,6 +455,9 @@ public partial class StationView : ContentView, IDisposable
                 return;
             }
 
+            var stationName  = Environment.MachineName;
+            var stationLabel = $"{stationName}-{_stationName.Replace(' ', '-')}";
+
             if (_activeBarcode == null)
             {
                 // First scan → start recording
@@ -473,6 +477,21 @@ public partial class StationView : ContentView, IDisposable
                 StartRecording(barcode);
                 UpdateStatus("🔴 RECORDING");
                 _ = ApiService.UpdatePackingStatusByScanAsync(barcode, "Packing");
+
+                StationEvents.Emit(
+                    workflowName: "Packing",
+                    stepId:       "tracking_scanned",
+                    trigger:      "barcode_scan",
+                    trackingNumber: barcode,
+                    fromState:    "idle",
+                    toState:      "recording",
+                    stationId:    AppSettings.ResolvedStationId,
+                    stationType:  "Packing",
+                    @operator:    _stationName,
+                    payload: new Dictionary<string, object?>
+                    {
+                        ["stationLabel"] = stationLabel,
+                    });
             }
             else if (_activeBarcode == barcode || barcode == "Reset")
             {
@@ -483,6 +502,7 @@ public partial class StationView : ContentView, IDisposable
                 BarcodeLabel.Text = "";
                 RecBadge.IsVisible = false;
                 RecordingBorder.IsVisible = false;
+                var recordingStartedAt = _recordingStartedAt;
                 var filePath = await StopRecordingAsync();
                 var finishedBarcode = _activeBarcode;
                 _activeBarcode = null;
@@ -493,19 +513,57 @@ public partial class StationView : ContentView, IDisposable
                     MainThread.BeginInvokeOnMainThread(() => VideoCountLabel.Text = _videoCount.ToString());
                     UpdateStatusFromDevices(); // ready for next scan immediately
 
-                    var stationLabel = $"{Environment.MachineName}-{_stationName.Replace(' ', '-')}";
-
                     // Update packing status to Packed
-                    _ = ApiService.UpdatePackingStatusByScanAsync(finishedBarcode!, "Packed", stationLabel);
+                    _ = ApiService.UpdatePackingStatusByScanAsync(finishedBarcode!, "Packed", _stationName);
+
+                    var durationSeconds = (int)Math.Round((DateTime.UtcNow - recordingStartedAt).TotalSeconds);
+                    long fileSizeBytes = 0;
+                    try { fileSizeBytes = new FileInfo(filePath).Length; } catch { /* best-effort */ }
+
+                    StationEvents.Emit(
+                        workflowName: "Packing",
+                        stepId:       "packing_stopped",
+                        trigger:      "barcode_scan",
+                        trackingNumber: finishedBarcode,
+                        fromState:    "recording",
+                        toState:      "uploading",
+                        stationId:    AppSettings.ResolvedStationId,
+                        stationType:  "Packing",
+                        @operator:    _stationName,
+                        payload: new Dictionary<string, object?>
+                        {
+                            ["stationLabel"]       = stationLabel,
+                            ["packedBy"]           = _stationName,
+                            ["durationSeconds"]    = durationSeconds,
+                            ["videoFileSizeBytes"] = fileSizeBytes,
+                        });
 
                     // Register video record (status=Recorded) then upload to MinIO in background
                     var videoId = await ApiService.CreateVideoRecordAsync(
-                        finishedBarcode!, filePath, stationLabel);
+                        finishedBarcode!, filePath, stationName, _stationName);
 
                     if (videoId > 0)
+                    {
+                        StationEvents.Emit(
+                            workflowName: "Packing",
+                            stepId:       "upload_started",
+                            trigger:      "barcode_scan",
+                            trackingNumber: finishedBarcode,
+                            fromState:    "recording",
+                            toState:      "uploading",
+                            stationId:    AppSettings.ResolvedStationId,
+                            stationType:  "Packing",
+                            @operator:    _stationName,
+                            payload: new Dictionary<string, object?>
+                            {
+                                ["videoId"] = videoId,
+                            });
                         MinioUploadService.UploadAsync(videoId, filePath, finishedBarcode!);
+                    }
                     else
+                    {
                         Logger.Log($"Station {_stationId}: failed to create video record, skipping upload");
+                    }
                 }
                 else
                 {
@@ -514,8 +572,24 @@ public partial class StationView : ContentView, IDisposable
             }
             else
             {
-                // Different barcode while recording — ignore
+                // Different barcode while recording — ignore but record the mismatch
+                // so the dashboard can flag stations with high mismatch rates.
                 Logger.Log($"Station {_stationId}: Barcode mismatch (active: {_activeBarcode}, got: {barcode})");
+                StationEvents.Emit(
+                    workflowName: "Packing",
+                    stepId:       "barcode_mismatch",
+                    trigger:      "barcode_scan",
+                    trackingNumber: _activeBarcode,
+                    fromState:    "recording",
+                    toState:      "recording",
+                    stationId:    AppSettings.ResolvedStationId,
+                    stationType:  "Packing",
+                    @operator:    _stationName,
+                    payload: new Dictionary<string, object?>
+                    {
+                        ["activeBarcode"] = _activeBarcode,
+                        ["scanned"]       = barcode,
+                    });
             }
         }
         catch (Exception ex)

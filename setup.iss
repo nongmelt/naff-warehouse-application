@@ -59,6 +59,14 @@ var
   VideoEdit:   TEdit;
   VideoBrowse: TButton;
 
+  // Station ID page
+  StationPage:   TWizardPage;
+  StationIdEdit: TEdit;
+
+  // Log collection page
+  LogsPage:      TWizardPage;
+  OtlpEdit:      TEdit;
+
   // MinIO sync page
   MinioPage:     TWizardPage;
   BucketEdit:    TEdit;
@@ -128,8 +136,22 @@ procedure InitializeWizard;
 var
   Btn: TButton;
 begin
+  // ── Station ID page ────────────────────────────────────────────────────────
+  StationPage := CreateCustomPage(wpWelcome, 'Station Identity',
+    'Give this station a unique name used in logs and workflow event records.');
+
+  AddLabel(StationPage, 'Station ID (e.g. Station-01, QC-02):', 0);
+  StationIdEdit := AddEdit(StationPage, 20, '', False);
+
+  // ── Log collection page ────────────────────────────────────────────────────
+  LogsPage := CreateCustomPage(StationPage.ID, 'Log Collection (optional)',
+    'Enter the OTLP endpoint for centralised log collection (Seq or OTel Collector). Leave blank to disable.');
+
+  AddLabel(LogsPage, 'OTLP endpoint (e.g. http://192.168.0.1:5341/ingest/otlp):', 0);
+  OtlpEdit := AddEdit(LogsPage, 20, '', False);
+
   // ── Backend API page ───────────────────────────────────────────────────────
-  ApiPage := CreateCustomPage(wpWelcome, 'Backend API',
+  ApiPage := CreateCustomPage(LogsPage.ID, 'Backend API',
     'Enter the base URL of the backend service that this app connects to.');
 
   AddLabel(ApiPage, 'API URL (e.g. http://192.168.0.1:8080):', 0);
@@ -180,6 +202,15 @@ end;
 function NextButtonClick(CurPageID: Integer): Boolean;
 begin
   Result := True;
+
+  if CurPageID = StationPage.ID then
+  begin
+    if Trim(StationIdEdit.Text) = '' then
+    begin
+      MsgBox('Please enter a Station ID.', mbError, MB_OK);
+      Result := False; Exit;
+    end;
+  end;
 
   if CurPageID = ApiPage.ID then
   begin
@@ -294,6 +325,8 @@ begin
   // ── appsettings.json ───────────────────────────────────────────────────────
   Json :=
     '{' + #13#10 +
+    '  "stationId": "'    + EscapeJson(Trim(StationIdEdit.Text))  + '",' + #13#10 +
+    '  "otlpEndpoint": "' + EscapeJson(Trim(OtlpEdit.Text))       + '",' + #13#10 +
     '  "webhookUrl": "' + EscapeJson(Trim(WebhookEdit.Text))      + '",' + #13#10 +
     '  "videoFolder": "' + EscapeJson(VideoFolder)                + '",' + #13#10 +
     '  "apiUrl": "'      + EscapeJson(Trim(ApiUrlEdit.Text))      + '",' + #13#10 +

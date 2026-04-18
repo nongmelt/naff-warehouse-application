@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="app.Views.WorkflowViewPage"
+             Shell.NavBarIsVisible="False"
+             BackgroundColor="#f3f4f6">
+
+    <Grid RowDefinitions="Auto, *">
+
+        <!-- Header -->
+        <Grid Grid.Row="0"
+              BackgroundColor="{StaticResource Primary}"
+              Padding="16,10"
+              ColumnDefinitions="Auto, *, Auto">
+            <Button Grid.Column="0"
+                    Text="← Back"
+                    BackgroundColor="Transparent"
+                    TextColor="White"
+                    BorderColor="White"
+                    BorderWidth="1"
+                    FontSize="12"
+                    Padding="12,6"
+                    CornerRadius="6"
+                    Clicked="OnBack"/>
+            <Label Grid.Column="1"
+                   x:Name="HeaderLabel"
+                   Text="Workflow"
+                   TextColor="White"
+                   FontSize="18"
+                   FontAttributes="Bold"
+                   HorizontalOptions="Center"
+                   VerticalOptions="Center"/>
+            <HorizontalStackLayout Grid.Column="2" Spacing="6">
+                <Button Text="Packing" x:Name="PackingBtn" Clicked="OnShowPacking"
+                        BackgroundColor="Transparent" TextColor="White"
+                        BorderColor="White" BorderWidth="1" FontSize="11"
+                        Padding="10,5" CornerRadius="6"/>
+                <Button Text="QC" x:Name="QcBtn" Clicked="OnShowQc"
+                        BackgroundColor="Transparent" TextColor="White"
+                        BorderColor="White" BorderWidth="1" FontSize="11"
+                        Padding="10,5" CornerRadius="6"/>
+            </HorizontalStackLayout>
+        </Grid>
+
+        <!-- Body: list of states rendered as cards -->
+        <ScrollView Grid.Row="1" Padding="16">
+            <VerticalStackLayout x:Name="StatesLayout" Spacing="14"/>
+        </ScrollView>
+
+    </Grid>
+</ContentPage>

@@ -8,8 +8,9 @@
     FlyoutBehavior="Disabled"
     Title="app">
 
-    <ShellContent Route="home"   ContentTemplate="{DataTemplate views:HomePage}"/>
-    <ShellContent Route="main"   ContentTemplate="{DataTemplate local:MainPage}"/>
-    <ShellContent Route="orders" ContentTemplate="{DataTemplate views:OrderSearchPage}"/>
+    <ShellContent Route="home"      ContentTemplate="{DataTemplate views:HomePage}"/>
+    <ShellContent Route="main"      ContentTemplate="{DataTemplate local:MainPage}"/>
+    <ShellContent Route="orders"    ContentTemplate="{DataTemplate views:OrderSearchPage}"/>
+    <ShellContent Route="workflows" ContentTemplate="{DataTemplate views:WorkflowViewPage}"/>
 
 </Shell>

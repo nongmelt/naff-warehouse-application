@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Nodes;
 
 namespace app.Services;
 
@@ -32,6 +33,28 @@ public static class ApiService
                 _httpBase = url;
             }
             return _http;
+        }
+    }
+
+    // ── Station resolution ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Resolves this computer's name to its integer station FK.
+    /// Called once at startup; result cached in <see cref="AppSettings.ResolvedStationId"/>.
+    /// </summary>
+    public static async Task<int?> ResolveStationIdAsync(string computerName)
+    {
+        try
+        {
+            var resp = await Http.GetAsync($"stations/by-station/{Uri.EscapeDataString(computerName)}");
+            if (!resp.IsSuccessStatusCode) return null;
+            var node = await resp.Content.ReadFromJsonAsync<JsonNode>(JsonOpts);
+            return node?["id"]?.GetValue<int>();
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.ResolveStationIdAsync: {ex.Message}");
+            return null;
         }
     }
 
@@ -116,11 +139,11 @@ public static class ApiService
     /// the new record id, or -1 on failure.
     /// </summary>
     public static async Task<int> CreateVideoRecordAsync(
-        string trackingNumber, string filePath, string stationName)
+        string trackingNumber, string filePath, string stationName, string @operator)
     {
         try
         {
-            var body    = new CreateVideoRequest(trackingNumber, filePath, Path.GetFileName(filePath), stationName);
+            var body    = new CreateVideoRequest(trackingNumber, filePath, Path.GetFileName(filePath), stationName, @operator);
             var json    = JsonSerializer.Serialize(body, JsonOpts);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             var resp    = await Http.PostAsync("videos", content);
@@ -164,11 +187,13 @@ public static class ApiService
         }
     }
 
-    public static async Task<bool> UpdateVideoStatusAsync(int videoId, string status)
+    public static async Task<bool> UpdateVideoStatusAsync(
+        int videoId, string status,
+        string? failureReason = null, int? uploadAttempts = null)
     {
         try
         {
-            var body    = new UpdateVideoStatusRequest(status);
+            var body    = new UpdateVideoStatusRequest(status, failureReason, uploadAttempts);
             var json    = JsonSerializer.Serialize(body, JsonOpts);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             var resp    = await Http.PatchAsync($"videos/{videoId}/status", content);
@@ -179,6 +204,55 @@ public static class ApiService
         catch (Exception ex)
         {
             Logger.Log($"ApiService.UpdateVideoStatusAsync: {ex.Message}");
+            return false;
+        }
+    }
+
+    // ── Manual upload notifications ──────────────────────────────────────────
+
+    /// <summary>
+    /// Tells the backend that this video has permanently failed and needs
+    /// manual intervention. The backend fires pg_notify('manual_upload_needed')
+    /// so connected frontends receive a WebSocket push.
+    /// </summary>
+    public static async Task<bool> NotifyManualUploadNeededAsync(int videoId)
+    {
+        try
+        {
+            var resp = await Http.PostAsync($"videos/{videoId}/manual-upload-needed", null);
+            if (!resp.IsSuccessStatusCode)
+                Logger.Log($"ApiService.NotifyManualUploadNeededAsync: HTTP {(int)resp.StatusCode}");
+            return resp.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.NotifyManualUploadNeededAsync: {ex.Message}");
+            return false;
+        }
+    }
+
+    // ── Upload commands (dashboard-initiated retry) ───────────────────────────
+
+    /// <summary>
+    /// Station ACKs / completes / rejects an upload-command row. Used by
+    /// <c>UploadCommandListener</c> to report progress back to the dashboard.
+    /// </summary>
+    public static async Task<bool> PatchUploadCommandAsync(
+        long commandId, string status, string? reasonOnRejection = null)
+    {
+        try
+        {
+            var body    = new UploadCommandPatch(status, reasonOnRejection);
+            var json    = JsonSerializer.Serialize(body, JsonOpts);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var resp    = await Http.PatchAsync($"upload-commands/{commandId}", content);
+            if (!resp.IsSuccessStatusCode)
+                Logger.Log($"ApiService.PatchUploadCommandAsync: HTTP {(int)resp.StatusCode}");
+            return resp.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.PatchUploadCommandAsync: {ex.Message}");
             return false;
         }
     }
@@ -213,10 +287,17 @@ public static class ApiService
         [property: JsonPropertyName("trackingNumber")] string TrackingNumber,
         [property: JsonPropertyName("filePath")]       string FilePath,
         [property: JsonPropertyName("fileName")]       string FileName,
-        [property: JsonPropertyName("stationName")]    string StationName);
+        [property: JsonPropertyName("stationName")]    string StationName,
+        [property: JsonPropertyName("operator")]       string Operator);
 
     private record UpdateVideoStatusRequest(
-        [property: JsonPropertyName("status")] string Status);
+        [property: JsonPropertyName("status")]         string  Status,
+        [property: JsonPropertyName("failureReason")]  string? FailureReason,
+        [property: JsonPropertyName("uploadAttempts")] int?    UploadAttempts);
+
+    private record UploadCommandPatch(
+        [property: JsonPropertyName("status")]            string  Status,
+        [property: JsonPropertyName("reasonOnRejection")] string? ReasonOnRejection);
 
     private record UpdateVideoRemotePathRequest(
         [property: JsonPropertyName("remoteFilePath")] string RemoteFilePath);

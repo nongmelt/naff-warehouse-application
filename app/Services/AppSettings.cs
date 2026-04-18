@@ -11,6 +11,8 @@ public static class AppSettings
     private const string KeyVideoFolderMinFreeSpace = "settings.video_folder_min_free_bytes";
     private const string KeyWebhookUrl = "settings.webhook_url";
     private const string KeyApiUrl = "settings.api_url";
+    private const string KeyStationId = "settings.station_id";
+    private const string KeyUseDeclarativeWorkflow = "settings.use_declarative_workflow";
     private const string KeySeeded = "settings.seeded.v3";
 
     private const string KeyMinioBucket = "settings.minio.bucket";
@@ -77,6 +79,14 @@ public static class AppSettings
                     if (doc.TryGetProperty("apiUrl", out var api) &&
                         !string.IsNullOrWhiteSpace(api.GetString()))
                         Preferences.Default.Set(KeyApiUrl, api.GetString()!);
+
+                    if (doc.TryGetProperty("stationId", out var sid) &&
+                        !string.IsNullOrWhiteSpace(sid.GetString()))
+                        Preferences.Default.Set(KeyStationId, sid.GetString()!);
+
+                    if (doc.TryGetProperty("useDeclarativeWorkflow", out var udw) &&
+                        udw.ValueKind is JsonValueKind.True or JsonValueKind.False)
+                        Preferences.Default.Set(KeyUseDeclarativeWorkflow, udw.GetBoolean());
 
                     Logger.Log("AppSettings: seeded general settings from appsettings.json");
                 }
@@ -295,5 +305,35 @@ public static class AppSettings
     {
         get => Preferences.Default.Get(KeySearchHistoryMax, 50);
         set => Preferences.Default.Set(KeySearchHistoryMax, Math.Max(1, value));
+    }
+
+    /// <summary>
+    public static string StationId
+    {
+        get
+        {
+            var val = Preferences.Default.Get(KeyStationId, string.Empty);
+            return string.IsNullOrWhiteSpace(val) ? Environment.MachineName : val;
+        }
+        set => Preferences.Default.Set(KeyStationId, value ?? string.Empty);
+    }
+
+    /// <summary>
+    /// Resolved at startup from <c>GET /stations/by-computer/{name}</c>.
+    /// Null until the async resolution completes; events emitted before that
+    /// will have a null station_id (acceptable for the first few seconds).
+    /// </summary>
+    public static int? ResolvedStationId { get; set; }
+
+    /// <summary>
+    /// When true, host pages (StationView / OrderSearchPage) route trigger input
+    /// through <c>WorkflowEngine</c> instead of the inline state-machine code.
+    /// Kept as a kill-switch during rollout; once all stations have run green for
+    /// a week the inline paths get removed.
+    /// </summary>
+    public static bool UseDeclarativeWorkflow
+    {
+        get => Preferences.Default.Get(KeyUseDeclarativeWorkflow, false);
+        set => Preferences.Default.Set(KeyUseDeclarativeWorkflow, value);
     }
 }
