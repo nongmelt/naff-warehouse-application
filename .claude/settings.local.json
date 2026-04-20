@@ -2,7 +2,15 @@
   "permissions": {
     "allow": [
       "Bash(cargo check *)",
-      "Bash(dotnet build *)"
+      "Bash(dotnet build *)",
+      "mcp__code-review-graph__build_or_update_graph_tool",
+      "mcp__code-review-graph__get_architecture_overview_tool",
+      "mcp__plugin_dotnet-claude-kit_cwm-roslyn-navigator__get_project_graph",
+      "mcp__plugin_dotnet-claude-kit_cwm-roslyn-navigator__detect_antipatterns"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "code-review-graph"
+  ]
 }
