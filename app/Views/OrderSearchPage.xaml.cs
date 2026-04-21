@@ -64,7 +64,7 @@ public partial class OrderSearchPage : ContentPage
             toState:      toState,
             stationId:    AppSettings.ResolvedStationId,
             stationType:  "QC",
-            @operator:    StationName,
+            @operator:    StationName.Replace(' ', '-'),
             sequenceInSession: bumpSequence ? NextSequence() : _sequenceInSession,
             payload: payload);
     }
@@ -600,7 +600,7 @@ public partial class OrderSearchPage : ContentPage
                     toState:   "passed",
                     payload: new Dictionary<string, object?>
                     {
-                        ["checkedBy"]   = StationName,
+                        ["checkedBy"]   = StationName.Replace(' ', '-'),
                         ["itemsPicked"] = order.ParsedProducts.Count,
                     });
             }

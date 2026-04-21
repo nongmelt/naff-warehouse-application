@@ -487,7 +487,7 @@ public partial class StationView : ContentView, IDisposable
                     toState:      "recording",
                     stationId:    AppSettings.ResolvedStationId,
                     stationType:  "Packing",
-                    @operator:    _stationName,
+                    @operator:    _stationName.Replace(' ', '-'),
                     payload: new Dictionary<string, object?>
                     {
                         ["stationLabel"] = stationLabel,
@@ -529,11 +529,11 @@ public partial class StationView : ContentView, IDisposable
                         toState:      "uploading",
                         stationId:    AppSettings.ResolvedStationId,
                         stationType:  "Packing",
-                        @operator:    _stationName,
+                        @operator:    _stationName.Replace(' ', '-'),
                         payload: new Dictionary<string, object?>
                         {
                             ["stationLabel"]       = stationLabel,
-                            ["packedBy"]           = _stationName,
+                            ["packedBy"]           = _stationName.Replace(' ', '-'),
                             ["durationSeconds"]    = durationSeconds,
                             ["videoFileSizeBytes"] = fileSizeBytes,
                         });
@@ -553,12 +553,12 @@ public partial class StationView : ContentView, IDisposable
                             toState:      "uploading",
                             stationId:    AppSettings.ResolvedStationId,
                             stationType:  "Packing",
-                            @operator:    _stationName,
+                            @operator:    _stationName.Replace(' ', '-'),
                             payload: new Dictionary<string, object?>
                             {
                                 ["videoId"] = videoId,
                             });
-                        MinioUploadService.UploadAsync(videoId, filePath, finishedBarcode!);
+                        MinioUploadService.UploadAsync(videoId, filePath, finishedBarcode!, @operator: _stationName);
                     }
                     else
                     {
@@ -584,7 +584,7 @@ public partial class StationView : ContentView, IDisposable
                     toState:      "recording",
                     stationId:    AppSettings.ResolvedStationId,
                     stationType:  "Packing",
-                    @operator:    _stationName,
+                    @operator:    _stationName.Replace(' ', '-'),
                     payload: new Dictionary<string, object?>
                     {
                         ["activeBarcode"] = _activeBarcode,

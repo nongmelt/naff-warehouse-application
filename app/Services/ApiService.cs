@@ -99,7 +99,7 @@ public static class ApiService
     {
         try
         {
-            var body    = new StatusRequest(status, updatedProductLists, checkedBy);
+            var body    = new StatusRequest(status, updatedProductLists, checkedBy?.Replace(' ', '-'));
             var json    = JsonSerializer.Serialize(body, JsonOpts);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             var resp    = await Http.PatchAsync($"packing-lists/{packingId}/status", content);
@@ -171,7 +171,7 @@ public static class ApiService
     {
         try
         {
-            var body    = new ScanStatusRequest(status, packedBy);
+            var body    = new ScanStatusRequest(status, packedBy?.Replace(' ', '-'));
             var json    = JsonSerializer.Serialize(body, JsonOpts);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             var resp    = await Http.PatchAsync(
