@@ -9,6 +9,7 @@ public partial class App : Application
 {
 	public App()
 	{
+		UserAppTheme = AppTheme.Light;
 		Services.AppSettings.Initialize();
 		Services.UploadCommandListener.Start();
 		_ = Task.Run(async () =>
