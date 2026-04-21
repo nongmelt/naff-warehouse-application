@@ -1,6 +1,6 @@
 services:
   minio:
-    image: minio/minio:latest
+    image:  quay.io/minio/aistor/minio:RELEASE.2026-04-14T21-32-45Z 
     restart: always
     ports:
       - "0.0.0.0:9000:9000"   # S3 API
@@ -11,14 +11,13 @@ services:
       - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
       - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
       - MINIO_BROWSER_REDIRECT_URL=http://console.warehouse.local
-    command: server /data --console-address ":9001"
+    command: minio server /mnt/data --license /minio.license
     volumes:
-      - minio_data:/data
+      - ../minio/data:/mnt/data           
+      - ../minio/minio.license:/minio.license
+      - ../minio/certs:/etc/minio/certs 
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 30s
       timeout: 20s
       retries: 3
-
-volumes:
-  minio_data:
