@@ -15,13 +15,14 @@ public static class MinioUploadService
     /// Fire-and-forget: uploads the recorded video to MinIO, updating the
     /// video record status at each stage via ApiService.
     /// </summary>
-    public static void UploadAsync(int videoId, string filePath, string trackingNumber)
+    public static void UploadAsync(int videoId, string filePath, string trackingNumber, string? @operator = null)
     {
-        Task.Run(() => RunAsync(videoId, filePath, trackingNumber));
+        Task.Run(() => RunAsync(videoId, filePath, trackingNumber, @operator));
     }
 
-    private static async Task RunAsync(int videoId, string filePath, string trackingNumber)
+    private static async Task RunAsync(int videoId, string filePath, string trackingNumber, string? @operator = null)
     {
+        var op = @operator?.Replace(' ', '-');
         var endpoint = AppSettings.MinioEndpoint;
         var accessKey = AppSettings.MinioAccessKey;
         var secretKey = AppSettings.MinioSecretKey;
@@ -87,6 +88,9 @@ public static class MinioUploadService
                     trackingNumber: trackingNumber,
                     fromState:    "uploading",
                     toState:      "uploaded",
+                    stationId:    AppSettings.ResolvedStationId,
+                    stationType:  "Packing",
+                    @operator:    op,
                     payload: new Dictionary<string, object?>
                     {
                         ["videoId"]            = videoId,
@@ -118,6 +122,9 @@ public static class MinioUploadService
                         trackingNumber: trackingNumber,
                         fromState:    "uploaded",
                         toState:      "completed",
+                        stationId:    AppSettings.ResolvedStationId,
+                        stationType:  "Packing",
+                        @operator:    op,
                         payload: new Dictionary<string, object?>
                         {
                             ["videoId"]        = videoId,
@@ -134,6 +141,9 @@ public static class MinioUploadService
                         trackingNumber: trackingNumber,
                         fromState:    "uploaded",
                         toState:      "failed",
+                        stationId:    AppSettings.ResolvedStationId,
+                        stationType:  "Packing",
+                        @operator:    op,
                         payload: new Dictionary<string, object?>
                         {
                             ["videoId"]        = videoId,
@@ -160,6 +170,9 @@ public static class MinioUploadService
                     trackingNumber: trackingNumber,
                     fromState:    "uploading",
                     toState:      isLast ? "failed" : "uploading",
+                    stationId:    AppSettings.ResolvedStationId,
+                    stationType:  "Packing",
+                    @operator:    op,
                     payload: new Dictionary<string, object?>
                     {
                         ["videoId"]    = videoId,
