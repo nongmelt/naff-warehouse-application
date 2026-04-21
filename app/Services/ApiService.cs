@@ -94,7 +94,7 @@ public static class ApiService
     // ── Update status ─────────────────────────────────────────────────────────
 
     public static async Task<bool> UpdatePackingStatusAsync(
-        int packingId, string status, string updatedProductLists,
+        int packingId, string status, ProductListPayload updatedProductLists,
         string? checkedBy = null)
     {
         try
@@ -279,9 +279,9 @@ public static class ApiService
     // ── Private DTOs ──────────────────────────────────────────────────────────
 
     private record StatusRequest(
-        [property: JsonPropertyName("status")]              string  Status,
-        [property: JsonPropertyName("updatedProductLists")] string  UpdatedProductLists,
-        [property: JsonPropertyName("checkedBy")]           string? CheckedBy);
+        [property: JsonPropertyName("status")]              string             Status,
+        [property: JsonPropertyName("updatedProductLists")] ProductListPayload UpdatedProductLists,
+        [property: JsonPropertyName("checkedBy")]           string?            CheckedBy);
 
     private record CreateVideoRequest(
         [property: JsonPropertyName("trackingNumber")] string TrackingNumber,

@@ -8,8 +8,6 @@ using System.IO.Ports;
 using System.Management;
 using System.Net;
 using System.Runtime.Versioning;
-using System.Text.Encodings.Web;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace app.Views;
@@ -538,10 +536,9 @@ public partial class OrderSearchPage : ContentPage
             if (!order.ParsedProducts.Any(p => p.Quantity != p.OriginalQuantity)) continue;
 
             var wasHeld = string.Equals(order.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase);
-            var updatedJson = JsonSerializer.Serialize(order.ParsedProducts.ToList(),
-                new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+            var payload = new ProductListPayload([..order.ParsedProducts]);
             var now = DateTime.UtcNow;
-            var ok = await ApiService.UpdatePackingStatusAsync(order.PackingId, "QC Hold", updatedJson);
+            var ok = await ApiService.UpdatePackingStatusAsync(order.PackingId, "QC Hold", payload);
             if (ok)
             {
                 order.PackingStatus = "QC Hold";
@@ -582,11 +579,10 @@ public partial class OrderSearchPage : ContentPage
             if (!order.ParsedProducts.Any(p => p.Quantity != p.OriginalQuantity)) continue;
 
             _completedPackingIds.Add(order.PackingId);
-            var updatedJson = JsonSerializer.Serialize(order.ParsedProducts.ToList(),
-                new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+            var payload = new ProductListPayload([..order.ParsedProducts]);
             var now = DateTime.UtcNow;
             var ok = await ApiService.UpdatePackingStatusAsync(
-                order.PackingId, "QC Passed", updatedJson, checkedBy: StationName);
+                order.PackingId, "QC Passed", payload, checkedBy: StationName);
             if (ok)
             {
                 order.PackingStatus = "QC Passed";
@@ -631,11 +627,10 @@ public partial class OrderSearchPage : ContentPage
             // Skip if nothing was actually picked (order was only viewed)
             if (!order.ParsedProducts.Any(p => p.Quantity != p.OriginalQuantity)) continue;
 
-            var updatedJson = JsonSerializer.Serialize(order.ParsedProducts.ToList(),
-                new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+            var payload = new ProductListPayload([..order.ParsedProducts]);
             var now = DateTime.UtcNow;
             var ok = await ApiService.UpdatePackingStatusAsync(
-                order.PackingId, "QC Hold", updatedJson);
+                order.PackingId, "QC Hold", payload);
             if (ok)
             {
                 order.PackingStatus = "QC Hold";
