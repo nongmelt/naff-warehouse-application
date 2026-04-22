@@ -486,14 +486,86 @@ public partial class StationView : ContentView, IDisposable
                     fromState:    "idle",
                     toState:      "recording",
                     stationId:    AppSettings.ResolvedStationId,
-                    stationType:  "Packing",
                     @operator:    _stationName.Replace(' ', '-'),
                     payload: new Dictionary<string, object?>
                     {
                         ["stationLabel"] = stationLabel,
                     });
             }
-            else if (_activeBarcode == barcode || barcode == "Reset")
+            else if (barcode == "Reset")
+            {
+                // Reset scan — stop and upload under the active barcode, logged as packing_reset
+                _isRecording = false;
+                UpdateCardBorder();
+                BarcodeBadge.IsVisible = false;
+                BarcodeLabel.Text = "";
+                RecBadge.IsVisible = false;
+                RecordingBorder.IsVisible = false;
+                var recordingStartedAt = _recordingStartedAt;
+                var filePath = await StopRecordingAsync();
+                var resetBarcode = _activeBarcode;
+                _activeBarcode = null;
+
+                if (!string.IsNullOrEmpty(filePath))
+                {
+                    _videoCount++;
+                    MainThread.BeginInvokeOnMainThread(() => VideoCountLabel.Text = _videoCount.ToString());
+                    UpdateStatusFromDevices();
+
+                    _ = ApiService.UpdatePackingStatusByScanAsync(resetBarcode!, "Packed", _stationName);
+
+                    var durationSeconds = (int)Math.Round((DateTime.UtcNow - recordingStartedAt).TotalSeconds);
+                    long fileSizeBytes = 0;
+                    try { fileSizeBytes = new FileInfo(filePath).Length; } catch { /* best-effort */ }
+
+                    StationEvents.Emit(
+                        workflowName: "Packing",
+                        stepId:       "packing_reset",
+                        trigger:      "barcode_scan",
+                        trackingNumber: resetBarcode,
+                        fromState:    "recording",
+                        toState:      "uploading",
+                        stationId:    AppSettings.ResolvedStationId,
+                            @operator:    _stationName.Replace(' ', '-'),
+                        payload: new Dictionary<string, object?>
+                        {
+                            ["stationLabel"]       = stationLabel,
+                            ["packedBy"]           = _stationName.Replace(' ', '-'),
+                            ["durationSeconds"]    = durationSeconds,
+                            ["videoFileSizeBytes"] = fileSizeBytes,
+                        });
+
+                    var videoId = await ApiService.CreateVideoRecordAsync(
+                        resetBarcode!, filePath, stationName, _stationName);
+
+                    if (videoId > 0)
+                    {
+                        StationEvents.Emit(
+                            workflowName: "Packing",
+                            stepId:       "upload_started",
+                            trigger:      "barcode_scan",
+                            trackingNumber: resetBarcode,
+                            fromState:    "recording",
+                            toState:      "uploading",
+                            stationId:    AppSettings.ResolvedStationId,
+                                    @operator:    _stationName.Replace(' ', '-'),
+                            payload: new Dictionary<string, object?>
+                            {
+                                ["videoId"] = videoId,
+                            });
+                        MinioUploadService.UploadAsync(videoId, filePath, resetBarcode!, @operator: _stationName);
+                    }
+                    else
+                    {
+                        Logger.Log($"Station {_stationId}: failed to create video record for reset, skipping upload");
+                    }
+                }
+                else
+                {
+                    UpdateStatus("Save failed — Ready to Scan");
+                }
+            }
+            else if (_activeBarcode == barcode)
             {
                 // Second matching scan → stop recording
                 _isRecording = false;
@@ -528,8 +600,7 @@ public partial class StationView : ContentView, IDisposable
                         fromState:    "recording",
                         toState:      "uploading",
                         stationId:    AppSettings.ResolvedStationId,
-                        stationType:  "Packing",
-                        @operator:    _stationName.Replace(' ', '-'),
+                            @operator:    _stationName.Replace(' ', '-'),
                         payload: new Dictionary<string, object?>
                         {
                             ["stationLabel"]       = stationLabel,
@@ -552,8 +623,7 @@ public partial class StationView : ContentView, IDisposable
                             fromState:    "recording",
                             toState:      "uploading",
                             stationId:    AppSettings.ResolvedStationId,
-                            stationType:  "Packing",
-                            @operator:    _stationName.Replace(' ', '-'),
+                                    @operator:    _stationName.Replace(' ', '-'),
                             payload: new Dictionary<string, object?>
                             {
                                 ["videoId"] = videoId,
@@ -583,7 +653,6 @@ public partial class StationView : ContentView, IDisposable
                     fromState:    "recording",
                     toState:      "recording",
                     stationId:    AppSettings.ResolvedStationId,
-                    stationType:  "Packing",
                     @operator:    _stationName.Replace(' ', '-'),
                     payload: new Dictionary<string, object?>
                     {
