@@ -64,9 +64,14 @@ public static class WorkflowEventSink
     {
         if (_queue.IsEmpty) return;
 
+        var resolvedStationId = AppSettings.ResolvedStationId;
         var batch = new List<WorkflowEventOut>(capacity: 64);
         while (batch.Count < 500 && _queue.TryDequeue(out var e))
+        {
+            if (e.StationId is null && resolvedStationId is not null)
+                e.StationId = resolvedStationId;
             batch.Add(e);
+        }
         if (batch.Count == 0) return;
 
         try
@@ -105,8 +110,7 @@ public static class WorkflowEventSink
 /// </summary>
 public sealed class WorkflowEventOut
 {
-    [JsonPropertyName("stationId")]          public int?                  StationId { get; init; }
-    [JsonPropertyName("stationType")]        public string?               StationType { get; init; }
+    [JsonPropertyName("stationId")]          public int?                  StationId { get; set; }
     [JsonPropertyName("workflowName")]       public required string       WorkflowName { get; init; }
     [JsonPropertyName("trackingNumber")]     public string?               TrackingNumber { get; init; }
     [JsonPropertyName("stepId")]             public required string       StepId { get; init; }
