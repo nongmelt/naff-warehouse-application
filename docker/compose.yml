@@ -34,7 +34,7 @@ services:
         - APP_VERSION=${BACKEND_VERSION}
     restart: unless-stopped
     ports:
-      - "0.0.0.0:8081:8080"
+      - "0.0.0.0:8080:8080"
     env_file:
       - .env
   
