@@ -34,6 +34,7 @@ public partial class OrderSearchPage : ContentPage
 
     // SKU picking state — set after an order loads; cleared on new search
     private bool _orderLoaded;
+    private bool _isFirstItemScan;
     private ProductItem? _pendingSkuProduct;
     private readonly HashSet<int> _completedPackingIds = [];
 
@@ -46,6 +47,13 @@ public partial class OrderSearchPage : ContentPage
 
     private int NextSequence() => ++_sequenceInSession;
 
+    private string ConsumePickingFromState()
+    {
+        var s = _isFirstItemScan ? "order-loaded" : "picking";
+        _isFirstItemScan = false;
+        return s;
+    }
+
     private void EmitQcEvent(
         string stepId,
         string trigger,
@@ -57,14 +65,13 @@ public partial class OrderSearchPage : ContentPage
     {
         StationEvents.Emit(
             workflowName: "QC",
-            stepId:       stepId,
-            trigger:      trigger,
+            stepId: stepId,
+            trigger: trigger,
             trackingNumber: trackingNumber,
-            fromState:    fromState,
-            toState:      toState,
-            stationId:    AppSettings.ResolvedStationId,
-            stationType:  "QC",
-            @operator:    StationName.Replace(' ', '-'),
+            fromState: fromState,
+            toState: toState,
+            stationId: AppSettings.ResolvedStationId,
+            @operator: StationName.Replace(' ', '-'),
             sequenceInSession: bumpSequence ? NextSequence() : _sequenceInSession,
             payload: payload);
     }
@@ -251,6 +258,9 @@ public partial class OrderSearchPage : ContentPage
         _isSearching = true;
         _historyNavIndex = -1;
 
+        // Capture before session mutation so it can appear in the new event payload
+        string? prevTracking = CurrentTrackingNumber;
+
         // Check if scanning the same tracking number (dedup)
         bool isSameQuery = _sessionIndex >= 0 &&
             string.Equals(_sessions[_sessionIndex].Query, input, StringComparison.OrdinalIgnoreCase);
@@ -261,9 +271,10 @@ public partial class OrderSearchPage : ContentPage
 
         // Save any partial picks before discarding the current result set
         if (_orderLoaded && Results.Count > 0)
-            await SaveQcHoldForRemainingOrdersAsync();
+            await SaveQcHoldForRemainingOrdersAsync(isSameQuery ? null : input);
 
         _orderLoaded = false;
+        _isFirstItemScan = false;
         _completedPackingIds.Clear();
         if (_pendingSkuProduct != null) { _pendingSkuProduct.IsBeingPicked = false; _pendingSkuProduct = null; }
         Results.Clear();
@@ -306,23 +317,34 @@ public partial class OrderSearchPage : ContentPage
         }
 
         _orderLoaded = rows.Count > 0;
+        _isFirstItemScan = rows.Count > 0;
         ResetSessionStatCounts();
 
         // New tracking scan resets the sequence counter — analytics treats the
         // counter as "nth mutation of this session", where a session is one
         // tracking scan's worth of picking.
         _sequenceInSession = 0;
-        EmitQcEvent(
-            stepId:    "tracking_scanned",
-            trigger:   trigger,
-            trackingNumber: input,
-            fromState: "idle",
-            toState:   rows.Count > 0 ? "order-loaded" : "idle",
-            payload: new Dictionary<string, object?>
+        bool anyQcHold = rows.Any(r => string.Equals(r.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase));
+        bool anyToBePacked = rows.Any(r => string.Equals(r.PackingStatus, "To be packed", StringComparison.OrdinalIgnoreCase));
+        bool anyActionable = anyQcHold || anyToBePacked;
+        string initialFromState = anyQcHold ? "held" : "idle";
+        if (anyActionable || rows.Count == 0)
+        {
+            var trackingPayload = new Dictionary<string, object?>
             {
                 ["trackingNumber"] = input,
-                ["ordersFound"]    = rows.Count,
-            });
+                ["ordersFound"] = rows.Count,
+            };
+            if (prevTracking != null && !string.Equals(prevTracking, input, StringComparison.OrdinalIgnoreCase))
+                trackingPayload["previousTrackingNumber"] = prevTracking;
+            EmitQcEvent(
+                stepId: "tracking_scanned",
+                trigger: trigger,
+                trackingNumber: input,
+                fromState: initialFromState,
+                toState: rows.Count > 0 ? "order-loaded" : "idle",
+                payload: trackingPayload);
+        }
 
         BuildCarouselUI();
         if (!isSameQuery) _ = AnimateAllCarouselCardsAsync();
@@ -343,7 +365,21 @@ public partial class OrderSearchPage : ContentPage
     {
         // Auto-deduct 1 from the previous pending item before handling the new scan
         if (_pendingSkuProduct != null)
+        {
+            EmitQcEvent(
+                stepId: "item_scanned_auto",
+                trigger: "sku_scan",
+                trackingNumber: CurrentTrackingNumber,
+                fromState: ConsumePickingFromState(),
+                toState: "picking",
+                payload: new Dictionary<string, object?>
+                {
+                    ["sku"] = barcode,
+                    ["qtyBefore"] = _pendingSkuProduct.Quantity,
+                    ["qtyAfter"] = _pendingSkuProduct.Quantity - 1,
+                });
             ApplySkuDeduction(_pendingSkuProduct, "1", DeductionSource.AutoPrior);
+        }
 
         ProductItem? found = null;
         PackingList? foundOrder = null;
@@ -373,18 +409,20 @@ public partial class OrderSearchPage : ContentPage
 
         if (found == null)
         {
-            var reason = blockedByQcPassed ? "qc-passed-locked" : "not-in-order";
-            EmitQcEvent(
-                stepId:    "item_scan_rejected",
-                trigger:   "sku_scan",
-                trackingNumber: CurrentTrackingNumber,
-                fromState: "picking",
-                toState:   "picking",
-                payload: new Dictionary<string, object?>
-                {
-                    ["sku"]    = barcode,
-                    ["reason"] = reason,
-                });
+            if (!blockedByQcPassed)
+            {
+                EmitQcEvent(
+                    stepId: "item_scan_rejected",
+                    trigger: "sku_scan",
+                    trackingNumber: CurrentTrackingNumber,
+                    fromState: "picking",
+                    toState: "picking",
+                    payload: new Dictionary<string, object?>
+                    {
+                        ["sku"] = barcode,
+                        ["reason"] = "not-in-order",
+                    });
+            }
             UpdateSearchStatus(blockedByQcPassed
                 ? $"SKU '{barcode}' belongs to a QC Passed order — no changes allowed"
                 : $"SKU '{barcode}' not found in this order");
@@ -397,30 +435,30 @@ public partial class OrderSearchPage : ContentPage
         {
             // Only one left — deduct immediately, no input needed
             EmitQcEvent(
-                stepId:    "item_scanned_auto",
-                trigger:   "sku_scan",
+                stepId: "item_scanned_auto",
+                trigger: "sku_scan",
                 trackingNumber: foundOrder?.TrackingNumber,
-                fromState: "picking",
-                toState:   "picking",
+                fromState: ConsumePickingFromState(),
+                toState: "picking",
                 payload: new Dictionary<string, object?>
                 {
-                    ["sku"]       = barcode,
+                    ["sku"] = barcode,
                     ["qtyBefore"] = found.Quantity,
-                    ["qtyAfter"]  = 0,
+                    ["qtyAfter"] = 0,
                 });
             ApplySkuDeduction(found, "1", DeductionSource.ScanAuto);
         }
         else
         {
             EmitQcEvent(
-                stepId:    "item_scanned_await_qty",
-                trigger:   "sku_scan",
+                stepId: "item_scanned_await_qty",
+                trigger: "sku_scan",
                 trackingNumber: foundOrder?.TrackingNumber,
-                fromState: "picking",
-                toState:   "picking",
+                fromState: ConsumePickingFromState(),
+                toState: "picking",
                 payload: new Dictionary<string, object?>
                 {
-                    ["sku"]          = barcode,
+                    ["sku"] = barcode,
                     ["qtyRemaining"] = found.Quantity,
                 });
             found.IsBeingPicked = true;
@@ -486,19 +524,19 @@ public partial class OrderSearchPage : ContentPage
             var trigger = source == DeductionSource.ManualQty ? "qty_entered" : "card_tap";
             var payload = new Dictionary<string, object?>
             {
-                ["sku"]       = item.SellerSku,
+                ["sku"] = item.SellerSku,
                 ["qtyBefore"] = item.Quantity,
-                ["qtyAfter"]  = item.Quantity - qty,
+                ["qtyAfter"] = item.Quantity - qty,
             };
             if (source == DeductionSource.ManualQty) payload["qtyEntered"] = qty;
-            else                                     payload["qtyDeducted"] = qty;
+            else payload["qtyDeducted"] = qty;
             EmitQcEvent(
-                stepId:    stepId,
-                trigger:   trigger,
+                stepId: stepId,
+                trigger: trigger,
                 trackingNumber: owner?.TrackingNumber,
-                fromState: "picking",
-                toState:   "picking",
-                payload:   payload);
+                fromState: ConsumePickingFromState(),
+                toState: "picking",
+                payload: payload);
         }
 
         item.Quantity -= qty;
@@ -536,9 +574,9 @@ public partial class OrderSearchPage : ContentPage
             if (!order.ParsedProducts.Any(p => p.Quantity != p.OriginalQuantity)) continue;
 
             var wasHeld = string.Equals(order.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase);
-            var payload = new ProductListPayload([..order.ParsedProducts]);
+            var payload = new ProductListPayload([.. order.ParsedProducts]);
             var now = DateTime.UtcNow;
-            var ok = await ApiService.UpdatePackingStatusAsync(order.PackingId, "QC Hold", payload);
+            var ok = await ApiService.UpdatePackingStatusAsync(order.PackingId, "QC Hold", payload, checkedBy: StationName);
             if (ok)
             {
                 order.PackingStatus = "QC Hold";
@@ -550,20 +588,20 @@ public partial class OrderSearchPage : ContentPage
 
                 // Only emit on the first transition into QC Hold — subsequent deductions
                 // on the same held order would drown out the genuine state change.
-                if (!wasHeld)
-                {
-                    EmitQcEvent(
-                        stepId:    "order_held",
-                        trigger:   "qty_deduction",
-                        trackingNumber: order.TrackingNumber,
-                        fromState: "picking",
-                        toState:   "held",
-                        bumpSequence: false,
-                        payload: new Dictionary<string, object?>
-                        {
-                            ["itemsRemaining"] = order.ParsedProducts.Count(p => !p.IsFullyPicked),
-                        });
-                }
+                // if (!wasHeld)
+                // {
+                //     EmitQcEvent(
+                //         stepId: "order_held",
+                //         trigger: "qty_deduction",
+                //         trackingNumber: order.TrackingNumber,
+                //         fromState: "picking",
+                //         toState: "held",
+                //         bumpSequence: false,
+                //         payload: new Dictionary<string, object?>
+                //         {
+                //             ["itemsRemaining"] = order.ParsedProducts.Count(p => !p.IsFullyPicked),
+                //         });
+                // }
             }
         }
     }
@@ -579,7 +617,7 @@ public partial class OrderSearchPage : ContentPage
             if (!order.ParsedProducts.Any(p => p.Quantity != p.OriginalQuantity)) continue;
 
             _completedPackingIds.Add(order.PackingId);
-            var payload = new ProductListPayload([..order.ParsedProducts]);
+            var payload = new ProductListPayload([.. order.ParsedProducts]);
             var now = DateTime.UtcNow;
             var ok = await ApiService.UpdatePackingStatusAsync(
                 order.PackingId, "QC Passed", payload, checkedBy: StationName);
@@ -593,14 +631,14 @@ public partial class OrderSearchPage : ContentPage
                     p.OrderQcContext = "QC Passed";
 
                 EmitQcEvent(
-                    stepId:    "order_passed",
-                    trigger:   "qc_complete",
+                    stepId: "order_passed",
+                    trigger: "qc_complete",
                     trackingNumber: order.TrackingNumber,
                     fromState: "picking",
-                    toState:   "passed",
+                    toState: "passed",
                     payload: new Dictionary<string, object?>
                     {
-                        ["checkedBy"]   = StationName.Replace(' ', '-'),
+                        ["checkedBy"] = StationName.Replace(' ', '-'),
                         ["itemsPicked"] = order.ParsedProducts.Count,
                     });
             }
@@ -617,7 +655,7 @@ public partial class OrderSearchPage : ContentPage
     /// Saves any partially-picked orders (with remaining items) as "QC Hold".
     /// Only updates orders where at least one SKU was actually scanned.
     /// </summary>
-    private async Task SaveQcHoldForRemainingOrdersAsync()
+    private async Task SaveQcHoldForRemainingOrdersAsync(string? newTrackingNumber = null)
     {
         foreach (var order in Results)
         {
@@ -627,10 +665,10 @@ public partial class OrderSearchPage : ContentPage
             // Skip if nothing was actually picked (order was only viewed)
             if (!order.ParsedProducts.Any(p => p.Quantity != p.OriginalQuantity)) continue;
 
-            var payload = new ProductListPayload([..order.ParsedProducts]);
+            var dbPayload = new ProductListPayload([.. order.ParsedProducts]);
             var now = DateTime.UtcNow;
             var ok = await ApiService.UpdatePackingStatusAsync(
-                order.PackingId, "QC Hold", payload);
+                order.PackingId, "QC Hold", dbPayload, checkedBy: StationName);
             if (ok)
             {
                 order.PackingStatus = "QC Hold";
@@ -639,17 +677,27 @@ public partial class OrderSearchPage : ContentPage
                 foreach (var p in order.ParsedProducts)
                     p.OrderQcContext = "QC Hold";
 
+                var trigger = newTrackingNumber != null ? "new_order_scanned" : "leave_page";
+                var eventPayload = new Dictionary<string, object?>
+                {
+                    ["itemsRemaining"] = order.ParsedProducts.Count(p => !p.IsFullyPicked),
+                };
+                if (newTrackingNumber != null)
+                {
+                    eventPayload["newTrackingNumber"] = newTrackingNumber;
+                    eventPayload["remainingProducts"] = order.ParsedProducts
+                        .Where(p => !p.IsFullyPicked)
+                        .Select(p => new Dictionary<string, object?> { ["sku"] = p.SellerSku, ["qtyRemaining"] = p.Quantity })
+                        .ToList<object?>();
+                }
                 EmitQcEvent(
-                    stepId:    "order_held",
-                    trigger:   "leave_page",
+                    stepId: "order_held",
+                    trigger: trigger,
                     trackingNumber: order.TrackingNumber,
                     fromState: "picking",
-                    toState:   "held",
+                    toState: "held",
                     bumpSequence: false,
-                    payload: new Dictionary<string, object?>
-                    {
-                        ["itemsRemaining"] = order.ParsedProducts.Count(p => !p.IsFullyPicked),
-                    });
+                    payload: eventPayload);
             }
             Logger.Log($"OrderSearch: {order.TrackingNumber} → QC Hold ({(ok ? "saved" : "DB failed")})");
         }
@@ -769,11 +817,11 @@ public partial class OrderSearchPage : ContentPage
         order.ResetToOriginalQuantities();
 
         EmitQcEvent(
-            stepId:    "order_reset",
-            trigger:   "reset_clicked",
+            stepId: "order_reset",
+            trigger: "reset_clicked",
             trackingNumber: order.TrackingNumber,
             fromState: string.Equals(previousStatus, "QC Passed", StringComparison.OrdinalIgnoreCase) ? "passed" : "held",
-            toState:   "idle",
+            toState: "idle",
             bumpSequence: false,
             payload: new Dictionary<string, object?>
             {
@@ -810,12 +858,12 @@ public partial class OrderSearchPage : ContentPage
         for (int i = count - 1; i >= 0; i--)
         {
             var capturedIdx = i;
-            var isActive    = i == _sessionIndex;
-            var query       = _sessions[i].Query;
+            var isActive = i == _sessionIndex;
+            var query = _sessions[i].Query;
 
             // ── Determine color palette (status-based for both active and inactive) ──
             var sessionOrders = _sessions[i].Data;
-            var qualified     = sessionOrders
+            var qualified = sessionOrders
                 .Where(o => _qualifiedPackingIds.Contains(o.PackingId))
                 .ToList();
             bool allPassed = qualified.Count > 0 &&
@@ -826,8 +874,8 @@ public partial class OrderSearchPage : ContentPage
             // ── Apply carousel filter ─────────────────────────────────────────────────
             string sessionStatus = qualified.Count == 0 ? "preProcessed"
                 : allPassed ? "completed"
-                : anyHold   ? "incomplete"
-                :             "incoming";
+                : anyHold ? "incomplete"
+                : "incoming";
             if (_carouselFilter is not null && sessionStatus != _carouselFilter)
                 continue;
 
@@ -837,53 +885,53 @@ public partial class OrderSearchPage : ContentPage
             if (qualified.Count == 0)
             {
                 // Grey: all orders were already QC Hold/Passed when scanned
-                bgActive       = Color.FromArgb("#6b7280"); strokeActive  = Color.FromArgb("#4b5563"); idxActive    = Color.FromArgb("#d1d5db");
-                bgInactive     = Color.FromArgb("#f9fafb"); bgHover       = Color.FromArgb("#f3f4f6");
-                strokeInactive = Color.FromArgb("#e5e7eb"); titleInactive = Color.FromArgb("#6b7280"); idxInactive  = Color.FromArgb("#9ca3af");
+                bgActive = Color.FromArgb("#6b7280"); strokeActive = Color.FromArgb("#4b5563"); idxActive = Color.FromArgb("#d1d5db");
+                bgInactive = Color.FromArgb("#f9fafb"); bgHover = Color.FromArgb("#f3f4f6");
+                strokeInactive = Color.FromArgb("#e5e7eb"); titleInactive = Color.FromArgb("#6b7280"); idxInactive = Color.FromArgb("#9ca3af");
             }
             else if (allPassed)
             {
                 // Green: all qualified orders are QC Passed
-                bgActive       = Color.FromArgb("#16a34a"); strokeActive  = Color.FromArgb("#15803d"); idxActive    = Color.FromArgb("#bbf7d0");
-                bgInactive     = Color.FromArgb("#f0fdf4"); bgHover       = Color.FromArgb("#dcfce7");
-                strokeInactive = Color.FromArgb("#bbf7d0"); titleInactive = Color.FromArgb("#166534"); idxInactive  = Color.FromArgb("#86efac");
+                bgActive = Color.FromArgb("#16a34a"); strokeActive = Color.FromArgb("#15803d"); idxActive = Color.FromArgb("#bbf7d0");
+                bgInactive = Color.FromArgb("#f0fdf4"); bgHover = Color.FromArgb("#dcfce7");
+                strokeInactive = Color.FromArgb("#bbf7d0"); titleInactive = Color.FromArgb("#166534"); idxInactive = Color.FromArgb("#86efac");
             }
             else if (anyHold)
             {
                 // Yellow: at least one qualified order is QC Hold
-                bgActive       = Color.FromArgb("#d97706"); strokeActive  = Color.FromArgb("#b45309"); idxActive    = Color.FromArgb("#fef3c7");
-                bgInactive     = Color.FromArgb("#fffbeb"); bgHover       = Color.FromArgb("#fef3c7");
-                strokeInactive = Color.FromArgb("#fde68a"); titleInactive = Color.FromArgb("#b45309"); idxInactive  = Color.FromArgb("#fcd34d");
+                bgActive = Color.FromArgb("#d97706"); strokeActive = Color.FromArgb("#b45309"); idxActive = Color.FromArgb("#fef3c7");
+                bgInactive = Color.FromArgb("#fffbeb"); bgHover = Color.FromArgb("#fef3c7");
+                strokeInactive = Color.FromArgb("#fde68a"); titleInactive = Color.FromArgb("#b45309"); idxInactive = Color.FromArgb("#fcd34d");
             }
             else
             {
                 // Blue: all qualified orders still To be packed (incoming)
-                bgActive       = Color.FromArgb("#2563eb"); strokeActive  = Color.FromArgb("#1d4ed8"); idxActive    = Color.FromArgb("#bfdbfe");
-                bgInactive     = Color.FromArgb("#eff6ff"); bgHover       = Color.FromArgb("#dbeafe");
-                strokeInactive = Color.FromArgb("#bfdbfe"); titleInactive = Color.FromArgb("#1d4ed8"); idxInactive  = Color.FromArgb("#93c5fd");
+                bgActive = Color.FromArgb("#2563eb"); strokeActive = Color.FromArgb("#1d4ed8"); idxActive = Color.FromArgb("#bfdbfe");
+                bgInactive = Color.FromArgb("#eff6ff"); bgHover = Color.FromArgb("#dbeafe");
+                strokeInactive = Color.FromArgb("#bfdbfe"); titleInactive = Color.FromArgb("#1d4ed8"); idxInactive = Color.FromArgb("#93c5fd");
             }
 
-            Color bgColor     = isActive ? bgActive    : bgInactive;
+            Color bgColor = isActive ? bgActive : bgInactive;
             Color strokeColor = isActive ? strokeActive : strokeInactive;
-            Color titleColor  = isActive ? Colors.White : titleInactive;
-            Color indexColor  = isActive ? idxActive    : idxInactive;
+            Color titleColor = isActive ? Colors.White : titleInactive;
+            Color indexColor = isActive ? idxActive : idxInactive;
 
             var titleLabel = new Label
             {
-                Text                    = query,
-                FontSize                = 11,
-                FontAttributes          = FontAttributes.Bold,
-                TextColor               = titleColor,
-                LineBreakMode           = LineBreakMode.NoWrap,
+                Text = query,
+                FontSize = 11,
+                FontAttributes = FontAttributes.Bold,
+                TextColor = titleColor,
+                LineBreakMode = LineBreakMode.NoWrap,
                 HorizontalTextAlignment = TextAlignment.Center,
             };
 
             var indexLabel = new Label
             {
-                Text                    = $"#{i + 1}",
-                FontSize                = 13,
-                FontAttributes          = FontAttributes.Bold,
-                TextColor               = indexColor,
+                Text = $"#{i + 1}",
+                FontSize = 13,
+                FontAttributes = FontAttributes.Bold,
+                TextColor = indexColor,
                 HorizontalTextAlignment = TextAlignment.Center,
             };
 
@@ -901,7 +949,7 @@ public partial class OrderSearchPage : ContentPage
                 "Shopee" => Color.FromArgb("#EE4D2D"),
                 "Lazada" => Color.FromArgb("#0F146D"),
                 "TikTok" => Color.FromArgb("#000000"),
-                _        => Colors.Transparent,
+                _ => Colors.Transparent,
             };
 
             // ── Build platform tag border (top-right) ────────────────────────────────
@@ -911,15 +959,15 @@ public partial class OrderSearchPage : ContentPage
                 {
                     BackgroundColor = platformTagColor,
                     StrokeThickness = 0,
-                    StrokeShape     = new RoundRectangle { CornerRadius = new CornerRadius(3) },
-                    Padding         = new Thickness(5, 2),
+                    StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(3) },
+                    Padding = new Thickness(5, 2),
                     VerticalOptions = LayoutOptions.Center,
-                    Content         = new Label
+                    Content = new Label
                     {
-                        Text            = platformName,
-                        FontSize        = 9,
-                        FontAttributes  = FontAttributes.Bold,
-                        TextColor       = Colors.White,
+                        Text = platformName,
+                        FontSize = 9,
+                        FontAttributes = FontAttributes.Bold,
+                        TextColor = Colors.White,
                         VerticalOptions = LayoutOptions.Center,
                     },
                 };
@@ -934,7 +982,7 @@ public partial class OrderSearchPage : ContentPage
                     new ColumnDefinition(GridLength.Auto),  // platform tag
                 },
                 HorizontalOptions = LayoutOptions.Fill,
-                RowSpacing        = 0,
+                RowSpacing = 0,
             };
             topRow.Add(indexLabel, 0, 0);
             if (platformTagBorder != null)
@@ -949,29 +997,29 @@ public partial class OrderSearchPage : ContentPage
                     new RowDefinition(GridLength.Auto),
                     new RowDefinition(GridLength.Auto),
                 },
-                RowSpacing        = 4,
+                RowSpacing = 4,
                 HorizontalOptions = LayoutOptions.Fill,
             };
-            cardContent.Add(topRow,      0, 0);
-            cardContent.Add(titleLabel,  0, 1);
+            cardContent.Add(topRow, 0, 0);
+            cardContent.Add(titleLabel, 0, 1);
 
             var card = new Border
             {
-                StrokeShape     = new RoundRectangle { CornerRadius = new CornerRadius(8) },
-                Stroke          = strokeColor,
+                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(8) },
+                Stroke = strokeColor,
                 StrokeThickness = 1,
                 BackgroundColor = bgColor,
-                Padding         = new Thickness(14, 6),
-                Content         = cardContent,
+                Padding = new Thickness(14, 6),
+                Content = cardContent,
             };
 
             if (!isActive)
             {
-                var capturedBg    = bgInactive;
+                var capturedBg = bgInactive;
                 var capturedHover = bgHover;
                 var ptr = new PointerGestureRecognizer();
                 ptr.PointerEntered += (_, _) => card.BackgroundColor = capturedHover;
-                ptr.PointerExited  += (_, _) => card.BackgroundColor = capturedBg;
+                ptr.PointerExited += (_, _) => card.BackgroundColor = capturedBg;
                 card.GestureRecognizers.Add(ptr);
             }
 
@@ -1005,7 +1053,7 @@ public partial class OrderSearchPage : ContentPage
         if (children.Count > 0)
         {
             children[0].TranslationX = -260;
-            children[0].Opacity      = 0;
+            children[0].Opacity = 0;
         }
 
         // Existing cards (index 1+): nudge from a slight rightward offset
@@ -1013,7 +1061,7 @@ public partial class OrderSearchPage : ContentPage
         for (int j = 1; j < children.Count; j++)
         {
             children[j].TranslationX = 60;
-            children[j].Opacity      = 0.7;
+            children[j].Opacity = 0.7;
         }
 
         var tasks = new List<Task>();
@@ -1065,9 +1113,9 @@ public partial class OrderSearchPage : ContentPage
 
     private void UpdateBadgeFilterState()
     {
-        SessionCompletedBadge.Opacity  = _carouselFilter is null or "completed"  ? 1.0 : 0.4;
+        SessionCompletedBadge.Opacity = _carouselFilter is null or "completed" ? 1.0 : 0.4;
         SessionIncompleteBadge.Opacity = _carouselFilter is null or "incomplete" ? 1.0 : 0.4;
-        SessionIncomingBadge.Opacity   = _carouselFilter is null or "incoming"   ? 1.0 : 0.4;
+        SessionIncomingBadge.Opacity = _carouselFilter is null or "incoming" ? 1.0 : 0.4;
     }
 
     private void NavigateToSession(int index)
@@ -1077,20 +1125,80 @@ public partial class OrderSearchPage : ContentPage
         if (_pendingSkuProduct != null)
             ApplySkuDeduction(_pendingSkuProduct, "1", DeductionSource.AutoPrior);
 
+        var prevSession = _sessions[_sessionIndex];
+        string sourceState = GetSessionWorkflowState(prevSession.Data);
+        bool hadIncompleteWork = prevSession.Data.Any(o =>
+            _qualifiedPackingIds.Contains(o.PackingId) &&
+            !string.Equals(o.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase) &&
+            o.ParsedProducts.Any(p => p.Quantity != p.OriginalQuantity));
+
+        // Detect order-loaded: no item scans done yet and all qualified orders still "To be packed"
+        bool sourceInOrderLoaded = _isFirstItemScan && _orderLoaded &&
+            prevSession.Data.Where(o => _qualifiedPackingIds.Contains(o.PackingId))
+                            .All(o => string.Equals(o.PackingStatus, "To be packed", StringComparison.OrdinalIgnoreCase));
+        string sourceFromState = sourceInOrderLoaded ? "order-loaded" : sourceState;
+        string sourceToState = sourceInOrderLoaded ? "idle" : "held";
+        string sourceStepId = sourceInOrderLoaded ? "order_abandoned"
+            : hadIncompleteWork ? "incomplete_order_abandoned"
+            : "order_held";
+
         _sessionIndex = index;
         var session = _sessions[_sessionIndex];
+        string destFromState = GetSessionWorkflowState(session.Data);
 
         Results.Clear();
         ActiveResults.Clear();
         foreach (var r in session.Data) { Results.Add(r); ActiveResults.Add(r); }
 
         _orderLoaded = Results.Count > 0;
+        _isFirstItemScan = _orderLoaded;
         NotFoundCard.IsVisible = Results.Count == 0;
         NotFoundLabel.Text = Results.Count == 0 ? $"{session.Query} not found" : "";
         UpdateSearchStatus(session.Query);
         BuildCarouselUI();
         UpdateSessionStats(); // stats span all sessions — no reset needed here
         _ = ResultsScroll.ScrollToAsync(0, 0, false);
+
+        // Emit source order leaving (skip if already idle or passed — nothing to record)
+        if (!string.Equals(sourceState, "passed", StringComparison.Ordinal) &&
+            !string.Equals(sourceState, "idle", StringComparison.Ordinal))
+            EmitQcEvent(
+                stepId: sourceStepId,
+                trigger: "order_card_selected",
+                trackingNumber: prevSession.Query,
+                fromState: sourceFromState,
+                toState: sourceToState,
+                bumpSequence: false,
+                payload: new Dictionary<string, object?>
+                {
+                    ["toTrackingNumber"] = session.Query,
+                    ["hadIncompleteWork"] = hadIncompleteWork,
+                });
+
+        // Emit destination order loading
+        if (!string.Equals(destFromState, "passed", StringComparison.Ordinal))
+            EmitQcEvent(
+                stepId: "session_navigated",
+                trigger: "order_card_selected",
+                trackingNumber: session.Query,
+                fromState: destFromState,
+                toState: "order-loaded",
+                bumpSequence: false,
+                payload: new Dictionary<string, object?>
+                {
+                    ["fromTrackingNumber"] = prevSession.Query,
+                });
+    }
+
+    private string GetSessionWorkflowState(List<PackingList> orders)
+    {
+        var qualified = orders.Where(o => _qualifiedPackingIds.Contains(o.PackingId)).ToList();
+        if (qualified.Count == 0) return "idle";
+        if (qualified.All(o => string.Equals(o.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase)))
+            return "passed";
+        if (qualified.Any(o => string.Equals(o.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase)))
+            return "held";
+        return "picking";
     }
 
     private void NavigateSession(int delta)
