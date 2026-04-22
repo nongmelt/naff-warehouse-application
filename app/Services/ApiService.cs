@@ -19,7 +19,7 @@ public static class ApiService
     };
 
     private static HttpClient? _http;
-    private static string      _httpBase = "";
+    private static string _httpBase = "";
 
     private static HttpClient Http
     {
@@ -29,7 +29,7 @@ public static class ApiService
             if (_http is null || _httpBase != url)
             {
                 _http?.Dispose();
-                _http     = new HttpClient { BaseAddress = new Uri(url) };
+                _http = new HttpClient { BaseAddress = new Uri(url) };
                 _httpBase = url;
             }
             return _http;
@@ -80,7 +80,7 @@ public static class ApiService
     {
         try
         {
-            var url  = $"packing-lists?q={Uri.EscapeDataString(input)}";
+            var url = $"packing-lists?q={Uri.EscapeDataString(input)}";
             var list = await Http.GetFromJsonAsync<List<PackingList>>(url, JsonOpts);
             return list ?? [];
         }
@@ -99,10 +99,10 @@ public static class ApiService
     {
         try
         {
-            var body    = new StatusRequest(status, updatedProductLists, checkedBy?.Replace(' ', '-'));
-            var json    = JsonSerializer.Serialize(body, JsonOpts);
+            var body = new StatusRequest(status, updatedProductLists, checkedBy?.Replace(' ', '-'));
+            var json = JsonSerializer.Serialize(body, JsonOpts);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var resp    = await Http.PatchAsync($"packing-lists/{packingId}/status", content);
+            var resp = await Http.PatchAsync($"packing-lists/{packingId}/status", content);
             if (!resp.IsSuccessStatusCode)
                 Logger.Log($"ApiService.UpdatePackingStatusAsync: HTTP {(int)resp.StatusCode}");
             return resp.IsSuccessStatusCode;
@@ -143,10 +143,10 @@ public static class ApiService
     {
         try
         {
-            var body    = new CreateVideoRequest(trackingNumber, filePath, Path.GetFileName(filePath), stationName, @operator);
-            var json    = JsonSerializer.Serialize(body, JsonOpts);
+            var body = new CreateVideoRequest(trackingNumber, filePath, Path.GetFileName(filePath), stationName, @operator);
+            var json = JsonSerializer.Serialize(body, JsonOpts);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var resp    = await Http.PostAsync("videos", content);
+            var resp = await Http.PostAsync("videos", content);
             if (!resp.IsSuccessStatusCode)
             {
                 Logger.Log($"ApiService.CreateVideoRecordAsync: HTTP {(int)resp.StatusCode}");
@@ -171,10 +171,10 @@ public static class ApiService
     {
         try
         {
-            var body    = new ScanStatusRequest(status, packedBy?.Replace(' ', '-'));
-            var json    = JsonSerializer.Serialize(body, JsonOpts);
+            var body = new ScanStatusRequest(status, packedBy?.Replace(' ', '-'));
+            var json = JsonSerializer.Serialize(body, JsonOpts);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var resp    = await Http.PatchAsync(
+            var resp = await Http.PatchAsync(
                 $"packing-lists/scan/{Uri.EscapeDataString(barcode)}/status", content);
             if (!resp.IsSuccessStatusCode)
                 Logger.Log($"ApiService.UpdatePackingStatusByScanAsync: HTTP {(int)resp.StatusCode}");
@@ -188,15 +188,15 @@ public static class ApiService
     }
 
     public static async Task<bool> UpdateVideoStatusAsync(
-        int videoId, string status,
+        int videoId, string status, string? remoteFilePath = null,
         string? failureReason = null, int? uploadAttempts = null)
     {
         try
         {
-            var body    = new UpdateVideoStatusRequest(status, failureReason, uploadAttempts);
-            var json    = JsonSerializer.Serialize(body, JsonOpts);
+            var body = new UpdateVideoStatusRequest(status, remoteFilePath, failureReason, uploadAttempts);
+            var json = JsonSerializer.Serialize(body, JsonOpts);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var resp    = await Http.PatchAsync($"videos/{videoId}/status", content);
+            var resp = await Http.PatchAsync($"videos/{videoId}/status", content);
             if (!resp.IsSuccessStatusCode)
                 Logger.Log($"ApiService.UpdateVideoStatusAsync: HTTP {(int)resp.StatusCode}");
             return resp.IsSuccessStatusCode;
@@ -242,10 +242,10 @@ public static class ApiService
     {
         try
         {
-            var body    = new UploadCommandPatch(status, reasonOnRejection);
-            var json    = JsonSerializer.Serialize(body, JsonOpts);
+            var body = new UploadCommandPatch(status, reasonOnRejection);
+            var json = JsonSerializer.Serialize(body, JsonOpts);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var resp    = await Http.PatchAsync($"upload-commands/{commandId}", content);
+            var resp = await Http.PatchAsync($"upload-commands/{commandId}", content);
             if (!resp.IsSuccessStatusCode)
                 Logger.Log($"ApiService.PatchUploadCommandAsync: HTTP {(int)resp.StatusCode}");
             return resp.IsSuccessStatusCode;
@@ -261,10 +261,10 @@ public static class ApiService
     {
         try
         {
-            var body    = new UpdateVideoRemotePathRequest(remoteFilePath);
-            var json    = JsonSerializer.Serialize(body, JsonOpts);
+            var body = new UpdateVideoRemotePathRequest(remoteFilePath);
+            var json = JsonSerializer.Serialize(body, JsonOpts);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var resp    = await Http.PatchAsync($"videos/{videoId}/remote-path", content);
+            var resp = await Http.PatchAsync($"videos/{videoId}/remote-path", content);
             if (!resp.IsSuccessStatusCode)
                 Logger.Log($"ApiService.UpdateVideoRemotePathAsync: HTTP {(int)resp.StatusCode}");
             return resp.IsSuccessStatusCode;
@@ -279,31 +279,32 @@ public static class ApiService
     // ── Private DTOs ──────────────────────────────────────────────────────────
 
     private record StatusRequest(
-        [property: JsonPropertyName("status")]              string             Status,
+        [property: JsonPropertyName("status")] string Status,
         [property: JsonPropertyName("updatedProductLists")] ProductListPayload UpdatedProductLists,
-        [property: JsonPropertyName("checkedBy")]           string?            CheckedBy);
+        [property: JsonPropertyName("checkedBy")] string? CheckedBy);
 
     private record CreateVideoRequest(
         [property: JsonPropertyName("trackingNumber")] string TrackingNumber,
-        [property: JsonPropertyName("filePath")]       string FilePath,
-        [property: JsonPropertyName("fileName")]       string FileName,
-        [property: JsonPropertyName("stationName")]    string StationName,
-        [property: JsonPropertyName("operator")]       string Operator);
+        [property: JsonPropertyName("filePath")] string FilePath,
+        [property: JsonPropertyName("fileName")] string FileName,
+        [property: JsonPropertyName("stationName")] string StationName,
+        [property: JsonPropertyName("operator")] string Operator);
 
     private record UpdateVideoStatusRequest(
-        [property: JsonPropertyName("status")]         string  Status,
-        [property: JsonPropertyName("failureReason")]  string? FailureReason,
-        [property: JsonPropertyName("uploadAttempts")] int?    UploadAttempts);
+        [property: JsonPropertyName("status")] string Status,
+        [property: JsonPropertyName("remoteFilePath")] string? RemoteFilePath,
+        [property: JsonPropertyName("failureReason")] string? FailureReason,
+        [property: JsonPropertyName("uploadAttempts")] int? UploadAttempts);
 
     private record UploadCommandPatch(
-        [property: JsonPropertyName("status")]            string  Status,
+        [property: JsonPropertyName("status")] string Status,
         [property: JsonPropertyName("reasonOnRejection")] string? ReasonOnRejection);
 
     private record UpdateVideoRemotePathRequest(
         [property: JsonPropertyName("remoteFilePath")] string RemoteFilePath);
 
     private record ScanStatusRequest(
-        [property: JsonPropertyName("status")]   string  Status,
+        [property: JsonPropertyName("status")] string Status,
         [property: JsonPropertyName("packedBy")] string? PackedBy);
 
     private record VideoRecord(

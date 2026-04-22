@@ -83,26 +83,24 @@ public static class MinioUploadService
 
                 StationEvents.Emit(
                     workflowName: "Packing",
-                    stepId:       "upload_succeeded",
-                    trigger:      "upload_response",
+                    stepId: "upload_succeeded",
+                    trigger: "upload_response",
                     trackingNumber: trackingNumber,
-                    fromState:    "uploading",
-                    toState:      "uploaded",
-                    stationId:    AppSettings.ResolvedStationId,
-                    @operator:    op,
+                    fromState: "uploading",
+                    toState: "uploaded",
+                    stationId: AppSettings.ResolvedStationId,
+                    @operator: op,
                     payload: new Dictionary<string, object?>
                     {
-                        ["videoId"]            = videoId,
-                        ["attempt"]            = attempt,
-                        ["durationMs"]         = sw.ElapsedMilliseconds,
-                        ["responseStatus"]     = "200",
+                        ["videoId"] = videoId,
+                        ["attempt"] = attempt,
+                        ["durationMs"] = sw.ElapsedMilliseconds,
+                        ["responseStatus"] = "200",
                         ["videoFileSizeBytes"] = size,
                     });
 
                 // Validate the file exists on MinIO (HEAD-style verify)
                 bool exists = await ObjectExistsAsync(minio, bucket, objectName);
-                await ApiService.UpdateVideoStatusAsync(videoId, exists ? "Completed" : "Failed",
-                    failureReason: exists ? null : "remote_missing");
 
                 if (exists)
                 {
@@ -111,40 +109,41 @@ public static class MinioUploadService
                     ReuploadQueue.Complete(videoId);
 
                     var remoteFilePath = $"{bucket}/{objectName}";
-                    await ApiService.UpdateVideoRemotePathAsync(videoId, remoteFilePath);
+                    await ApiService.UpdateVideoStatusAsync(videoId, "Completed", remoteFilePath: remoteFilePath);
                     Logger.Log($"MinioUploadService: remote_file_path saved as {remoteFilePath}");
 
                     StationEvents.Emit(
                         workflowName: "Packing",
-                        stepId:       "verified",
-                        trigger:      "verify_remote",
+                        stepId: "verified",
+                        trigger: "verify_remote",
                         trackingNumber: trackingNumber,
-                        fromState:    "uploaded",
-                        toState:      "completed",
-                        stationId:    AppSettings.ResolvedStationId,
-                            @operator:    op,
+                        fromState: "uploaded",
+                        toState: "completed",
+                        stationId: AppSettings.ResolvedStationId,
+                            @operator: op,
                         payload: new Dictionary<string, object?>
                         {
-                            ["videoId"]        = videoId,
+                            ["videoId"] = videoId,
                             ["responseStatus"] = "200",
                         });
                 }
                 else
                 {
+                    await ApiService.UpdateVideoStatusAsync(videoId, "Failed", failureReason: "remote_missing");
                     Logger.Log($"MinioUploadService: post-upload validation failed for {objectName}");
                     StationEvents.Emit(
                         workflowName: "Packing",
-                        stepId:       "verify_missing",
-                        trigger:      "verify_remote",
+                        stepId: "verify_missing",
+                        trigger: "verify_remote",
                         trackingNumber: trackingNumber,
-                        fromState:    "uploaded",
-                        toState:      "failed",
-                        stationId:    AppSettings.ResolvedStationId,
-                            @operator:    op,
+                        fromState: "uploaded",
+                        toState: "failed",
+                        stationId: AppSettings.ResolvedStationId,
+                            @operator: op,
                         payload: new Dictionary<string, object?>
                         {
-                            ["videoId"]        = videoId,
-                            ["reason"]         = "remote_missing",
+                            ["videoId"] = videoId,
+                            ["reason"] = "remote_missing",
                             ["responseStatus"] = "404",
                         });
                     await ApiService.NotifyManualUploadNeededAsync(videoId);
@@ -162,20 +161,20 @@ public static class MinioUploadService
 
                 StationEvents.Emit(
                     workflowName: "Packing",
-                    stepId:       isLast ? "upload_failed" : "upload_retry",
-                    trigger:      "upload_response",
+                    stepId: isLast ? "upload_failed" : "upload_retry",
+                    trigger: "upload_response",
                     trackingNumber: trackingNumber,
-                    fromState:    "uploading",
-                    toState:      isLast ? "failed" : "uploading",
-                    stationId:    AppSettings.ResolvedStationId,
-                    @operator:    op,
+                    fromState: "uploading",
+                    toState: isLast ? "failed" : "uploading",
+                    stationId: AppSettings.ResolvedStationId,
+                    @operator: op,
                     payload: new Dictionary<string, object?>
                     {
-                        ["videoId"]    = videoId,
-                        ["attempt"]    = attempt,
+                        ["videoId"] = videoId,
+                        ["attempt"] = attempt,
                         ["durationMs"] = sw.ElapsedMilliseconds,
-                        ["reason"]     = reason,
-                        ["detail"]     = ex.Message,
+                        ["reason"] = reason,
+                        ["detail"] = ex.Message,
                     });
 
                 if (!isLast)
@@ -202,10 +201,10 @@ public static class MinioUploadService
     {
         var msg = ex.Message.ToLowerInvariant();
         if (ex is TaskCanceledException || ex is TimeoutException || msg.Contains("timeout")) return "network_timeout";
-        if (msg.Contains("refused") || msg.Contains("connection"))                            return "connection_refused";
+        if (msg.Contains("refused") || msg.Contains("connection")) return "connection_refused";
         if (msg.Contains("403") || msg.Contains("401") || msg.Contains("signature") || msg.Contains("access denied"))
-                                                                                              return "auth_failure";
-        if (msg.Contains("disk") || msg.Contains("space"))                                    return "disk_full";
+            return "auth_failure";
+        if (msg.Contains("disk") || msg.Contains("space")) return "disk_full";
         return "unknown";
     }
 
