@@ -455,7 +455,7 @@ public partial class StationView : ContentView, IDisposable
                 return;
             }
 
-            var stationName  = Environment.MachineName;
+            var stationName = Environment.MachineName;
             var stationLabel = $"{stationName}-{_stationName.Replace(' ', '-')}";
 
             if (_activeBarcode == null)
@@ -480,13 +480,13 @@ public partial class StationView : ContentView, IDisposable
 
                 StationEvents.Emit(
                     workflowName: "Packing",
-                    stepId:       "tracking_scanned",
-                    trigger:      "barcode_scan",
+                    stepId: "tracking_scanned",
+                    trigger: "barcode_scan",
                     trackingNumber: barcode,
-                    fromState:    "idle",
-                    toState:      "recording",
-                    stationId:    AppSettings.ResolvedStationId,
-                    @operator:    _stationName.Replace(' ', '-'),
+                    fromState: "idle",
+                    toState: "recording",
+                    stationId: AppSettings.ResolvedStationId,
+                    @operator: _stationName.Replace(' ', '-'),
                     payload: new Dictionary<string, object?>
                     {
                         ["stationLabel"] = stationLabel,
@@ -512,7 +512,7 @@ public partial class StationView : ContentView, IDisposable
                     MainThread.BeginInvokeOnMainThread(() => VideoCountLabel.Text = _videoCount.ToString());
                     UpdateStatusFromDevices();
 
-                    _ = ApiService.UpdatePackingStatusByScanAsync(resetBarcode!, "Packed", _stationName);
+                    _ = ApiService.UpdatePackingStatusByScanAsync(resetBarcode!, "Packed", _stationName.Replace(' ', '-'));
 
                     var durationSeconds = (int)Math.Round((DateTime.UtcNow - recordingStartedAt).TotalSeconds);
                     long fileSizeBytes = 0;
@@ -520,40 +520,40 @@ public partial class StationView : ContentView, IDisposable
 
                     StationEvents.Emit(
                         workflowName: "Packing",
-                        stepId:       "packing_reset",
-                        trigger:      "barcode_scan",
+                        stepId: "packing_reset",
+                        trigger: "barcode_scan",
                         trackingNumber: resetBarcode,
-                        fromState:    "recording",
-                        toState:      "uploading",
-                        stationId:    AppSettings.ResolvedStationId,
-                            @operator:    _stationName.Replace(' ', '-'),
+                        fromState: "recording",
+                        toState: "uploading",
+                        stationId: AppSettings.ResolvedStationId,
+                            @operator: _stationName.Replace(' ', '-'),
                         payload: new Dictionary<string, object?>
                         {
-                            ["stationLabel"]       = stationLabel,
-                            ["packedBy"]           = _stationName.Replace(' ', '-'),
-                            ["durationSeconds"]    = durationSeconds,
+                            ["stationLabel"] = stationLabel,
+                            ["packedBy"] = _stationName.Replace(' ', '-'),
+                            ["durationSeconds"] = durationSeconds,
                             ["videoFileSizeBytes"] = fileSizeBytes,
                         });
 
                     var videoId = await ApiService.CreateVideoRecordAsync(
-                        resetBarcode!, filePath, stationName, _stationName);
+                        resetBarcode!, filePath, stationName, _stationName.Replace(' ', '-'));
 
                     if (videoId > 0)
                     {
                         StationEvents.Emit(
                             workflowName: "Packing",
-                            stepId:       "upload_started",
-                            trigger:      "barcode_scan",
+                            stepId: "upload_started",
+                            trigger: "barcode_scan",
                             trackingNumber: resetBarcode,
-                            fromState:    "recording",
-                            toState:      "uploading",
-                            stationId:    AppSettings.ResolvedStationId,
-                                    @operator:    _stationName.Replace(' ', '-'),
+                            fromState: "recording",
+                            toState: "uploading",
+                            stationId: AppSettings.ResolvedStationId,
+                                    @operator: _stationName.Replace(' ', '-'),
                             payload: new Dictionary<string, object?>
                             {
                                 ["videoId"] = videoId,
                             });
-                        MinioUploadService.UploadAsync(videoId, filePath, resetBarcode!, @operator: _stationName);
+                        MinioUploadService.UploadAsync(videoId, filePath, resetBarcode!, @operator: _stationName.Replace(' ', '-'));
                     }
                     else
                     {
@@ -586,7 +586,7 @@ public partial class StationView : ContentView, IDisposable
                     UpdateStatusFromDevices(); // ready for next scan immediately
 
                     // Update packing status to Packed
-                    _ = ApiService.UpdatePackingStatusByScanAsync(finishedBarcode!, "Packed", _stationName);
+                    _ = ApiService.UpdatePackingStatusByScanAsync(finishedBarcode!, "Packed", _stationName.Replace(' ', '-'));
 
                     var durationSeconds = (int)Math.Round((DateTime.UtcNow - recordingStartedAt).TotalSeconds);
                     long fileSizeBytes = 0;
@@ -594,41 +594,41 @@ public partial class StationView : ContentView, IDisposable
 
                     StationEvents.Emit(
                         workflowName: "Packing",
-                        stepId:       "packing_stopped",
-                        trigger:      "barcode_scan",
+                        stepId: "packing_stopped",
+                        trigger: "barcode_scan",
                         trackingNumber: finishedBarcode,
-                        fromState:    "recording",
-                        toState:      "uploading",
-                        stationId:    AppSettings.ResolvedStationId,
-                            @operator:    _stationName.Replace(' ', '-'),
+                        fromState: "recording",
+                        toState: "uploading",
+                        stationId: AppSettings.ResolvedStationId,
+                            @operator: _stationName.Replace(' ', '-'),
                         payload: new Dictionary<string, object?>
                         {
-                            ["stationLabel"]       = stationLabel,
-                            ["packedBy"]           = _stationName.Replace(' ', '-'),
-                            ["durationSeconds"]    = durationSeconds,
+                            ["stationLabel"] = stationLabel,
+                            ["packedBy"] = _stationName.Replace(' ', '-'),
+                            ["durationSeconds"] = durationSeconds,
                             ["videoFileSizeBytes"] = fileSizeBytes,
                         });
 
                     // Register video record (status=Recorded) then upload to MinIO in background
                     var videoId = await ApiService.CreateVideoRecordAsync(
-                        finishedBarcode!, filePath, stationName, _stationName);
+                        finishedBarcode!, filePath, stationName, _stationName.Replace(' ', '-'));
 
                     if (videoId > 0)
                     {
                         StationEvents.Emit(
                             workflowName: "Packing",
-                            stepId:       "upload_started",
-                            trigger:      "barcode_scan",
+                            stepId: "upload_started",
+                            trigger: "barcode_scan",
                             trackingNumber: finishedBarcode,
-                            fromState:    "recording",
-                            toState:      "uploading",
-                            stationId:    AppSettings.ResolvedStationId,
-                                    @operator:    _stationName.Replace(' ', '-'),
+                            fromState: "recording",
+                            toState: "uploading",
+                            stationId: AppSettings.ResolvedStationId,
+                                    @operator: _stationName.Replace(' ', '-'),
                             payload: new Dictionary<string, object?>
                             {
                                 ["videoId"] = videoId,
                             });
-                        MinioUploadService.UploadAsync(videoId, filePath, finishedBarcode!, @operator: _stationName);
+                        MinioUploadService.UploadAsync(videoId, filePath, finishedBarcode!, @operator: _stationName.Replace(' ', '-'));
                     }
                     else
                     {
@@ -647,17 +647,17 @@ public partial class StationView : ContentView, IDisposable
                 Logger.Log($"Station {_stationId}: Barcode mismatch (active: {_activeBarcode}, got: {barcode})");
                 StationEvents.Emit(
                     workflowName: "Packing",
-                    stepId:       "barcode_mismatch",
-                    trigger:      "barcode_scan",
+                    stepId: "barcode_mismatch",
+                    trigger: "barcode_scan",
                     trackingNumber: _activeBarcode,
-                    fromState:    "recording",
-                    toState:      "recording",
-                    stationId:    AppSettings.ResolvedStationId,
-                    @operator:    _stationName.Replace(' ', '-'),
+                    fromState: "recording",
+                    toState: "recording",
+                    stationId: AppSettings.ResolvedStationId,
+                    @operator: _stationName.Replace(' ', '-'),
                     payload: new Dictionary<string, object?>
                     {
                         ["activeBarcode"] = _activeBarcode,
-                        ["scanned"]       = barcode,
+                        ["scanned"] = barcode,
                     });
             }
         }
