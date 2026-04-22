@@ -89,7 +89,6 @@ public static class MinioUploadService
                     fromState:    "uploading",
                     toState:      "uploaded",
                     stationId:    AppSettings.ResolvedStationId,
-                    stationType:  "Packing",
                     @operator:    op,
                     payload: new Dictionary<string, object?>
                     {
@@ -123,8 +122,7 @@ public static class MinioUploadService
                         fromState:    "uploaded",
                         toState:      "completed",
                         stationId:    AppSettings.ResolvedStationId,
-                        stationType:  "Packing",
-                        @operator:    op,
+                            @operator:    op,
                         payload: new Dictionary<string, object?>
                         {
                             ["videoId"]        = videoId,
@@ -142,8 +140,7 @@ public static class MinioUploadService
                         fromState:    "uploaded",
                         toState:      "failed",
                         stationId:    AppSettings.ResolvedStationId,
-                        stationType:  "Packing",
-                        @operator:    op,
+                            @operator:    op,
                         payload: new Dictionary<string, object?>
                         {
                             ["videoId"]        = videoId,
@@ -171,7 +168,6 @@ public static class MinioUploadService
                     fromState:    "uploading",
                     toState:      isLast ? "failed" : "uploading",
                     stationId:    AppSettings.ResolvedStationId,
-                    stationType:  "Packing",
                     @operator:    op,
                     payload: new Dictionary<string, object?>
                     {

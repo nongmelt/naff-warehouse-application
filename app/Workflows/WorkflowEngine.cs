@@ -128,7 +128,6 @@ public sealed class WorkflowEngine
         return new WorkflowEventOut
         {
             StationId         = ctx.StationId,
-            StationType       = _workflow.Name,
             WorkflowName      = _workflow.Name,
             TrackingNumber    = ctx.ActiveBarcode ?? ctx.Barcode,
             StepId            = step.StepId,

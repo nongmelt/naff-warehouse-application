@@ -20,7 +20,6 @@ public static class StationEvents
         string? fromState      = null,
         string? toState        = null,
         int? stationId         = null,
-        string? stationType    = null,
         string? @operator      = null,
         int? sequenceInSession = null,
         Dictionary<string, object?>? payload = null)
@@ -34,7 +33,6 @@ public static class StationEvents
             FromState         = fromState,
             ToState           = toState,
             StationId         = stationId,
-            StationType       = stationType,
             Operator          = @operator,
             SequenceInSession = sequenceInSession,
             Payload           = payload,
