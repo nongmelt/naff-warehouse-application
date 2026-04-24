@@ -12,6 +12,7 @@ public partial class App : Application
 		UserAppTheme = AppTheme.Light;
 		Services.AppSettings.Initialize();
 		Services.UploadCommandListener.Start();
+		Services.HeartbeatService.Start();
 		_ = Task.Run(async () =>
 		{
 			var id = await Services.ApiService.ResolveStationIdAsync(Environment.MachineName);

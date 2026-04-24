@@ -80,6 +80,24 @@ public static class ApiService
         }
     }
 
+    // ── Heartbeat ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Fires a one-way heartbeat to inform the backend this station is alive.
+    /// Swallows all exceptions — failure is silent (backend marks station offline).
+    /// </summary>
+    public static async Task SendHeartbeatAsync(int stationId)
+    {
+        try
+        {
+            await Http.PostAsync($"stations/{stationId}/heartbeat", null);
+        }
+        catch
+        {
+            // silent — heartbeat loss just marks station offline in the dashboard
+        }
+    }
+
     // ── Health / connection test ──────────────────────────────────────────────
 
     public static async Task<(bool Success, string? Error)> TestConnectionAsync()
