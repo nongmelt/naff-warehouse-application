@@ -36,6 +36,28 @@ public static class ApiService
         }
     }
 
+    // ── Operator lookup ───────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Resolves a staff_code QR scan to the operator's first name.
+    /// Returns null on 404 or network failure — caller falls back to staff_code display.
+    /// </summary>
+    public static async Task<string?> GetOperatorFirstNameAsync(string staffCode)
+    {
+        try
+        {
+            var resp = await Http.GetAsync($"operator-lists/by-staff-code/{Uri.EscapeDataString(staffCode)}");
+            if (!resp.IsSuccessStatusCode) return null;
+            var node = await resp.Content.ReadFromJsonAsync<JsonNode>(JsonOpts);
+            return node?["firstName"]?.GetValue<string>();
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.GetOperatorFirstNameAsync: {ex.Message}");
+            return null;
+        }
+    }
+
     // ── Station resolution ────────────────────────────────────────────────────
 
     /// <summary>

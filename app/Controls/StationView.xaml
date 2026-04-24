@@ -13,7 +13,8 @@
         <Grid RowDefinitions="*, Auto, Auto">
 
             <!-- ── Row 0: Camera area (tap here to select this station) ── -->
-            <Grid Grid.Row="0" BackgroundColor="#111827">
+            <Grid Grid.Row="0"
+                    BackgroundColor="#111827">
                 <Grid.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnCameraAreaTapped"/>
                 </Grid.GestureRecognizers>
@@ -97,7 +98,8 @@
                            TextColor="White"
                            FontSize="28"
                            FontAttributes="Bold"
-                           HorizontalTextAlignment="Center"/></Border>
+                           HorizontalTextAlignment="Center"/>
+                </Border>
 
                 <!-- Saving / encoding overlay — shown between stop-scan and file write completing -->
                 <Border x:Name="SavingOverlay"
@@ -116,21 +118,22 @@
                            HorizontalOptions="Center"/>
                 </Border>
 
-                <!-- Station name badge — bottom-left overlay, always visible -->
+                <!-- Station name + operator name badge — bottom-left overlay, always visible -->
                 <Border x:Name="StationNameBadge"
                         BackgroundColor="#CC000000"
                         StrokeShape="RoundRectangle 6"
                         StrokeThickness="0"
-                        Padding="10,5"
+                        Padding="10,6"
                         HorizontalOptions="Start"
                         VerticalOptions="End"
                         Margin="8,0,0,8"
                         InputTransparent="True">
-                    <Label x:Name="StationNameBadgeLabel"
+                    <Label x:Name="OperatorVideoLabel"
                            TextColor="White"
-                           FontSize="13"
+                           FontSize="18"
                            FontAttributes="Bold"
-                           HorizontalOptions="Start"/>
+                           HorizontalOptions="Start"
+                           IsVisible="False"/>
                 </Border>
 
             </Grid>

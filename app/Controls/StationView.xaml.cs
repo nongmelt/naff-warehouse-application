@@ -51,6 +51,9 @@ public partial class StationView : ContentView, IDisposable
     // Full barcode of the logged-in operator — null when no operator active
     private string? _currentOperator;
 
+    // Resolved first name from API — null until lookup completes or when no operator active
+    private string? _currentOperatorFirstName;
+
     // Operator name for API calls — falls back to station name when no operator is logged in
     private string EffectiveOperator => _currentOperator ?? _stationName.Replace(' ', '-');
 
@@ -217,7 +220,6 @@ public partial class StationView : ContentView, IDisposable
         var text = StationNameEntry.Text?.Trim();
         if (!string.IsNullOrEmpty(text)) _stationName = text;
         StationNameLabel.Text = _stationName;
-        StationNameBadgeLabel.Text = _stationName;
         StationNameEntry.IsVisible = false;
         StationNameLabel.IsVisible = true;
         EditNameButton.IsVisible = true;
@@ -266,7 +268,6 @@ public partial class StationView : ContentView, IDisposable
         InitializeComponent();
         _stationName = $"Station {stationId}";
         StationNameLabel.Text = _stationName;
-        StationNameBadgeLabel.Text = _stationName;
         AnyCameraSelectionChanged += OnAnyCameraSelectionChanged;
         // Load devices AFTER the view (and its CameraView handler) is fully in the visual tree
         Loaded += OnViewLoaded;
@@ -474,7 +475,9 @@ public partial class StationView : ContentView, IDisposable
                 bool loggingOut = _currentOperator == barcode;
                 if (loggingOut)
                 {
+                    var logoutName = _currentOperatorFirstName ?? barcode;
                     _currentOperator = null;
+                    _currentOperatorFirstName = null;
                     StopInactivityTimer();
                     MainThread.BeginInvokeOnMainThread(() =>
                     {
@@ -482,19 +485,28 @@ public partial class StationView : ContentView, IDisposable
                         UpdateStatus("Ready to Scan");
                         _ = Toast.Make("Logged out").Show();
                     });
-                    Logger.Log($"Station {_stationId}: Operator logged out — {badge.DisplayName}");
+                    Logger.Log($"Station {_stationId}: Operator logged out — {logoutName}");
                 }
                 else
                 {
                     _currentOperator = barcode;
+                    _currentOperatorFirstName = null;
                     StartInactivityTimer();
+                    // Show full staff_code immediately, then update to first name once API resolves
                     MainThread.BeginInvokeOnMainThread(() =>
                     {
-                        UpdateOperatorUI(badge);
-                        UpdateStatus($"Welcome, {badge.DisplayName}");
-                        _ = Toast.Make($"Welcome, {badge.DisplayName}").Show();
+                        UpdateOperatorUI(barcode);
+                        UpdateStatus($"Welcome, {barcode}");
+                        _ = Toast.Make($"Welcome, {barcode}").Show();
                     });
-                    Logger.Log($"Station {_stationId}: Operator logged in — {badge.DisplayName}");
+                    Logger.Log($"Station {_stationId}: Operator logged in — {barcode}");
+                    _ = Task.Run(async () =>
+                    {
+                        var firstName = await ApiService.GetOperatorFirstNameAsync(barcode);
+                        if (firstName is null || _currentOperator != barcode) return;
+                        _currentOperatorFirstName = firstName;
+                        MainThread.BeginInvokeOnMainThread(() => UpdateOperatorUI(firstName));
+                    });
                 }
                 return;
             }
@@ -985,19 +997,22 @@ public partial class StationView : ContentView, IDisposable
 
     // ── Operator UI ─────────────────────────────────────────────────────────
 
-    private void UpdateOperatorUI(OperatorBadge? badge)
+    private void UpdateOperatorUI(string? displayName)
     {
-        if (badge is null)
+        if (displayName is null)
         {
             OperatorDot.Color = Color.FromArgb("#9ca3af");
             OperatorFooterLabel.Text = "No Operator";
             OperatorFooterLabel.TextColor = Color.FromArgb("#9ca3af");
+            OperatorVideoLabel.IsVisible = false;
         }
         else
         {
             OperatorDot.Color = Color.FromArgb("#16a34a");
-            OperatorFooterLabel.Text = badge.DisplayName;
+            OperatorFooterLabel.Text = displayName;
             OperatorFooterLabel.TextColor = Color.FromArgb("#15803d");
+            OperatorVideoLabel.Text = displayName;
+            OperatorVideoLabel.IsVisible = true;
         }
     }
 
@@ -1023,10 +1038,9 @@ public partial class StationView : ContentView, IDisposable
 
     private void OnInactivityTimerTick(object? sender, EventArgs e)
     {
-        var displayName = _currentOperator is not null
-            ? AppSettings.TryParseOperatorBarcode(_currentOperator)?.DisplayName ?? _currentOperator
-            : null;
+        var displayName = _currentOperatorFirstName ?? _currentOperator;
         _currentOperator = null;
+        _currentOperatorFirstName = null;
         StopInactivityTimer();
         UpdateOperatorUI(null);
         UpdateStatus("Ready to Scan");

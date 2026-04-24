@@ -35,6 +35,12 @@ public partial class OrderSearchPage : ContentPage
     // Full barcode of the logged-in operator — null when no operator active
     private string? _currentOperator;
 
+    // Resolved first name from API — null until lookup completes or no operator active
+    private string? _currentOperatorFirstName;
+
+    // Prevents OverlayComPortPicker ↔ ComPortPicker sync from firing recursively
+    private bool _syncingPickers;
+
     // Inactivity auto-logout timer
     private IDispatcherTimer? _inactivityTimer;
 
@@ -149,36 +155,61 @@ public partial class OrderSearchPage : ContentPage
         _comPorts = await GetFriendlyComPortsAsync();
 
         var selectedPort = _serialPort?.IsOpen == true ? _serialPort.PortName : null;
-
-        ComPortPicker.Items.Clear();
-        ComPortPicker.Items.Add("(None)");
-        foreach (var p in _comPorts)
-            ComPortPicker.Items.Add(p.DisplayName);
-
-        // Restore selection if the previously open port is still present
+        int selIdx = 0;
         if (selectedPort != null)
         {
             var idx = _comPorts.FindIndex(p => p.PortName == selectedPort);
-            ComPortPicker.SelectedIndex = idx >= 0 ? idx + 1 : 0;
+            if (idx >= 0) selIdx = idx + 1;
         }
-        else
+
+        _syncingPickers = true;
+        ComPortPicker.Items.Clear();
+        OverlayComPortPicker.Items.Clear();
+        ComPortPicker.Items.Add("(None)");
+        OverlayComPortPicker.Items.Add("(None)");
+        foreach (var p in _comPorts)
         {
-            ComPortPicker.SelectedIndex = 0;
+            ComPortPicker.Items.Add(p.DisplayName);
+            OverlayComPortPicker.Items.Add(p.DisplayName);
         }
+        ComPortPicker.SelectedIndex = selIdx;
+        OverlayComPortPicker.SelectedIndex = selIdx;
+        _syncingPickers = false;
     }
 
     private async void OnRefreshPorts(object sender, EventArgs e)
         => await LoadComPortsAsync();
 
+    private async void OnOverlayRefreshPorts(object sender, EventArgs e)
+        => await LoadComPortsAsync();
+
     private void OnComPortSelected(object sender, EventArgs e)
     {
-        var idx = ComPortPicker.SelectedIndex;
+        if (_syncingPickers) return;
+        _syncingPickers = true;
+        OverlayComPortPicker.SelectedIndex = ComPortPicker.SelectedIndex;
+        _syncingPickers = false;
+        ApplyComPortSelection(ComPortPicker.SelectedIndex);
+    }
+
+    private void OnOverlayComPortSelected(object sender, EventArgs e)
+    {
+        if (_syncingPickers) return;
+        _syncingPickers = true;
+        ComPortPicker.SelectedIndex = OverlayComPortPicker.SelectedIndex;
+        _syncingPickers = false;
+        ApplyComPortSelection(OverlayComPortPicker.SelectedIndex);
+    }
+
+    private void ApplyComPortSelection(int idx)
+    {
         if (idx < 0) return;
 
         if (idx == 0)
         {
             CloseSerialPort();
             UpdateScannerStatus("No scanner connected");
+            UpdateOverlayScannerStatus("No scanner connected");
             return;
         }
 
@@ -198,12 +229,14 @@ public partial class OrderSearchPage : ContentPage
             _serialPort.DataReceived += OnSerialDataReceived;
             _serialPort.Open();
             UpdateScannerStatus($"Scanner ready ({portName}) — waiting for scan");
+            UpdateOverlayScannerStatus($"Scanner ready ({portName}) — scan your badge");
             Logger.Log($"OrderSearch: Serial port {portName} opened");
         }
         catch (Exception ex)
         {
             Logger.Log($"OrderSearch serial port: {ex}");
             UpdateScannerStatus($"COM error: {ex.Message}");
+            UpdateOverlayScannerStatus($"COM error: {ex.Message}");
         }
     }
 
@@ -221,21 +254,38 @@ public partial class OrderSearchPage : ContentPage
                         bool loggingOut = _currentOperator == line;
                         if (loggingOut)
                         {
+                            var logoutName = _currentOperatorFirstName ?? line;
                             _currentOperator = null;
+                            _currentOperatorFirstName = null;
                             StopInactivityTimer();
                             UpdateNavOperatorUI(null);
-                            UpdateScannerStatus("Logged out");
+                            ShowLoginOverlay();
+                            UpdateOverlayScannerStatus($"Logged out — {logoutName}");
                             _ = Toast.Make("Logged out").Show();
-                            Logger.Log($"OrderSearch: Operator logged out — {badge.DisplayName}");
+                            Logger.Log($"OrderSearch: Operator logged out — {logoutName}");
                         }
                         else
                         {
                             _currentOperator = line;
+                            _currentOperatorFirstName = null;
                             StartInactivityTimer();
-                            UpdateNavOperatorUI(badge);
-                            UpdateScannerStatus($"Welcome, {badge.DisplayName}");
-                            _ = Toast.Make($"Welcome, {badge.DisplayName}").Show();
-                            Logger.Log($"OrderSearch: Operator logged in — {badge.DisplayName}");
+                            UpdateNavOperatorUI(line);
+                            HideLoginOverlay();
+                            _ = ShowWelcomeAnimationAsync(line);
+                            Logger.Log($"OrderSearch: Operator logged in — {line}");
+                            _ = Task.Run(async () =>
+                            {
+                                var firstName = await ApiService.GetOperatorFirstNameAsync(line);
+                                if (firstName is null || _currentOperator != line) return;
+                                _currentOperatorFirstName = firstName;
+                                MainThread.BeginInvokeOnMainThread(() =>
+                                {
+                                    UpdateNavOperatorUI(firstName);
+                                    // Update banner if animation still running
+                                    if (WelcomeBanner.IsVisible)
+                                        WelcomeLabel.Text = $"Welcome, {firstName}";
+                                });
+                            });
                         }
                         return;
                     }
@@ -1619,20 +1669,38 @@ public partial class OrderSearchPage : ContentPage
 
     // ── Operator UI ──────────────────────────────────────────────────────────
 
-    private void UpdateNavOperatorUI(OperatorBadge? badge)
+    private void UpdateNavOperatorUI(string? displayName)
     {
-        if (badge is null)
+        if (displayName is null)
         {
-            NavOperatorDot.Color = Color.FromArgb("#9ca3af");
-            NavOperatorLabel.Text = "No Operator";
-            NavOperatorLabel.TextColor = Color.FromArgb("#e2e8f0");
+            OperatorHeaderBadge.IsVisible = false;
         }
         else
         {
-            NavOperatorDot.Color = Color.FromArgb("#4ade80");
-            NavOperatorLabel.Text = badge.DisplayName;
-            NavOperatorLabel.TextColor = Colors.White;
+            NavOperatorLabel.Text = displayName;
+            OperatorHeaderBadge.IsVisible = true;
         }
+    }
+
+    private void ShowLoginOverlay() =>
+        MainThread.BeginInvokeOnMainThread(() => LoginOverlay.IsVisible = true);
+
+    private void HideLoginOverlay() =>
+        MainThread.BeginInvokeOnMainThread(() => LoginOverlay.IsVisible = false);
+
+    private async Task ShowWelcomeAnimationAsync(string name)
+    {
+        WelcomeLabel.Text = $"Welcome, {name}";
+        WelcomeBanner.IsVisible = true;
+        WelcomeBanner.Opacity = 0;
+        WelcomeBanner.Scale = 0.85;
+        await Task.WhenAll(
+            WelcomeBanner.FadeToAsync(1.0, 280, Easing.SinOut),
+            WelcomeBanner.ScaleToAsync(1.0, 280, Easing.SinOut));
+        await Task.Delay(1800);
+        await WelcomeBanner.FadeToAsync(0.0, 350, Easing.SinIn);
+        WelcomeBanner.IsVisible = false;
+        WelcomeBanner.Scale = 1.0;
     }
 
     private void StartInactivityTimer()
@@ -1657,12 +1725,12 @@ public partial class OrderSearchPage : ContentPage
 
     private void OnInactivityTimerTick(object? sender, EventArgs e)
     {
-        var displayName = _currentOperator is not null
-            ? AppSettings.TryParseOperatorBarcode(_currentOperator)?.DisplayName ?? _currentOperator
-            : null;
+        var displayName = _currentOperatorFirstName ?? _currentOperator;
         _currentOperator = null;
+        _currentOperatorFirstName = null;
         StopInactivityTimer();
         UpdateNavOperatorUI(null);
+        ShowLoginOverlay();
         if (displayName is not null)
             _ = Toast.Make($"Session ended — {displayName}").Show();
         Logger.Log($"OrderSearch: Operator logged out (inactivity)");
@@ -1670,6 +1738,9 @@ public partial class OrderSearchPage : ContentPage
 
     private void UpdateScannerStatus(string msg) =>
         MainThread.BeginInvokeOnMainThread(() => ScannerStatusLabel.Text = msg);
+
+    private void UpdateOverlayScannerStatus(string msg) =>
+        MainThread.BeginInvokeOnMainThread(() => OverlayScannerStatusLabel.Text = msg);
 
     private void UpdateSearchStatus(string msg) =>
         MainThread.BeginInvokeOnMainThread(() => SearchStatusLabel.Text = msg);
