@@ -34,7 +34,8 @@ public static class StationActions
         async ctx =>
         {
             if (string.IsNullOrWhiteSpace(ctx.Barcode)) return;
-            await ApiService.UpdatePackingStatusByScanAsync(ctx.Barcode, status, ctx.PackedBy);
+            await ApiService.UpdatePackingStatusByScanAsync(ctx.Barcode, status, ctx.PackedBy,
+                packingStationId: AppSettings.ResolvedStationId);
         };
 
     // ── Packing / Video ──────────────────────────────────────────────────────

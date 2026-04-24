@@ -1,6 +1,7 @@
 using app.Models;
 using app.Services;
 using app.Workflows;
+using CommunityToolkit.Maui.Alerts;
 using Microsoft.Maui.Controls.Shapes;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -30,6 +31,16 @@ public partial class OrderSearchPage : ContentPage
 
     // Station identifier — computer name, resolved once
     private static readonly string StationName = Environment.MachineName;
+
+    // Full barcode of the logged-in operator — null when no operator active
+    private string? _currentOperator;
+
+    // Inactivity auto-logout timer
+    private IDispatcherTimer? _inactivityTimer;
+
+    // Falls back to MachineName when no operator is logged in
+    private string EffectiveOperator => _currentOperator ?? StationName;
+
     public string StationNameDisplay => $"Station: {StationName}";
 
     // SKU picking state — set after an order loads; cleared on new search
@@ -71,7 +82,7 @@ public partial class OrderSearchPage : ContentPage
             fromState: fromState,
             toState: toState,
             stationId: AppSettings.ResolvedStationId,
-            @operator: StationName.Replace(' ', '-'),
+            @operator: EffectiveOperator,
             sequenceInSession: bumpSequence ? NextSequence() : _sequenceInSession,
             payload: payload);
     }
@@ -114,6 +125,7 @@ public partial class OrderSearchPage : ContentPage
     {
         base.OnDisappearing();
         CloseSerialPort();
+        StopInactivityTimer();
 #if WINDOWS
         UnregisterKeyboardHandler();
 #endif
@@ -203,6 +215,31 @@ public partial class OrderSearchPage : ContentPage
             if (!string.IsNullOrEmpty(line))
                 MainThread.BeginInvokeOnMainThread(async () =>
                 {
+                    // Operator badge detection — intercept before search
+                    if (AppSettings.TryParseOperatorBarcode(line) is { } badge)
+                    {
+                        bool loggingOut = _currentOperator == line;
+                        if (loggingOut)
+                        {
+                            _currentOperator = null;
+                            StopInactivityTimer();
+                            UpdateNavOperatorUI(null);
+                            UpdateScannerStatus("Logged out");
+                            _ = Toast.Make("Logged out").Show();
+                            Logger.Log($"OrderSearch: Operator logged out — {badge.DisplayName}");
+                        }
+                        else
+                        {
+                            _currentOperator = line;
+                            StartInactivityTimer();
+                            UpdateNavOperatorUI(badge);
+                            UpdateScannerStatus($"Welcome, {badge.DisplayName}");
+                            _ = Toast.Make($"Welcome, {badge.DisplayName}").Show();
+                            Logger.Log($"OrderSearch: Operator logged in — {badge.DisplayName}");
+                        }
+                        return;
+                    }
+
                     // Single API call: if results come back it's a tracking number; otherwise it's a SKU.
                     var rows = await ApiService.SearchAsync(line);
                     if (rows.Count > 0)
@@ -256,6 +293,8 @@ public partial class OrderSearchPage : ContentPage
         }
 
         _isSearching = true;
+        if (_currentOperator is not null)
+            StartInactivityTimer();
         _historyNavIndex = -1;
 
         // Capture before session mutation so it can appear in the new event payload
@@ -576,7 +615,8 @@ public partial class OrderSearchPage : ContentPage
             var wasHeld = string.Equals(order.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase);
             var payload = new ProductListPayload([.. order.ParsedProducts]);
             var now = DateTime.UtcNow;
-            var ok = await ApiService.UpdatePackingStatusAsync(order.PackingId, "QC Hold", payload, checkedBy: StationName);
+            var ok = await ApiService.UpdatePackingStatusAsync(order.PackingId, "QC Hold", payload,
+                checkedBy: EffectiveOperator, checkingStationId: AppSettings.ResolvedStationId);
             if (ok)
             {
                 order.PackingStatus = "QC Hold";
@@ -620,11 +660,12 @@ public partial class OrderSearchPage : ContentPage
             var payload = new ProductListPayload([.. order.ParsedProducts]);
             var now = DateTime.UtcNow;
             var ok = await ApiService.UpdatePackingStatusAsync(
-                order.PackingId, "QC Passed", payload, checkedBy: StationName);
+                order.PackingId, "QC Passed", payload,
+                checkedBy: EffectiveOperator, checkingStationId: AppSettings.ResolvedStationId);
             if (ok)
             {
                 order.PackingStatus = "QC Passed";
-                order.CheckedBy = StationName;
+                order.CheckedBy = EffectiveOperator;
                 order.UpdatedAt = now;
                 order.CheckedAt = now;
                 foreach (var p in order.ParsedProducts)
@@ -638,12 +679,12 @@ public partial class OrderSearchPage : ContentPage
                     toState: "passed",
                     payload: new Dictionary<string, object?>
                     {
-                        ["checkedBy"] = StationName.Replace(' ', '-'),
+                        ["checkedBy"] = EffectiveOperator,
                         ["itemsPicked"] = order.ParsedProducts.Count,
                     });
             }
             UpdateSearchStatus(ok
-                ? $"✓ {order.TrackingNumber} — QC Passed · {StationName}"
+                ? $"✓ {order.TrackingNumber} — QC Passed · {EffectiveOperator}"
                 : $"⚠ {order.TrackingNumber} — all picked but DB update failed");
             BuildCarouselUI();
             UpdateSessionStats();
@@ -668,7 +709,8 @@ public partial class OrderSearchPage : ContentPage
             var dbPayload = new ProductListPayload([.. order.ParsedProducts]);
             var now = DateTime.UtcNow;
             var ok = await ApiService.UpdatePackingStatusAsync(
-                order.PackingId, "QC Hold", dbPayload, checkedBy: StationName);
+                order.PackingId, "QC Hold", dbPayload,
+                checkedBy: EffectiveOperator, checkingStationId: AppSettings.ResolvedStationId);
             if (ok)
             {
                 order.PackingStatus = "QC Hold";
@@ -1574,6 +1616,57 @@ public partial class OrderSearchPage : ContentPage
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    // ── Operator UI ──────────────────────────────────────────────────────────
+
+    private void UpdateNavOperatorUI(OperatorBadge? badge)
+    {
+        if (badge is null)
+        {
+            NavOperatorDot.Color = Color.FromArgb("#9ca3af");
+            NavOperatorLabel.Text = "No Operator";
+            NavOperatorLabel.TextColor = Color.FromArgb("#e2e8f0");
+        }
+        else
+        {
+            NavOperatorDot.Color = Color.FromArgb("#4ade80");
+            NavOperatorLabel.Text = badge.DisplayName;
+            NavOperatorLabel.TextColor = Colors.White;
+        }
+    }
+
+    private void StartInactivityTimer()
+    {
+        StopInactivityTimer();
+        var minutes = AppSettings.QcInactivityMinutes;
+        if (minutes <= 0) return;
+        _inactivityTimer = Dispatcher.CreateTimer();
+        _inactivityTimer.Interval = TimeSpan.FromMinutes(minutes);
+        _inactivityTimer.IsRepeating = false;
+        _inactivityTimer.Tick += OnInactivityTimerTick;
+        _inactivityTimer.Start();
+    }
+
+    private void StopInactivityTimer()
+    {
+        if (_inactivityTimer is null) return;
+        _inactivityTimer.Stop();
+        _inactivityTimer.Tick -= OnInactivityTimerTick;
+        _inactivityTimer = null;
+    }
+
+    private void OnInactivityTimerTick(object? sender, EventArgs e)
+    {
+        var displayName = _currentOperator is not null
+            ? AppSettings.TryParseOperatorBarcode(_currentOperator)?.DisplayName ?? _currentOperator
+            : null;
+        _currentOperator = null;
+        StopInactivityTimer();
+        UpdateNavOperatorUI(null);
+        if (displayName is not null)
+            _ = Toast.Make($"Session ended — {displayName}").Show();
+        Logger.Log($"OrderSearch: Operator logged out (inactivity)");
+    }
 
     private void UpdateScannerStatus(string msg) =>
         MainThread.BeginInvokeOnMainThread(() => ScannerStatusLabel.Text = msg);

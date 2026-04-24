@@ -243,6 +243,28 @@
                                                TextColor="#374151"/>
                                 </Border>
 
+                                <!-- OPERATOR -->
+                                <Label Text="OPERATOR"
+                                       FontSize="10"
+                                       FontAttributes="Bold"
+                                       TextColor="#9ca3af"
+                                       Margin="16,20,16,4"/>
+
+                                <Border x:Name="NavOperatorBorder"
+                                        BackgroundColor="Transparent"
+                                        Stroke="Transparent"
+                                        StrokeShape="RoundRectangle 6"
+                                        Padding="12,9"
+                                        Margin="8,2">
+                                        <Border.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnNavOperator"/>
+                                        </Border.GestureRecognizers>
+                                        <Label x:Name="NavOperatorLabel"
+                                               Text="Operator"
+                                               FontSize="13"
+                                               TextColor="#374151"/>
+                                </Border>
+
                         </VerticalStackLayout>
 
                         <!-- Divider -->
@@ -533,6 +555,190 @@
                                                 </Grid>
 
                                         </VerticalStackLayout>
+
+                                <!-- ── Operator Panel ── -->
+                                <VerticalStackLayout x:Name="PanelOperator"
+                                                     IsVisible="False"
+                                                     Padding="28,24"
+                                                     Spacing="20">
+
+                                        <Label Text="Operator"
+                                               FontSize="18"
+                                               FontAttributes="Bold"
+                                               TextColor="#111827"
+                                               Margin="0,0,0,4"/>
+
+                                        <!-- Branch Codes -->
+                                        <Border Stroke="#d1d5db"
+                                                StrokeThickness="1"
+                                                StrokeShape="RoundRectangle 8"
+                                                BackgroundColor="White"
+                                                Padding="16">
+                                                <VerticalStackLayout Spacing="10">
+                                                        <Label Text="Branch Codes"
+                                                               FontAttributes="Bold"
+                                                               FontSize="14"
+                                                               TextColor="#111827"/>
+                                                        <Label Text="3-letter codes for branches allowed on this badge format. Leave empty to accept any branch."
+                                                               FontSize="12"
+                                                               TextColor="#6b7280"/>
+                                                        <FlexLayout x:Name="BranchCodesStack"
+                                                                    Wrap="Wrap"
+                                                                    Direction="Row"
+                                                                    JustifyContent="Start"
+                                                                    AlignItems="Center"/>
+                                                        <Grid ColumnDefinitions="*, Auto"
+                                                              ColumnSpacing="8">
+                                                                <Entry x:Name="NewBranchEntry"
+                                                                       Grid.Column="0"
+                                                                       Placeholder="e.g. BKK (3 letters)"
+                                                                       MaxLength="3"
+                                                                       FontSize="13"/>
+                                                                <Button Grid.Column="1"
+                                                                        Text="+ Add"
+                                                                        Clicked="OnAddBranchCode"
+                                                                        FontSize="13"
+                                                                        Padding="14,7"
+                                                                        CornerRadius="6"
+                                                                        BackgroundColor="#eff6ff"
+                                                                        TextColor="#2563eb"
+                                                                        BorderColor="#bfdbfe"
+                                                                        BorderWidth="1"/>
+                                                        </Grid>
+                                                </VerticalStackLayout>
+                                        </Border>
+
+                                        <!-- Position Codes -->
+                                        <Border Stroke="#d1d5db"
+                                                StrokeThickness="1"
+                                                StrokeShape="RoundRectangle 8"
+                                                BackgroundColor="White"
+                                                Padding="16">
+                                                <VerticalStackLayout Spacing="10">
+                                                        <Label Text="Position Codes"
+                                                               FontAttributes="Bold"
+                                                               FontSize="14"
+                                                               TextColor="#111827"/>
+                                                        <Label Text="Allowed position segments in badges. Default: PK, QC, SAL."
+                                                               FontSize="12"
+                                                               TextColor="#6b7280"/>
+                                                        <FlexLayout x:Name="PositionCodesStack"
+                                                                    Wrap="Wrap"
+                                                                    Direction="Row"
+                                                                    JustifyContent="Start"
+                                                                    AlignItems="Center"/>
+                                                        <Grid ColumnDefinitions="*, Auto"
+                                                              ColumnSpacing="8">
+                                                                <Entry x:Name="NewPositionEntry"
+                                                                       Grid.Column="0"
+                                                                       Placeholder="e.g. SAL"
+                                                                       MaxLength="10"
+                                                                       FontSize="13"/>
+                                                                <Button Grid.Column="1"
+                                                                        Text="+ Add"
+                                                                        Clicked="OnAddPositionCode"
+                                                                        FontSize="13"
+                                                                        Padding="14,7"
+                                                                        CornerRadius="6"
+                                                                        BackgroundColor="#eff6ff"
+                                                                        TextColor="#2563eb"
+                                                                        BorderColor="#bfdbfe"
+                                                                        BorderWidth="1"/>
+                                                        </Grid>
+                                                </VerticalStackLayout>
+                                        </Border>
+
+                                        <!-- Inactivity Timeouts -->
+                                        <Border Stroke="#d1d5db"
+                                                StrokeThickness="1"
+                                                StrokeShape="RoundRectangle 8"
+                                                BackgroundColor="White"
+                                                Padding="16">
+                                                <VerticalStackLayout Spacing="12">
+                                                        <Label Text="Inactivity Timeout"
+                                                               FontAttributes="Bold"
+                                                               FontSize="14"
+                                                               TextColor="#111827"/>
+                                                        <Label Text="Operator is auto-logged out after this many minutes with no scan activity."
+                                                               FontSize="12"
+                                                               TextColor="#6b7280"/>
+                                                        <Grid ColumnDefinitions="*, Auto, Auto"
+                                                              ColumnSpacing="8">
+                                                                <Label Grid.Column="0"
+                                                                       Text="Packing stations (minutes)"
+                                                                       FontSize="13"
+                                                                       TextColor="#374151"
+                                                                       VerticalOptions="Center"/>
+                                                                <Entry x:Name="PackingInactivityEntry"
+                                                                       Grid.Column="1"
+                                                                       Placeholder="30"
+                                                                       Keyboard="Numeric"
+                                                                       FontSize="13"
+                                                                       WidthRequest="70"
+                                                                       VerticalOptions="Center"/>
+                                                                <Label Grid.Column="2"
+                                                                       Text="min"
+                                                                       FontSize="12"
+                                                                       TextColor="#6b7280"
+                                                                       VerticalOptions="Center"/>
+                                                        </Grid>
+                                                        <Grid ColumnDefinitions="*, Auto, Auto"
+                                                              ColumnSpacing="8">
+                                                                <Label Grid.Column="0"
+                                                                       Text="QC stations (minutes)"
+                                                                       FontSize="13"
+                                                                       TextColor="#374151"
+                                                                       VerticalOptions="Center"/>
+                                                                <Entry x:Name="QcInactivityEntry"
+                                                                       Grid.Column="1"
+                                                                       Placeholder="30"
+                                                                       Keyboard="Numeric"
+                                                                       FontSize="13"
+                                                                       WidthRequest="70"
+                                                                       VerticalOptions="Center"/>
+                                                                <Label Grid.Column="2"
+                                                                       Text="min"
+                                                                       FontSize="12"
+                                                                       TextColor="#6b7280"
+                                                                       VerticalOptions="Center"/>
+                                                        </Grid>
+                                                </VerticalStackLayout>
+                                        </Border>
+
+                                        <!-- Regex Preview -->
+                                        <Border Stroke="#e0e7ff"
+                                                StrokeThickness="1"
+                                                StrokeShape="RoundRectangle 8"
+                                                BackgroundColor="#f5f3ff"
+                                                Padding="16">
+                                                <VerticalStackLayout Spacing="6">
+                                                        <Label Text="Generated Badge Regex"
+                                                               FontAttributes="Bold"
+                                                               FontSize="13"
+                                                               TextColor="#4338ca"/>
+                                                        <Label x:Name="BadgeRegexPreview"
+                                                               FontSize="12"
+                                                               TextColor="#1e1b4b"
+                                                               FontFamily="Consolas"/>
+                                                </VerticalStackLayout>
+                                        </Border>
+
+                                        <!-- Save row -->
+                                        <Grid ColumnDefinitions="*, Auto">
+                                                <Label x:Name="OperatorSavedLabel"
+                                                       Grid.Column="0"
+                                                       Text="✓ Saved"
+                                                       TextColor="#16a34a"
+                                                       FontSize="13"
+                                                       IsVisible="False"
+                                                       VerticalOptions="Center"/>
+                                                <Button Grid.Column="1"
+                                                        Text="Save"
+                                                        Clicked="OnSaveOperator"
+                                                        Style="{StaticResource PrimaryActionButton}"/>
+                                        </Grid>
+
+                                </VerticalStackLayout>
 
                                 </VerticalStackLayout>
                         </ScrollView>

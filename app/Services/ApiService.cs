@@ -95,11 +95,11 @@ public static class ApiService
 
     public static async Task<bool> UpdatePackingStatusAsync(
         int packingId, string status, ProductListPayload updatedProductLists,
-        string? checkedBy = null)
+        string? checkedBy = null, int? checkingStationId = null)
     {
         try
         {
-            var body = new StatusRequest(status, updatedProductLists, checkedBy?.Replace(' ', '-'));
+            var body = new StatusRequest(status, updatedProductLists, checkedBy?.Replace(' ', '-'), checkingStationId);
             var json = JsonSerializer.Serialize(body, JsonOpts);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             var resp = await Http.PatchAsync($"packing-lists/{packingId}/status", content);
@@ -139,11 +139,11 @@ public static class ApiService
     /// the new record id, or -1 on failure.
     /// </summary>
     public static async Task<int> CreateVideoRecordAsync(
-        string trackingNumber, string filePath, string stationName, string @operator)
+        string trackingNumber, string filePath, int? stationId, string @operator)
     {
         try
         {
-            var body = new CreateVideoRequest(trackingNumber, filePath, Path.GetFileName(filePath), stationName, @operator);
+            var body = new CreateVideoRequest(trackingNumber, filePath, Path.GetFileName(filePath), stationId, @operator);
             var json = JsonSerializer.Serialize(body, JsonOpts);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             var resp = await Http.PostAsync("videos", content);
@@ -167,11 +167,11 @@ public static class ApiService
     /// Pass packedBy only when status is "Packed".
     /// </summary>
     public static async Task<bool> UpdatePackingStatusByScanAsync(
-        string barcode, string status, string? packedBy = null)
+        string barcode, string status, string? packedBy = null, int? packingStationId = null)
     {
         try
         {
-            var body = new ScanStatusRequest(status, packedBy?.Replace(' ', '-'));
+            var body = new ScanStatusRequest(status, packedBy?.Replace(' ', '-'), packingStationId);
             var json = JsonSerializer.Serialize(body, JsonOpts);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             var resp = await Http.PatchAsync(
@@ -281,13 +281,14 @@ public static class ApiService
     private record StatusRequest(
         [property: JsonPropertyName("status")] string Status,
         [property: JsonPropertyName("updatedProductLists")] ProductListPayload UpdatedProductLists,
-        [property: JsonPropertyName("checkedBy")] string? CheckedBy);
+        [property: JsonPropertyName("checkedBy")] string? CheckedBy,
+        [property: JsonPropertyName("checkingStationId")] int? CheckingStationId);
 
     private record CreateVideoRequest(
         [property: JsonPropertyName("trackingNumber")] string TrackingNumber,
         [property: JsonPropertyName("filePath")] string FilePath,
         [property: JsonPropertyName("fileName")] string FileName,
-        [property: JsonPropertyName("stationName")] string StationName,
+        [property: JsonPropertyName("stationId")] int? StationId,
         [property: JsonPropertyName("operator")] string Operator);
 
     private record UpdateVideoStatusRequest(
@@ -305,7 +306,8 @@ public static class ApiService
 
     private record ScanStatusRequest(
         [property: JsonPropertyName("status")] string Status,
-        [property: JsonPropertyName("packedBy")] string? PackedBy);
+        [property: JsonPropertyName("packedBy")] string? PackedBy,
+        [property: JsonPropertyName("packingStationId")] int? PackingStationId);
 
     private record VideoRecord(
         [property: JsonPropertyName("id")] int Id);

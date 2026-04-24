@@ -1,5 +1,6 @@
 using app.Services;
 using CommunityToolkit.Maui.Storage;
+using MauiShapes = Microsoft.Maui.Controls.Shapes;
 using System.Runtime.Versioning;
 
 namespace app.Views;
@@ -11,6 +12,8 @@ public partial class SettingsPage : ContentPage
     private Color _retryHover = Colors.Transparent;
     private Color _retryText  = Colors.Black;
     private List<string> _videoFolderPaths = [];
+    private List<string> _branchCodes  = [];
+    private List<string> _positionCodes = [];
 
     public SettingsPage()
     {
@@ -31,6 +34,14 @@ public partial class SettingsPage : ContentPage
         MinioEndpointEntry.Text  = AppSettings.MinioEndpoint;
         MinioAccessKeyEntry.Text = AppSettings.MinioAccessKey;
         MinioSecretKeyEntry.Text = AppSettings.MinioSecretKey;
+
+        _branchCodes   = new List<string>(AppSettings.OperatorBranchCodes);
+        _positionCodes = new List<string>(AppSettings.OperatorPositionCodes);
+        PackingInactivityEntry.Text = AppSettings.PackingInactivityMinutes.ToString();
+        QcInactivityEntry.Text      = AppSettings.QcInactivityMinutes.ToString();
+        RebuildBranchRows();
+        RebuildPositionRows();
+        RefreshRegexPreview();
     }
 
     // ── Navigation ───────────────────────────────────────────────────────────
@@ -40,18 +51,21 @@ public partial class SettingsPage : ContentPage
 
     // ── Sidebar ───────────────────────────────────────────────────────────────
 
-    private void OnNavGeneral(object sender, TappedEventArgs e) => ShowPanel("general");
-    private void OnNavApi(object sender, TappedEventArgs e)     => ShowPanel("api");
-    private void OnNavMinio(object sender, TappedEventArgs e)   => ShowPanel("minio");
+    private void OnNavGeneral(object sender, TappedEventArgs e)  => ShowPanel("general");
+    private void OnNavApi(object sender, TappedEventArgs e)      => ShowPanel("api");
+    private void OnNavMinio(object sender, TappedEventArgs e)    => ShowPanel("minio");
+    private void OnNavOperator(object sender, TappedEventArgs e) => ShowPanel("operator");
 
     private void ShowPanel(string panel)
     {
-        PanelGeneral.IsVisible = panel == "general";
-        PanelApi.IsVisible     = panel == "api";
-        PanelMinio.IsVisible   = panel == "minio";
-        SetNavActive(NavGeneralBorder, NavGeneralLabel, panel == "general");
-        SetNavActive(NavApiBorder,     NavApiLabel,     panel == "api");
-        SetNavActive(NavMinioBorder,   NavMinioLabel,   panel == "minio");
+        PanelGeneral.IsVisible  = panel == "general";
+        PanelApi.IsVisible      = panel == "api";
+        PanelMinio.IsVisible    = panel == "minio";
+        PanelOperator.IsVisible = panel == "operator";
+        SetNavActive(NavGeneralBorder,  NavGeneralLabel,  panel == "general");
+        SetNavActive(NavApiBorder,      NavApiLabel,      panel == "api");
+        SetNavActive(NavMinioBorder,    NavMinioLabel,     panel == "minio");
+        SetNavActive(NavOperatorBorder, NavOperatorLabel, panel == "operator");
     }
 
     private static void SetNavActive(Border border, Label label, bool active)
@@ -229,6 +243,119 @@ public partial class SettingsPage : ContentPage
     {
         RetryButton.BackgroundColor = _retryBase;
         RetryButton.TextColor       = _retryText;
+    }
+
+    // ── Operator ──────────────────────────────────────────────────────────────
+
+    private void OnAddBranchCode(object sender, EventArgs e)
+    {
+        var code = NewBranchEntry.Text?.Trim().ToUpperInvariant() ?? string.Empty;
+        if (code.Length != 3 || !code.All(char.IsAsciiLetterUpper)) return;
+        if (!_branchCodes.Contains(code, StringComparer.OrdinalIgnoreCase))
+        {
+            _branchCodes.Add(code);
+            RebuildBranchRows();
+            RefreshRegexPreview();
+        }
+        NewBranchEntry.Text = string.Empty;
+    }
+
+    private void OnAddPositionCode(object sender, EventArgs e)
+    {
+        var code = NewPositionEntry.Text?.Trim().ToUpperInvariant() ?? string.Empty;
+        if (code.Length == 0) return;
+        if (!_positionCodes.Contains(code, StringComparer.OrdinalIgnoreCase))
+        {
+            _positionCodes.Add(code);
+            RebuildPositionRows();
+            RefreshRegexPreview();
+        }
+        NewPositionEntry.Text = string.Empty;
+    }
+
+    private void RebuildBranchRows() => RebuildTagRows(BranchCodesStack, _branchCodes, () =>
+    {
+        RebuildBranchRows();
+        RefreshRegexPreview();
+    });
+
+    private void RebuildPositionRows() => RebuildTagRows(PositionCodesStack, _positionCodes, () =>
+    {
+        RebuildPositionRows();
+        RefreshRegexPreview();
+    });
+
+    private static void RebuildTagRows(Layout stack, List<string> items, Action onRemove)
+    {
+        stack.Children.Clear();
+        for (int i = 0; i < items.Count; i++)
+        {
+            var code = items[i];
+            var idx  = i;
+
+            var codeLabel = new Label
+            {
+                Text = code,
+                FontSize = 12,
+                TextColor = Color.FromArgb("#1e40af"),
+                VerticalOptions = LayoutOptions.Center,
+            };
+
+            var removeLabel = new Label
+            {
+                Text = "✕",
+                FontSize = 11,
+                TextColor = Color.FromArgb("#6b7280"),
+                VerticalOptions = LayoutOptions.Center,
+            };
+            removeLabel.GestureRecognizers.Add(new TapGestureRecognizer
+            {
+                Command = new Command(() => { items.RemoveAt(idx); onRemove(); })
+            });
+
+            var chip = new Border
+            {
+                StrokeShape = new MauiShapes.RoundRectangle { CornerRadius = 10 },
+                StrokeThickness = 0,
+                BackgroundColor = Color.FromArgb("#dbeafe"),
+                Padding = new Thickness(8, 3),
+                Margin = new Thickness(0, 0, 4, 4),
+                Content = new HorizontalStackLayout
+                {
+                    Spacing = 4,
+                    Children = { codeLabel, removeLabel }
+                },
+            };
+
+            stack.Children.Add(chip);
+        }
+    }
+
+    private void RefreshRegexPreview()
+    {
+        // Temporarily apply lists to settings for preview calculation
+        var savedBranches  = AppSettings.OperatorBranchCodes;
+        var savedPositions = AppSettings.OperatorPositionCodes;
+        AppSettings.OperatorBranchCodes  = _branchCodes;
+        AppSettings.OperatorPositionCodes = _positionCodes;
+        BadgeRegexPreview.Text = AppSettings.BuildBadgePattern();
+        AppSettings.OperatorBranchCodes  = savedBranches;
+        AppSettings.OperatorPositionCodes = savedPositions;
+    }
+
+    private void OnSaveOperator(object sender, EventArgs e)
+    {
+        AppSettings.OperatorBranchCodes  = _branchCodes;
+        AppSettings.OperatorPositionCodes = _positionCodes;
+
+        if (int.TryParse(PackingInactivityEntry.Text?.Trim(), out var pk) && pk >= 1)
+            AppSettings.PackingInactivityMinutes = pk;
+        if (int.TryParse(QcInactivityEntry.Text?.Trim(), out var qc) && qc >= 1)
+            AppSettings.QcInactivityMinutes = qc;
+
+        Logger.Log($"Operator settings saved — Pattern: {AppSettings.BuildBadgePattern()}, PackingIdle: {AppSettings.PackingInactivityMinutes}m, QcIdle: {AppSettings.QcInactivityMinutes}m");
+        OperatorSavedLabel.IsVisible = true;
+        Dispatcher.DispatchDelayed(TimeSpan.FromSeconds(3), () => OperatorSavedLabel.IsVisible = false);
     }
 
     private async Task TestAndShowResultAsync()

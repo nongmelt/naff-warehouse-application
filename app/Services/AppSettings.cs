@@ -1,5 +1,6 @@
 using System.Runtime.Versioning;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace app.Services;
 
@@ -300,11 +301,105 @@ public static class AppSettings
     }
 
     private const string KeySearchHistoryMax = "search.history.max";
+    private const string KeyOperatorBranchCodes = "settings.operator.branch_codes";
+    private const string KeyOperatorPositionCodes = "settings.operator.position_codes";
+    private const string KeyPackingInactivityMinutes = "settings.operator.packing_inactivity_minutes";
+    private const string KeyQcInactivityMinutes = "settings.operator.qc_inactivity_minutes";
 
     public static int SearchHistoryMaxItems
     {
         get => Preferences.Default.Get(KeySearchHistoryMax, 50);
         set => Preferences.Default.Set(KeySearchHistoryMax, Math.Max(1, value));
+    }
+
+    /// <summary>
+    /// Allowed branch codes. Must be exactly 3 uppercase letters (e.g. ["BKK", "CMI"]).
+    /// Defaults to ["BKK"] when no value is stored.
+    /// </summary>
+    public static List<string> OperatorBranchCodes
+    {
+        get
+        {
+            var raw = Preferences.Default.Get(KeyOperatorBranchCodes, string.Empty);
+            if (string.IsNullOrWhiteSpace(raw))
+                return ["BKK"];
+            var codes = raw.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                           .Select(s => s.ToUpperInvariant())
+                           .Where(s => s.Length == 3 && s.All(char.IsAsciiLetterUpper))
+                           .ToList();
+            return codes.Count > 0 ? codes : ["BKK"];
+        }
+        set => Preferences.Default.Set(KeyOperatorBranchCodes,
+            string.Join(";", (value ?? [])
+                .Select(s => s.Trim().ToUpperInvariant())
+                .Where(s => s.Length == 3 && s.All(char.IsAsciiLetterUpper))));
+    }
+
+    /// <summary>
+    /// Allowed position codes in badges (e.g. ["PK", "QC", "SAL"]).
+    /// Defaults to PK, QC, SAL when empty.
+    /// </summary>
+    public static List<string> OperatorPositionCodes
+    {
+        get
+        {
+            var raw = Preferences.Default.Get(KeyOperatorPositionCodes, string.Empty);
+            return string.IsNullOrWhiteSpace(raw)
+                ? ["PK", "QC", "SAL"]
+                : [.. raw.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                         .Select(s => s.ToUpperInvariant())];
+        }
+        set => Preferences.Default.Set(KeyOperatorPositionCodes,
+            string.Join(";", (value ?? []).Select(s => s.Trim().ToUpperInvariant()).Where(s => s.Length > 0)));
+    }
+
+    public static int PackingInactivityMinutes
+    {
+        get => Preferences.Default.Get(KeyPackingInactivityMinutes, 30);
+        set => Preferences.Default.Set(KeyPackingInactivityMinutes, Math.Max(1, value));
+    }
+
+    public static int QcInactivityMinutes
+    {
+        get => Preferences.Default.Get(KeyQcInactivityMinutes, 30);
+        set => Preferences.Default.Set(KeyQcInactivityMinutes, Math.Max(1, value));
+    }
+
+    /// <summary>
+    /// Returns the regex pattern built from current branch and position settings.
+    /// Example: ^\d{2}(BKK|CMI)(PK|QC|SAL)\d{3}$
+    /// </summary>
+    public static string BuildBadgePattern()
+    {
+        var branches  = OperatorBranchCodes;
+        var positions = OperatorPositionCodes;
+
+        var branchPart = branches.Count > 0
+            ? $"(?<branch>{string.Join("|", branches.Select(Regex.Escape))})"
+            : @"(?<branch>[A-Z]{3})";
+
+        var positionPart = positions.Count > 0
+            ? $"(?<position>{string.Join("|", positions.Select(Regex.Escape))})"
+            : "(?<position>PK|QC|SAL)";
+
+        return $@"^\d{{2}}{branchPart}{positionPart}\d{{3}}$";
+    }
+
+    /// <summary>
+    /// Parses a structured operator badge using the regex built from settings.
+    /// Format: YYBBBPPPnnn — year(2) branch(3) position(2-3) employee(3).
+    /// Returns null if barcode does not match.
+    /// </summary>
+    public static OperatorBadge? TryParseOperatorBarcode(string barcode)
+    {
+        var match = Regex.Match(barcode, BuildBadgePattern(), RegexOptions.IgnoreCase);
+        if (!match.Success) return null;
+
+        var branch   = match.Groups["branch"].Value.ToUpperInvariant();
+        var position = match.Groups["position"].Value.ToUpperInvariant();
+        var employee = barcode[^3..];
+
+        return new OperatorBadge(branch, position, employee);
     }
 
     /// <summary>
@@ -319,11 +414,28 @@ public static class AppSettings
     }
 
     /// <summary>
-    /// Resolved at startup from <c>GET /stations/by-computer/{name}</c>.
-    /// Null until the async resolution completes; events emitted before that
-    /// will have a null station_id (acceptable for the first few seconds).
+    /// Resolved at startup from GET /stations/by-station/{MachineName}.
+    /// Awaitable via <see cref="StationIdReady"/> — do not read this directly
+    /// before resolution completes.
     /// </summary>
-    public static int? ResolvedStationId { get; set; }
+    public static int? ResolvedStationId { get; private set; }
+
+    private static readonly TaskCompletionSource<int?> _stationIdTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>
+    /// Completes when station ID resolution finishes. Await before using
+    /// <see cref="ResolvedStationId"/> in scan-critical paths.
+    /// </summary>
+    public static Task<int?> StationIdReady => _stationIdTcs.Task;
+
+    /// <summary>
+    /// Called once by App.xaml.cs after ResolveStationIdAsync returns.
+    /// </summary>
+    public static void CompleteStationResolution(int? id)
+    {
+        ResolvedStationId = id;
+        _stationIdTcs.TrySetResult(id);
+    }
 
     /// <summary>
     /// When true, host pages (StationView / OrderSearchPage) route trigger input
@@ -336,4 +448,13 @@ public static class AppSettings
         get => Preferences.Default.Get(KeyUseDeclarativeWorkflow, false);
         set => Preferences.Default.Set(KeyUseDeclarativeWorkflow, value);
     }
+}
+
+/// <summary>
+/// Parsed operator badge. Position is the raw code string (e.g. "PK", "QC", "SAL").
+/// DisplayName is shown in UI and stored as packed_by / checked_by.
+/// </summary>
+public sealed record OperatorBadge(string Branch, string Position, string EmployeeNumber)
+{
+    public string DisplayName => $"{Position}{EmployeeNumber}";
 }

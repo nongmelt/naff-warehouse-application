@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using System.Runtime.Versioning;
 
 namespace app;
@@ -14,9 +14,9 @@ public partial class App : Application
 		Services.UploadCommandListener.Start();
 		_ = Task.Run(async () =>
 		{
-			Services.AppSettings.ResolvedStationId =
-				await Services.ApiService.ResolveStationIdAsync(Environment.MachineName);
-			Services.Logger.Log($"App: station resolved → id={Services.AppSettings.ResolvedStationId}");
+			var id = await Services.ApiService.ResolveStationIdAsync(Environment.MachineName);
+			Services.AppSettings.CompleteStationResolution(id);
+			Services.Logger.Log($"App: station resolved → id={id}");
 		});
 		InitializeComponent();
 	}
