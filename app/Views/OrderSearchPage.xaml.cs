@@ -258,6 +258,7 @@ public partial class OrderSearchPage : ContentPage
                             _currentOperator = null;
                             _currentOperatorFirstName = null;
                             StopInactivityTimer();
+                            Services.StationWsClient.SendOperatorLogout();
                             UpdateNavOperatorUI(null);
                             ShowLoginOverlay();
                             UpdateOverlayScannerStatus($"Logged out — {logoutName}");
@@ -269,6 +270,7 @@ public partial class OrderSearchPage : ContentPage
                             _currentOperator = line;
                             _currentOperatorFirstName = null;
                             StartInactivityTimer();
+                            Services.StationWsClient.SendOperatorLogin(line, Services.SessionKind.Qc);
                             UpdateNavOperatorUI(line);
                             HideLoginOverlay();
                             _ = ShowWelcomeAnimationAsync(line);
@@ -1729,6 +1731,7 @@ public partial class OrderSearchPage : ContentPage
         _currentOperator = null;
         _currentOperatorFirstName = null;
         StopInactivityTimer();
+        Services.StationWsClient.SendOperatorLogout();
         UpdateNavOperatorUI(null);
         ShowLoginOverlay();
         if (displayName is not null)

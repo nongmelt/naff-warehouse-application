@@ -24,7 +24,7 @@ public static class StationEvents
         int? sequenceInSession = null,
         Dictionary<string, object?>? payload = null)
     {
-        WorkflowEventSink.Enqueue(new WorkflowEventOut
+        Services.StationWsClient.SendWorkflowEvent(new WorkflowEventOut
         {
             WorkflowName      = workflowName,
             StepId            = stepId,

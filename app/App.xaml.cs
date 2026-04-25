@@ -17,6 +17,8 @@ public partial class App : Application
 			var id = await Services.ApiService.ResolveStationIdAsync(Environment.MachineName);
 			Services.AppSettings.CompleteStationResolution(id);
 			Services.Logger.Log($"App: station resolved → id={id}");
+			if (id is not null)
+				Services.StationWsClient.Start(id.Value);
 		});
 		InitializeComponent();
 	}

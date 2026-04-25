@@ -336,8 +336,8 @@ public static class AppSettings
     }
 
     /// <summary>
-    /// Allowed position codes in badges (e.g. ["PK", "QC", "SAL"]).
-    /// Defaults to PK, QC, SAL when empty.
+    /// Allowed position codes in badges (e.g. ["PK", "QC", "SAL", "ACC", "WH"]).
+    /// Defaults to PK, QC, SAL, ACC, WH when empty.
     /// </summary>
     public static List<string> OperatorPositionCodes
     {
@@ -345,7 +345,7 @@ public static class AppSettings
         {
             var raw = Preferences.Default.Get(KeyOperatorPositionCodes, string.Empty);
             return string.IsNullOrWhiteSpace(raw)
-                ? ["PK", "QC", "SAL"]
+                ? ["PK", "QC", "SAL", "ACC", "WH"]
                 : [.. raw.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                          .Select(s => s.ToUpperInvariant())];
         }
@@ -355,23 +355,23 @@ public static class AppSettings
 
     public static int PackingInactivityMinutes
     {
-        get => Preferences.Default.Get(KeyPackingInactivityMinutes, 30);
+        get => Preferences.Default.Get(KeyPackingInactivityMinutes, 120);
         set => Preferences.Default.Set(KeyPackingInactivityMinutes, Math.Max(1, value));
     }
 
     public static int QcInactivityMinutes
     {
-        get => Preferences.Default.Get(KeyQcInactivityMinutes, 30);
+        get => Preferences.Default.Get(KeyQcInactivityMinutes, 40);
         set => Preferences.Default.Set(KeyQcInactivityMinutes, Math.Max(1, value));
     }
 
     /// <summary>
     /// Returns the regex pattern built from current branch and position settings.
-    /// Example: ^\d{2}(BKK|CMI)(PK|QC|SAL)\d{3}$
+    /// Example: ^\d{2}(BKK|CMI)(PK|QC|SAL|ACC|WH)\d{3}$
     /// </summary>
     public static string BuildBadgePattern()
     {
-        var branches  = OperatorBranchCodes;
+        var branches = OperatorBranchCodes;
         var positions = OperatorPositionCodes;
 
         var branchPart = branches.Count > 0
@@ -380,7 +380,7 @@ public static class AppSettings
 
         var positionPart = positions.Count > 0
             ? $"(?<position>{string.Join("|", positions.Select(Regex.Escape))})"
-            : "(?<position>PK|QC|SAL)";
+            : "(?<position>PK|QC|SAL|ACC|WH)";
 
         return $@"^\d{{2}}{branchPart}{positionPart}\d{{3}}$";
     }
@@ -395,7 +395,7 @@ public static class AppSettings
         var match = Regex.Match(barcode, BuildBadgePattern(), RegexOptions.IgnoreCase);
         if (!match.Success) return null;
 
-        var branch   = match.Groups["branch"].Value.ToUpperInvariant();
+        var branch = match.Groups["branch"].Value.ToUpperInvariant();
         var position = match.Groups["position"].Value.ToUpperInvariant();
         var employee = barcode[^3..];
 
@@ -451,7 +451,7 @@ public static class AppSettings
 }
 
 /// <summary>
-/// Parsed operator badge. Position is the raw code string (e.g. "PK", "QC", "SAL").
+/// Parsed operator badge. Position is the raw code string (e.g. "PK", "QC", "SAL", "ACC", "WH").
 /// DisplayName is shown in UI and stored as packed_by / checked_by.
 /// </summary>
 public sealed record OperatorBadge(string Branch, string Position, string EmployeeNumber)

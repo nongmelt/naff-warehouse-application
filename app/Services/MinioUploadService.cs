@@ -23,10 +23,10 @@ public static class MinioUploadService
     private static async Task RunAsync(int videoId, string filePath, string trackingNumber, string? @operator = null)
     {
         var op = @operator?.Replace(' ', '-');
-        var endpoint = AppSettings.MinioEndpoint;
-        var accessKey = AppSettings.MinioAccessKey;
-        var secretKey = AppSettings.MinioSecretKey;
-        var bucket = AppSettings.MinioBucket;
+        var endpoint  = AppSettings.MinioEndpoint?.Trim();
+        var accessKey = AppSettings.MinioAccessKey?.Trim();
+        var secretKey = AppSettings.MinioSecretKey?.Trim();
+        var bucket    = AppSettings.MinioBucket?.Trim();
 
         if (string.IsNullOrWhiteSpace(endpoint) ||
             string.IsNullOrWhiteSpace(accessKey) ||
@@ -40,12 +40,14 @@ public static class MinioUploadService
         if (!File.Exists(filePath))
         {
             Logger.Log($"MinioUploadService: file not found at {filePath}");
-            await ApiService.UpdateVideoStatusAsync(videoId, "Failed");
+            await ApiService.UpdateVideoStatusAsync(videoId, "Failed", failureReason: "file_not_found");
             return;
         }
 
         var objectName = $"{DateTime.Now.ToString("yyyy-MM-dd")}/{Path.GetFileName(filePath)}";
 
+        string lastFailureReason = "unknown";
+        string lastFailureDetail = string.Empty;
         for (int attempt = 1; attempt <= MaxRetries; attempt++)
         {
             var sw = Stopwatch.StartNew();
@@ -54,11 +56,13 @@ public static class MinioUploadService
                 await ApiService.UpdateVideoStatusAsync(videoId, "Uploading", uploadAttempts: attempt);
 
                 // MinIO SDK requires host:port only — strip scheme if present
-                var uri = endpoint.StartsWith("http://") || endpoint.StartsWith("https://")
+                var uri = endpoint.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                          endpoint.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
                     ? new Uri(endpoint)
                     : new Uri("http://" + endpoint);
-                var host = uri.Authority; // "host:port" without scheme
-                var useSSL = uri.Scheme == "https";
+                var host   = uri.Authority; // "host:port" without scheme
+                var useSSL = uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase);
+                Logger.Log($"MinioUploadService: endpoint={host} bucket={bucket} ssl={useSSL} attempt={attempt}");
 
                 var builder = new MinioClient()
                     .WithEndpoint(host)
@@ -157,6 +161,8 @@ public static class MinioUploadService
                 Logger.Log($"MinioUploadService: attempt {attempt}/{MaxRetries} failed — {ex.Message}");
 
                 var reason = ClassifyFailure(ex);
+                lastFailureReason = reason;
+                lastFailureDetail = ex.Message;
                 var isLast = attempt >= MaxRetries;
 
                 StationEvents.Emit(
@@ -185,9 +191,12 @@ public static class MinioUploadService
         // All retries exhausted — persist the local path so a dashboard-initiated
         // retry (via UploadCommandListener) can find the file to re-upload.
         Logger.Log($"MinioUploadService: giving up after {MaxRetries} attempts for video {videoId}");
+        var fullReason = string.IsNullOrEmpty(lastFailureDetail)
+            ? lastFailureReason
+            : $"{lastFailureReason}: {lastFailureDetail}";
         await ApiService.UpdateVideoStatusAsync(videoId, "Failed",
-            failureReason: "unknown", uploadAttempts: MaxRetries);
-        ReuploadQueue.Enqueue(videoId, filePath, trackingNumber, "unknown");
+            failureReason: fullReason, uploadAttempts: MaxRetries);
+        ReuploadQueue.Enqueue(videoId, filePath, trackingNumber, lastFailureReason);
         await ApiService.NotifyManualUploadNeededAsync(videoId);
     }
 
