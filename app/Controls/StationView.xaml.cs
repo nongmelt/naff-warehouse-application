@@ -479,6 +479,7 @@ public partial class StationView : ContentView, IDisposable
                     _currentOperator = null;
                     _currentOperatorFirstName = null;
                     StopInactivityTimer();
+                    StationWsClient.SendOperatorLogout();
                     MainThread.BeginInvokeOnMainThread(() =>
                     {
                         UpdateOperatorUI(null);
@@ -492,6 +493,7 @@ public partial class StationView : ContentView, IDisposable
                     _currentOperator = barcode;
                     _currentOperatorFirstName = null;
                     StartInactivityTimer();
+                    StationWsClient.SendOperatorLogin(barcode);
                     // Show full staff_code immediately, then update to first name once API resolves
                     MainThread.BeginInvokeOnMainThread(() =>
                     {
@@ -1042,6 +1044,7 @@ public partial class StationView : ContentView, IDisposable
         _currentOperator = null;
         _currentOperatorFirstName = null;
         StopInactivityTimer();
+        StationWsClient.SendOperatorLogout();
         UpdateOperatorUI(null);
         UpdateStatus("Ready to Scan");
         if (displayName is not null)
