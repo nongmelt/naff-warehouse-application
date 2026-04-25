@@ -23,6 +23,7 @@ public static class StationWsClient
     private static CancellationTokenSource? _cts;
     private static int _stationId;
     private static string? _currentOperator;
+    private static SessionKind _currentOperatorKind;
     private static bool _hasConnected;
 
     private static readonly SemaphoreSlim _sendLock = new(1, 1);
@@ -63,10 +64,11 @@ public static class StationWsClient
         FireAndForget(msg);
     }
 
-    public static void SendOperatorLogin(string operatorCode)
+    public static void SendOperatorLogin(string operatorCode, SessionKind kind = SessionKind.Packing)
     {
         _currentOperator = operatorCode;
-        FireAndForget(new WsOperatorLoginMsg { Operator = operatorCode });
+        _currentOperatorKind = kind;
+        FireAndForget(new WsOperatorLoginMsg { Operator = operatorCode, StationKind = kind.ToString().ToLowerInvariant() });
     }
 
     public static void SendOperatorLogout()
@@ -126,13 +128,14 @@ public static class StationWsClient
                 WorkflowName = "Station",
                 StepId       = "startup",
                 Trigger      = "startup",
+                FromState    = "online",
                 ToState      = "idle",
                 OccurredAt   = DateTime.UtcNow,
             }, ct);
         }
 
         if (_currentOperator is not null)
-            await SendAsync(new WsOperatorLoginMsg { Operator = _currentOperator }, ct);
+            await SendAsync(new WsOperatorLoginMsg { Operator = _currentOperator, StationKind = _currentOperatorKind.ToString().ToLowerInvariant() }, ct);
     }
 
     private static async Task ReceiveLoopAsync(ClientWebSocket ws, CancellationToken ct)
@@ -194,8 +197,9 @@ internal sealed class WsWorkflowEventMsg
 
 internal sealed class WsOperatorLoginMsg
 {
-    [JsonPropertyName("type")]     public string          Type     { get; } = "operator_login";
-    [JsonPropertyName("operator")] public required string Operator { get; init; }
+    [JsonPropertyName("type")]        public string          Type        { get; } = "operator_login";
+    [JsonPropertyName("operator")]    public required string Operator    { get; init; }
+    [JsonPropertyName("stationKind")] public required string StationKind { get; init; }
 }
 
 internal sealed class WsOperatorLogoutMsg

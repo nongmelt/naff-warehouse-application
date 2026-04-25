@@ -493,7 +493,7 @@ public partial class StationView : ContentView, IDisposable
                     _currentOperator = barcode;
                     _currentOperatorFirstName = null;
                     StartInactivityTimer();
-                    StationWsClient.SendOperatorLogin(barcode);
+                    StationWsClient.SendOperatorLogin(barcode, SessionKind.Packing);
                     // Show full staff_code immediately, then update to first name once API resolves
                     MainThread.BeginInvokeOnMainThread(() =>
                     {
