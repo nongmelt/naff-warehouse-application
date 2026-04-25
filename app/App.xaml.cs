@@ -12,12 +12,13 @@ public partial class App : Application
 		UserAppTheme = AppTheme.Light;
 		Services.AppSettings.Initialize();
 		Services.UploadCommandListener.Start();
-		Services.HeartbeatService.Start();
 		_ = Task.Run(async () =>
 		{
 			var id = await Services.ApiService.ResolveStationIdAsync(Environment.MachineName);
 			Services.AppSettings.CompleteStationResolution(id);
 			Services.Logger.Log($"App: station resolved → id={id}");
+			if (id is not null)
+				Services.StationWsClient.Start(id.Value);
 		});
 		InitializeComponent();
 	}
