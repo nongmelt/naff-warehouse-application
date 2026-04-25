@@ -40,12 +40,14 @@ public static class MinioUploadService
         if (!File.Exists(filePath))
         {
             Logger.Log($"MinioUploadService: file not found at {filePath}");
-            await ApiService.UpdateVideoStatusAsync(videoId, "Failed");
+            await ApiService.UpdateVideoStatusAsync(videoId, "Failed", failureReason: "file_not_found");
             return;
         }
 
         var objectName = $"{DateTime.Now.ToString("yyyy-MM-dd")}/{Path.GetFileName(filePath)}";
 
+        string lastFailureReason = "unknown";
+        string lastFailureDetail = string.Empty;
         for (int attempt = 1; attempt <= MaxRetries; attempt++)
         {
             var sw = Stopwatch.StartNew();
@@ -159,6 +161,8 @@ public static class MinioUploadService
                 Logger.Log($"MinioUploadService: attempt {attempt}/{MaxRetries} failed — {ex.Message}");
 
                 var reason = ClassifyFailure(ex);
+                lastFailureReason = reason;
+                lastFailureDetail = ex.Message;
                 var isLast = attempt >= MaxRetries;
 
                 StationEvents.Emit(
@@ -187,9 +191,12 @@ public static class MinioUploadService
         // All retries exhausted — persist the local path so a dashboard-initiated
         // retry (via UploadCommandListener) can find the file to re-upload.
         Logger.Log($"MinioUploadService: giving up after {MaxRetries} attempts for video {videoId}");
+        var fullReason = string.IsNullOrEmpty(lastFailureDetail)
+            ? lastFailureReason
+            : $"{lastFailureReason}: {lastFailureDetail}";
         await ApiService.UpdateVideoStatusAsync(videoId, "Failed",
-            failureReason: "unknown", uploadAttempts: MaxRetries);
-        ReuploadQueue.Enqueue(videoId, filePath, trackingNumber, "unknown");
+            failureReason: fullReason, uploadAttempts: MaxRetries);
+        ReuploadQueue.Enqueue(videoId, filePath, trackingNumber, lastFailureReason);
         await ApiService.NotifyManualUploadNeededAsync(videoId);
     }
 
