@@ -8,10 +8,10 @@ namespace app.Services;
 /// <summary>
 /// Subscribes to backend WS broadcasts and reacts to
 /// <c>upload_command_issued</c> notifications by re-uploading the
-/// previously-failed video (local path resolved via <see cref="ReuploadQueue"/>).
+/// previously-failed video (local path resolved via <see cref="ApiService.GetVideoAsync"/>).
 ///
-/// Filtering is by <c>videoId ∈ ReuploadQueue</c> rather than by
-/// <c>stationId</c>: if we don't hold the local file, the command isn't ours.
+/// Filtering is by file existence rather than a local queue — if we don't hold the
+/// local file on disk, the command isn't ours.
 /// Handling is idempotent — if two stations claim the same video, only the
 /// one with the file on disk succeeds.
 /// </summary>
@@ -134,50 +134,48 @@ public static class UploadCommandListener
 
     private static async Task HandleRetryAsync(long commandId, int videoId)
     {
-        var entry = ReuploadQueue.Find(videoId);
-        if (entry == null)
+        var video = await ApiService.GetVideoAsync(videoId);
+        if (video is null)
         {
-            // Not our video — another station owns it.
+            // Video not found — not our concern or already deleted
             return;
         }
 
-        if (!File.Exists(entry.LocalPath))
+        if (string.IsNullOrEmpty(video.FilePath) || !File.Exists(video.FilePath))
         {
-            Logger.Log($"UploadCommandListener: command {commandId} video {videoId} — local file gone ({entry.LocalPath})");
+            Logger.Log($"UploadCommandListener: command {commandId} video {videoId} — local file gone ({video.FilePath})");
             await ApiService.PatchUploadCommandAsync(commandId, "rejected", "local_file_missing");
-            ReuploadQueue.Complete(videoId); // drop the stale entry
             return;
         }
 
-        Logger.Log($"UploadCommandListener: command {commandId} → acknowledged; retrying {entry.LocalPath}");
+        Logger.Log($"UploadCommandListener: command {commandId} → acknowledged; retrying {video.FilePath}");
         await ApiService.PatchUploadCommandAsync(commandId, "acknowledged");
 
-        // Fire the existing retry path. MinioUploadService pushes status updates
-        // and — on success — calls ReuploadQueue.Complete to clear the entry.
-        // We then report the command as completed via a follow-up check.
-        MinioUploadService.UploadAsync(videoId, entry.LocalPath, entry.TrackingNumber);
+        VideoWorkflowManager.HandleRetry(videoId, video.FilePath,
+            video.TrackingNumber ?? "", AppSettings.ResolvedStationId);
 
-        // Poll the queue for completion or continued failure so we can PATCH
-        // the command row accordingly. Total wait: ~90s (covers 3 attempts
-        // with 2s/4s/6s backoff plus upload time for typical videos).
+        // Poll backend status until completed, failed, or timeout (~120s)
         var deadline = DateTime.UtcNow.AddSeconds(120);
+        var lastStatus = video.Status;
         while (DateTime.UtcNow < deadline)
         {
             await Task.Delay(TimeSpan.FromSeconds(3));
-            var still = ReuploadQueue.Find(videoId);
-            if (still == null)
+            var current = await ApiService.GetVideoAsync(videoId);
+            if (current is null) break;
+
+            if (current.Status == "Completed")
             {
                 await ApiService.PatchUploadCommandAsync(commandId, "completed");
                 Logger.Log($"UploadCommandListener: command {commandId} → completed");
                 return;
             }
-            // If the FailedAt moved forward, the upload cycle ran again and still failed.
-            if (still.FailedAt > entry.FailedAt)
+            if (current.Status == "Failed" && current.Status != lastStatus)
             {
-                await ApiService.PatchUploadCommandAsync(commandId, "rejected", still.FailureReason ?? "unknown");
-                Logger.Log($"UploadCommandListener: command {commandId} → rejected ({still.FailureReason})");
+                await ApiService.PatchUploadCommandAsync(commandId, "rejected", "upload_failed");
+                Logger.Log($"UploadCommandListener: command {commandId} → rejected (upload_failed)");
                 return;
             }
+            lastStatus = current.Status;
         }
 
         await ApiService.PatchUploadCommandAsync(commandId, "rejected", "timeout");

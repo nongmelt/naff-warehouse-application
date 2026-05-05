@@ -50,16 +50,16 @@ public static class StationWsClient
     {
         var msg = new WsWorkflowEventMsg
         {
-            WorkflowName      = evt.WorkflowName,
-            TrackingNumber    = evt.TrackingNumber,
-            StepId            = evt.StepId,
-            FromState         = evt.FromState,
-            ToState           = evt.ToState,
-            Trigger           = evt.Trigger,
-            Operator          = evt.Operator,
+            WorkflowName = evt.WorkflowName,
+            TrackingNumber = evt.TrackingNumber,
+            StepId = evt.StepId,
+            FromState = evt.FromState,
+            ToState = evt.ToState,
+            Trigger = evt.Trigger,
+            Operator = evt.Operator,
             SequenceInSession = evt.SequenceInSession,
-            Payload           = evt.Payload,
-            OccurredAt        = evt.OccurredAt,
+            Payload = evt.Payload,
+            OccurredAt = evt.OccurredAt,
         };
         FireAndForget(msg);
     }
@@ -68,7 +68,7 @@ public static class StationWsClient
     {
         _currentOperator = operatorCode;
         _currentOperatorKind = kind;
-        FireAndForget(new WsOperatorLoginMsg { Operator = operatorCode, StationKind = kind.ToString().ToLowerInvariant() });
+        FireAndForget(new WsOperatorLoginMsg { Operator = operatorCode, StationKind = kind.ToString() });
     }
 
     public static void SendOperatorLogout()
@@ -126,16 +126,16 @@ public static class StationWsClient
             await SendAsync(new WsWorkflowEventMsg
             {
                 WorkflowName = "Station",
-                StepId       = "startup",
-                Trigger      = "startup",
-                FromState    = "online",
-                ToState      = "idle",
-                OccurredAt   = DateTime.UtcNow,
+                StepId = "startup",
+                Trigger = "startup",
+                FromState = "online",
+                ToState = "idle",
+                OccurredAt = DateTime.UtcNow,
             }, ct);
         }
 
         if (_currentOperator is not null)
-            await SendAsync(new WsOperatorLoginMsg { Operator = _currentOperator, StationKind = _currentOperatorKind.ToString().ToLowerInvariant() }, ct);
+            await SendAsync(new WsOperatorLoginMsg { Operator = _currentOperator, StationKind = _currentOperatorKind.ToString() }, ct);
     }
 
     private static async Task ReceiveLoopAsync(ClientWebSocket ws, CancellationToken ct)
@@ -175,30 +175,30 @@ public static class StationWsClient
     {
         var api = (AppSettings.ApiUrl?.TrimEnd('/') ?? "http://localhost:8080");
         var wsBase = api.Replace("https://", "wss://", StringComparison.OrdinalIgnoreCase)
-                        .Replace("http://",  "ws://",  StringComparison.OrdinalIgnoreCase);
+                        .Replace("http://", "ws://", StringComparison.OrdinalIgnoreCase);
         return $"{wsBase}/stations/{_stationId}/ws";
     }
 }
 
 internal sealed class WsWorkflowEventMsg
 {
-    [JsonPropertyName("type")]              public string  Type             { get; } = "workflow_event";
-    [JsonPropertyName("workflowName")]      public required string WorkflowName    { get; init; }
-    [JsonPropertyName("trackingNumber")]    public string? TrackingNumber   { get; init; }
-    [JsonPropertyName("stepId")]            public required string StepId          { get; init; }
-    [JsonPropertyName("fromState")]         public string? FromState        { get; init; }
-    [JsonPropertyName("toState")]           public string? ToState          { get; init; }
-    [JsonPropertyName("trigger")]           public string? Trigger          { get; init; }
-    [JsonPropertyName("operator")]          public string? Operator         { get; init; }
-    [JsonPropertyName("sequenceInSession")] public int?    SequenceInSession { get; init; }
-    [JsonPropertyName("payload")]           public Dictionary<string, object?>? Payload { get; init; }
-    [JsonPropertyName("occurredAt")]        public DateTime OccurredAt      { get; init; }
+    [JsonPropertyName("type")] public string Type { get; } = "workflow_event";
+    [JsonPropertyName("workflowName")] public required string WorkflowName { get; init; }
+    [JsonPropertyName("trackingNumber")] public string? TrackingNumber { get; init; }
+    [JsonPropertyName("stepId")] public required string StepId { get; init; }
+    [JsonPropertyName("fromState")] public string? FromState { get; init; }
+    [JsonPropertyName("toState")] public string? ToState { get; init; }
+    [JsonPropertyName("trigger")] public string? Trigger { get; init; }
+    [JsonPropertyName("operator")] public string? Operator { get; init; }
+    [JsonPropertyName("sequenceInSession")] public int? SequenceInSession { get; init; }
+    [JsonPropertyName("payload")] public Dictionary<string, object?>? Payload { get; init; }
+    [JsonPropertyName("occurredAt")] public DateTime OccurredAt { get; init; }
 }
 
 internal sealed class WsOperatorLoginMsg
 {
-    [JsonPropertyName("type")]        public string          Type        { get; } = "operator_login";
-    [JsonPropertyName("operator")]    public required string Operator    { get; init; }
+    [JsonPropertyName("type")] public string Type { get; } = "operator_login";
+    [JsonPropertyName("operator")] public required string Operator { get; init; }
     [JsonPropertyName("stationKind")] public required string StationKind { get; init; }
 }
 

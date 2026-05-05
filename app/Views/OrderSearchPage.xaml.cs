@@ -270,7 +270,7 @@ public partial class OrderSearchPage : ContentPage
                             _currentOperator = line;
                             _currentOperatorFirstName = null;
                             StartInactivityTimer();
-                            Services.StationWsClient.SendOperatorLogin(line, Services.SessionKind.Qc);
+                            Services.StationWsClient.SendOperatorLogin(line, Services.SessionKind.QC);
                             UpdateNavOperatorUI(line);
                             HideLoginOverlay();
                             _ = ShowWelcomeAnimationAsync(line);

@@ -345,25 +345,29 @@
                                                         </VerticalStackLayout>
                                                 </Border>
 
-                                                <!-- Webhook URL -->
+                                                <!-- Auto-Delete Completed Videos -->
                                                 <Border Stroke="#d1d5db"
                                                         StrokeThickness="1"
                                                         StrokeShape="RoundRectangle 8"
                                                         BackgroundColor="White"
                                                         Padding="16">
-                                                        <VerticalStackLayout Spacing="8">
-                                                                <Label Text="n8n Webhook URL"
-                                                                       FontAttributes="Bold"
-                                                                       FontSize="14"
-                                                                       TextColor="#111827"/>
-                                                                <Label Text="The full webhook URL that receives barcode and video file notifications."
-                                                                       FontSize="12"
-                                                                       TextColor="#6b7280"/>
-                                                                <Entry x:Name="WebhookUrlEntry"
-                                                                       Placeholder="http://localhost:5678/webhook-test/..."
-                                                                       FontSize="13"
-                                                                       Keyboard="Url"/>
-                                                        </VerticalStackLayout>
+                                                        <Grid ColumnDefinitions="*, Auto"
+                                                              ColumnSpacing="12">
+                                                                <VerticalStackLayout Grid.Column="0"
+                                                                                     Spacing="4"
+                                                                                     VerticalOptions="Center">
+                                                                        <Label Text="Auto-Delete Completed Videos"
+                                                                               FontAttributes="Bold"
+                                                                               FontSize="14"
+                                                                               TextColor="#111827"/>
+                                                                        <Label Text="Automatically delete local video files after upload is completed and verified on MinIO."
+                                                                               FontSize="12"
+                                                                               TextColor="#6b7280"/>
+                                                                </VerticalStackLayout>
+                                                                <Switch x:Name="AutoDeleteSwitch"
+                                                                        Grid.Column="1"
+                                                                        VerticalOptions="Center"/>
+                                                        </Grid>
                                                 </Border>
 
                                                 <!-- Search History Limit -->
