@@ -27,7 +27,7 @@ public partial class SettingsPage : ContentPage
         _videoFolderPaths          = new List<string>(AppSettings.VideoFolders);
         MinFreeSpaceEntry.Text     = (AppSettings.VideoFolderMinFreeSpaceBytes / 1_073_741_824L).ToString();
         RebuildFolderRows();
-        WebhookUrlEntry.Text        = AppSettings.WebhookUrl;
+        AutoDeleteSwitch.IsToggled  = AppSettings.AutoDeleteCompletedVideos;
         ApiUrlEntry.Text            = AppSettings.ApiUrl;
         SearchHistoryMaxEntry.Text  = AppSettings.SearchHistoryMaxItems.ToString();
         MinioBucketEntry.Text    = AppSettings.MinioBucket;
@@ -186,10 +186,10 @@ public partial class SettingsPage : ContentPage
         AppSettings.VideoFolders = _videoFolderPaths;
         if (long.TryParse(MinFreeSpaceEntry.Text?.Trim(), out var gb) && gb >= 1)
             AppSettings.VideoFolderMinFreeSpaceBytes = gb * 1_073_741_824L;
-        AppSettings.WebhookUrl  = WebhookUrlEntry.Text?.Trim()  ?? AppSettings.DefaultWebhookUrl;
+        AppSettings.AutoDeleteCompletedVideos = AutoDeleteSwitch.IsToggled;
         if (int.TryParse(SearchHistoryMaxEntry.Text?.Trim(), out var maxHistory) && maxHistory >= 1)
             AppSettings.SearchHistoryMaxItems = maxHistory;
-        Logger.Log($"Settings saved — VideoFolders: {string.Join(";", _videoFolderPaths)}, WebhookUrl: {AppSettings.WebhookUrl}");
+        Logger.Log($"Settings saved — VideoFolders: {string.Join(";", _videoFolderPaths)}, AutoDelete: {AppSettings.AutoDeleteCompletedVideos}");
         GeneralSavedLabel.IsVisible = true;
         Dispatcher.DispatchDelayed(TimeSpan.FromSeconds(3), () => GeneralSavedLabel.IsVisible = false);
     }
@@ -203,20 +203,9 @@ public partial class SettingsPage : ContentPage
         AppSettings.MinioAccessKey = MinioAccessKeyEntry.Text?.Trim() ?? string.Empty;
         AppSettings.MinioSecretKey = MinioSecretKeyEntry.Text?.Trim() ?? string.Empty;
 
-        string statusText;
-        try
-        {
-            ScriptService.RegenerateScripts();
-            Logger.Log("MinIO settings saved and scripts regenerated.");
-            statusText = "✓ Saved — scripts updated";
-        }
-        catch (Exception ex)
-        {
-            Logger.Log($"ScriptService.RegenerateScripts failed: {ex.Message}");
-            statusText = "✓ Saved — script update failed (check logs)";
-        }
+        Logger.Log("MinIO settings saved.");
 
-        MinioSavedLabel.Text      = statusText;
+        MinioSavedLabel.Text      = "✓ Saved";
         MinioSavedLabel.IsVisible = true;
         Dispatcher.DispatchDelayed(TimeSpan.FromSeconds(4), () => MinioSavedLabel.IsVisible = false);
     }
