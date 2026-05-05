@@ -248,6 +248,45 @@ public static class ApiService
         }
     }
 
+    // ── Video queries ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns all videos for this station with status Recorded, Uploading, or Uploaded
+    /// (i.e. crashed before completing). Used by VideoWorkflowManager.RecoverAsync.
+    /// Does NOT return Failed videos — those require a dashboard-triggered retry.
+    /// </summary>
+    public static async Task<List<PendingVideoRecord>> GetPendingVideosForStationAsync(int stationId)
+    {
+        try
+        {
+            var result = await Http.GetFromJsonAsync<List<PendingVideoRecord>>(
+                $"videos/station/{stationId}/pending", JsonOpts);
+            return result ?? [];
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.GetPendingVideosForStationAsync: {ex.Message}");
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// Fetches a single video record by id. Used by UploadCommandListener to
+    /// get the local file path for a dashboard-triggered retry (replaces ReuploadQueue).
+    /// </summary>
+    public static async Task<VideoDetail?> GetVideoAsync(int videoId)
+    {
+        try
+        {
+            return await Http.GetFromJsonAsync<VideoDetail>($"videos/{videoId}", JsonOpts);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.GetVideoAsync: {ex.Message}");
+            return null;
+        }
+    }
+
     // ── Manual upload notifications ──────────────────────────────────────────
 
     /// <summary>
@@ -351,4 +390,17 @@ public static class ApiService
 
     private record VideoRecord(
         [property: JsonPropertyName("id")] int Id);
+
+    internal record PendingVideoRecord(
+        [property: JsonPropertyName("id")]             int     Id,
+        [property: JsonPropertyName("trackingNumber")] string? TrackingNumber,
+        [property: JsonPropertyName("filePath")]       string  FilePath,
+        [property: JsonPropertyName("operator")]       string? Operator);
+
+    internal record VideoDetail(
+        [property: JsonPropertyName("id")]             int     Id,
+        [property: JsonPropertyName("trackingNumber")] string? TrackingNumber,
+        [property: JsonPropertyName("filePath")]       string  FilePath,
+        [property: JsonPropertyName("operator")]       string? Operator,
+        [property: JsonPropertyName("status")]         string? Status);
 }

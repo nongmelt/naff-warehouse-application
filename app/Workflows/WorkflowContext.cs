@@ -49,6 +49,7 @@ public sealed class WorkflowContext
     public string? FailureReason { get; set; }
     public long?   UploadDurationMs { get; set; }
     public string? UploadResponseStatus { get; set; }
+    public bool    LocalFileIsValid { get; set; }
 
     // ── Bag for step-specific extras that don't deserve a typed field ─────────
     public Dictionary<string, object?> Extra { get; } = new();

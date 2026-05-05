@@ -277,6 +277,21 @@ public partial class StationView : ContentView, IDisposable
     {
         _ = LoadDevicesAsync();
         _ = LoadTodayVideoCountAsync();
+        _ = RecoverVideosWhenReadyAsync();
+    }
+
+    private async Task RecoverVideosWhenReadyAsync()
+    {
+        try
+        {
+            if (!AppSettings.StationIdReady.IsCompleted)
+                await AppSettings.StationIdReady;
+            await VideoWorkflowManager.RecoverAsync(AppSettings.ResolvedStationId);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"Station {_stationId}: RecoverVideosWhenReadyAsync: {ex.Message}");
+        }
     }
 
     // ── Device Discovery ────────────────────────────────────────────────────
@@ -605,29 +620,39 @@ public partial class StationView : ContentView, IDisposable
                             ["videoFileSizeBytes"] = fileSizeBytes,
                         });
 
-                    var videoId = await ApiService.CreateVideoRecordAsync(
-                        resetBarcode!, filePath, AppSettings.ResolvedStationId, EffectiveOperator);
-
-                    if (videoId > 0)
+                    if (!IsValidMp4(filePath))
                     {
-                        StationEvents.Emit(
-                            workflowName: "Packing",
-                            stepId: "upload_started",
-                            trigger: "barcode_scan",
-                            trackingNumber: resetBarcode,
-                            fromState: "recording",
-                            toState: "uploading",
-                            stationId: AppSettings.ResolvedStationId,
-                                    @operator: EffectiveOperator,
-                            payload: new Dictionary<string, object?>
-                            {
-                                ["videoId"] = videoId,
-                            });
-                        MinioUploadService.UploadAsync(videoId, filePath, resetBarcode!, @operator: EffectiveOperator);
+                        Logger.Log($"Station {_stationId}: recording invalid or empty — skipping upload ({filePath})");
+                        UpdateStatusFromDevices();
                     }
                     else
                     {
-                        Logger.Log($"Station {_stationId}: failed to create video record for reset, skipping upload");
+                        var videoId = await ApiService.CreateVideoRecordAsync(
+                            resetBarcode!, filePath, AppSettings.ResolvedStationId, EffectiveOperator);
+
+                        if (videoId > 0)
+                        {
+                            StationEvents.Emit(
+                                workflowName: "Packing",
+                                stepId: "upload_started",
+                                trigger: "barcode_scan",
+                                trackingNumber: resetBarcode,
+                                fromState: "recording",
+                                toState: "uploading",
+                                stationId: AppSettings.ResolvedStationId,
+                                @operator: EffectiveOperator,
+                                payload: new Dictionary<string, object?>
+                                {
+                                    ["videoId"] = videoId,
+                                });
+                            VideoWorkflowManager.Start(
+                                videoId, filePath, resetBarcode!,
+                                EffectiveOperator, AppSettings.ResolvedStationId);
+                        }
+                        else
+                        {
+                            Logger.Log($"Station {_stationId}: failed to create video record for reset, skipping upload");
+                        }
                     }
                 }
                 else
@@ -680,30 +705,39 @@ public partial class StationView : ContentView, IDisposable
                             ["videoFileSizeBytes"] = fileSizeBytes,
                         });
 
-                    // Register video record (status=Recorded) then upload to MinIO in background
-                    var videoId = await ApiService.CreateVideoRecordAsync(
-                        finishedBarcode!, filePath, AppSettings.ResolvedStationId, EffectiveOperator);
-
-                    if (videoId > 0)
+                    if (!IsValidMp4(filePath))
                     {
-                        StationEvents.Emit(
-                            workflowName: "Packing",
-                            stepId: "upload_started",
-                            trigger: "barcode_scan",
-                            trackingNumber: finishedBarcode,
-                            fromState: "recording",
-                            toState: "uploading",
-                            stationId: AppSettings.ResolvedStationId,
-                                    @operator: EffectiveOperator,
-                            payload: new Dictionary<string, object?>
-                            {
-                                ["videoId"] = videoId,
-                            });
-                        MinioUploadService.UploadAsync(videoId, filePath, finishedBarcode!, @operator: EffectiveOperator);
+                        Logger.Log($"Station {_stationId}: recording invalid or empty — skipping upload ({filePath})");
+                        UpdateStatusFromDevices();
                     }
                     else
                     {
-                        Logger.Log($"Station {_stationId}: failed to create video record, skipping upload");
+                        var videoId = await ApiService.CreateVideoRecordAsync(
+                            finishedBarcode!, filePath, AppSettings.ResolvedStationId, EffectiveOperator);
+
+                        if (videoId > 0)
+                        {
+                            StationEvents.Emit(
+                                workflowName: "Packing",
+                                stepId: "upload_started",
+                                trigger: "barcode_scan",
+                                trackingNumber: finishedBarcode,
+                                fromState: "recording",
+                                toState: "uploading",
+                                stationId: AppSettings.ResolvedStationId,
+                                @operator: EffectiveOperator,
+                                payload: new Dictionary<string, object?>
+                                {
+                                    ["videoId"] = videoId,
+                                });
+                            VideoWorkflowManager.Start(
+                                videoId, filePath, finishedBarcode!,
+                                EffectiveOperator, AppSettings.ResolvedStationId);
+                        }
+                        else
+                        {
+                            Logger.Log($"Station {_stationId}: failed to create video record, skipping upload");
+                        }
                     }
                 }
                 else
@@ -978,6 +1012,27 @@ public partial class StationView : ContentView, IDisposable
         var invalid = Path.GetInvalidFileNameChars();
         var safe = string.Concat(name.Select(c => invalid.Contains(c) ? '_' : c)).Trim();
         return string.IsNullOrEmpty(safe) ? "Station" : safe;
+    }
+
+    /// <summary>
+    /// Validates that a recorded file is a non-empty mp4.
+    /// Checks: exists, ≥1 KB (rules out silent-failure empty files),
+    /// and the 'ftyp' ISO Base Media box marker at bytes 4–7.
+    /// </summary>
+    private static bool IsValidMp4(string? filePath)
+    {
+        if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return false;
+        if (new FileInfo(filePath).Length < 1024) return false;
+        try
+        {
+            Span<byte> header = stackalloc byte[8];
+            using var fs = File.OpenRead(filePath);
+            if (fs.Read(header) < 8) return false;
+            // bytes 4–7 == 'ftyp' (0x66 0x74 0x79 0x70)
+            return header[4] == 0x66 && header[5] == 0x74 &&
+                   header[6] == 0x79 && header[7] == 0x70;
+        }
+        catch { return false; }
     }
 
     private void CloseSerialPort()
