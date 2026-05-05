@@ -9,7 +9,8 @@ namespace app.Workflows.Definitions;
 /// States: pending → uploading → verifying → completed (local file deleted) | failed
 ///
 /// Triggers (all fired by VideoWorkflowRunner):
-///   start          — fired immediately on runner creation
+///   start          — fired immediately on runner creation (normal flow)
+///   recover        — fired by VideoWorkflowManager.RecoverAsync (disk recovery)
 ///   upload_response — after each MinIO PUT; ctx.FailureReason=null on success
 ///   verify_remote  — after HEAD check; ctx.UploadResponseStatus="200"|"404"
 ///   retry_command  — fired by VideoWorkflowManager.HandleRetry (dashboard retry)
@@ -29,6 +30,11 @@ public static class VideoWorkflow
             .State("pending", s => s
                 .On("start")
                     .Do("upload_started", "begin MinIO upload",
+                        StationActions.Noop)
+                    .GoTo("uploading")
+
+                .On("recover")
+                    .Do("upload_recovered", "resume upload from disk recovery",
                         StationActions.Noop)
                     .GoTo("uploading"))
 
@@ -72,7 +78,7 @@ public static class VideoWorkflow
                     .GoTo("failed"))
 
             // ── completed (terminal — runner deletes local file) ─────────────────
-            .State("completed", s => s)
+            .State("completed", _ => { })
 
             // ── failed (terminal — dashboard retry via retry_command) ────────────
             .State("failed", s => s

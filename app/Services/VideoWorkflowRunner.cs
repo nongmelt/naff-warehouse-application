@@ -2,7 +2,9 @@ using app.Workflows;
 using app.Workflows.Definitions;
 using Minio;
 using Minio.DataModel.Args;
+using Minio.Exceptions;
 using System.Diagnostics;
+using System.Net;
 using System.Runtime.Versioning;
 
 namespace app.Services;
@@ -15,29 +17,39 @@ namespace app.Services;
 [SupportedOSPlatform("windows")]
 public sealed class VideoWorkflowRunner
 {
-    private readonly WorkflowEngine  _engine;
-    private readonly WorkflowContext _ctx;
+    private static readonly Lazy<SemaphoreSlim> _uploadGate = new(() =>
+    {
+        var max = AppSettings.MaxConcurrentUploads;
+        Logger.Log($"[VideoWorkflowRunner] upload gate initialized: max {max} concurrent uploads");
+        return new SemaphoreSlim(max, max);
+    });
+    private static IMinioClient? _sharedMinio;
+    private static readonly object _minioLock = new();
 
-    // MinIO state set during upload, reused for verify
-    private IMinioClient? _minio;
-    private string?       _bucket;
-    private string?       _objectName;
+    private readonly WorkflowEngine _engine;
+    private readonly WorkflowContext _ctx;
+    private readonly bool _isRecovery;
+
+    private string? _bucket;
+    private string? _objectName;
 
     public VideoWorkflowRunner(
-        int     videoId,
-        string  localFilePath,
-        string  trackingNumber,
+        int videoId,
+        string localFilePath,
+        string trackingNumber,
         string? @operator,
-        int?    stationId)
+        int? stationId,
+        bool isRecovery = false)
     {
+        _isRecovery = isRecovery;
         _engine = new WorkflowEngine(VideoWorkflow.Build());
-        _ctx    = new WorkflowContext
+        _ctx = new WorkflowContext
         {
-            VideoId       = videoId,
+            VideoId = videoId,
             LocalFilePath = localFilePath,
             ActiveBarcode = trackingNumber,
-            Operator      = @operator?.Replace(' ', '-'),
-            StationId     = stationId,
+            Operator = @operator?.Replace(' ', '-'),
+            StationId = stationId,
         };
     }
 
@@ -49,14 +61,19 @@ public sealed class VideoWorkflowRunner
     /// </summary>
     public async Task RunAsync(CancellationToken ct = default)
     {
+        var fileName = Path.GetFileName(_ctx.LocalFilePath) ?? "unknown";
+
         // pending → uploading
-        await _engine.FireAsync("start", _ctx);
+        VideoWorkflowManager.ReportProgress(_ctx.VideoId!.Value, fileName, "Uploading", 0);
+        await _engine.FireAsync(_isRecovery ? "recover" : "start", _ctx);
 
         // Upload loop — engine guards determine retry vs success vs exhausted
         while (_engine.CurrentState == "uploading" && !ct.IsCancellationRequested)
         {
             if (_ctx.UploadAttempt > 0)
                 await BackoffAsync(_ctx.UploadAttempt, ct);
+
+            VideoWorkflowManager.ReportProgress(_ctx.VideoId!.Value, fileName, "Uploading", _ctx.UploadAttempt + 1);
 
             var sw = Stopwatch.StartNew();
             try
@@ -67,10 +84,10 @@ public sealed class VideoWorkflowRunner
                 var (_, sizeBytes) = await DoMinioUploadAsync(ct);
                 sw.Stop();
 
-                _ctx.FailureReason        = null;
+                _ctx.FailureReason = null;
                 _ctx.UploadResponseStatus = "200";
-                _ctx.UploadDurationMs     = sw.ElapsedMilliseconds;
-                _ctx.VideoFileSizeBytes   = sizeBytes;
+                _ctx.UploadDurationMs = sw.ElapsedMilliseconds;
+                _ctx.VideoFileSizeBytes = sizeBytes;
 
                 await ApiService.UpdateVideoStatusAsync(
                     _ctx.VideoId.Value, "Uploaded", uploadAttempts: _ctx.UploadAttempt + 1);
@@ -78,21 +95,50 @@ public sealed class VideoWorkflowRunner
             catch (Exception ex)
             {
                 sw.Stop();
-                _ctx.FailureReason        = ClassifyFailure(ex);
+                _ctx.FailureReason = ClassifyFailure(ex);
                 _ctx.UploadResponseStatus = null;
-                _ctx.UploadDurationMs     = sw.ElapsedMilliseconds;
-                Logger.Log($"[VideoWorkflowRunner:{_ctx.VideoId}] upload attempt {_ctx.UploadAttempt + 1} failed — {ex.Message}");
+                _ctx.UploadDurationMs = sw.ElapsedMilliseconds;
+                VideoWorkflowManager.ReportProgress(_ctx.VideoId!.Value, fileName, $"Retry ({_ctx.UploadAttempt + 1}/3)", _ctx.UploadAttempt + 1);
+
+                var detail = ex.InnerException is not null
+                    ? $"{ex.Message} → {ex.InnerException.Message}"
+                    : ex.Message;
+                var extra = $" elapsed={sw.ElapsedMilliseconds}ms";
+                if (ex is MinioException mex)
+                    extra += $" minio_error={mex.ServerMessage ?? mex.Message}";
+                if (ex is TaskCanceledException && sw.ElapsedMilliseconds < 115_000)
+                    extra += " (likely HTTP client timeout, not per-attempt CTS)";
+                if (ex.InnerException is HttpRequestException httpEx)
+                    extra += $" http_status={httpEx.StatusCode}";
+
+                // Walk full exception chain for hidden details
+                var inner = ex.InnerException;
+                while (inner is not null)
+                {
+                    if (inner is MinioException innerMex)
+                        extra += $" inner_minio={innerMex.ServerMessage}";
+                    if (inner is HttpRequestException innerHttp)
+                        extra += $" inner_http={innerHttp.StatusCode}";
+                    inner = inner.InnerException;
+                }
+
+                Logger.Log($"[VideoWorkflowRunner:{_ctx.VideoId}] upload attempt {_ctx.UploadAttempt + 1} failed — {detail} [{ex.GetType().Name}]{extra}");
             }
 
             _ctx.UploadAttempt++;
             await _engine.FireAsync("upload_response", _ctx);
         }
 
-        if (ct.IsCancellationRequested) return;
+        if (ct.IsCancellationRequested)
+        {
+            Logger.Log($"[VideoWorkflowRunner:{_ctx.VideoId}] runner canceled — state={_engine.CurrentState}, attempt={_ctx.UploadAttempt}, reason={_ctx.FailureReason}");
+            return;
+        }
 
         // Verify phase
         if (_engine.CurrentState == "verifying")
         {
+            VideoWorkflowManager.ReportProgress(_ctx.VideoId!.Value, fileName, "Verifying", _ctx.UploadAttempt);
             var exists = await DoMinioVerifyAsync();
             _ctx.UploadResponseStatus = exists ? "200" : "404";
 
@@ -114,15 +160,20 @@ public sealed class VideoWorkflowRunner
         // Post-state actions
         if (_engine.CurrentState == "completed")
         {
-            TryDeleteLocalFile();
+            VideoWorkflowManager.ReportProgress(_ctx.VideoId!.Value, fileName, "Completed", _ctx.UploadAttempt);
+            if (AppSettings.AutoDeleteCompletedVideos)
+                TryDeleteLocalFile();
+            VideoWorkflowManager.RemoveProgress(_ctx.VideoId!.Value);
         }
         else if (_engine.CurrentState == "failed")
         {
+            VideoWorkflowManager.ReportProgress(_ctx.VideoId!.Value, fileName, "Failed", _ctx.UploadAttempt);
             await ApiService.UpdateVideoStatusAsync(
                 _ctx.VideoId!.Value, "Failed",
                 failureReason: _ctx.FailureReason,
                 uploadAttempts: _ctx.UploadAttempt);
             await ApiService.NotifyManualUploadNeededAsync(_ctx.VideoId!.Value);
+            VideoWorkflowManager.RemoveProgress(_ctx.VideoId!.Value);
         }
     }
 
@@ -139,50 +190,86 @@ public sealed class VideoWorkflowRunner
 
     // ── MinIO helpers ────────────────────────────────────────────────────────
 
+    private static IMinioClient GetOrCreateMinioClient()
+    {
+        if (_sharedMinio is not null) return _sharedMinio;
+        lock (_minioLock)
+        {
+            if (_sharedMinio is not null) return _sharedMinio;
+
+            var endpoint = AppSettings.MinioEndpoint?.Trim();
+            var accessKey = AppSettings.MinioAccessKey?.Trim();
+            var secretKey = AppSettings.MinioSecretKey?.Trim();
+
+            if (string.IsNullOrWhiteSpace(endpoint) || string.IsNullOrWhiteSpace(accessKey) ||
+                string.IsNullOrWhiteSpace(secretKey))
+                throw new InvalidOperationException("MinIO not configured");
+
+            var uri = endpoint.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                      endpoint.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+                    ? new Uri(endpoint) : new Uri("http://" + endpoint);
+            Logger.Log($"[MinIO] connecting → endpoint={uri.Authority}, scheme={uri.Scheme}, bucket={AppSettings.MinioBucket}");
+            var builder = new MinioClient()
+                .WithEndpoint(uri.Authority)
+                .WithCredentials(accessKey, secretKey)
+                .WithTimeout(180_000);
+            if (uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
+                builder = builder.WithSSL();
+
+            _sharedMinio = builder.Build();
+            return _sharedMinio;
+        }
+    }
+
     private async Task<(string objectName, long sizeBytes)> DoMinioUploadAsync(CancellationToken ct)
     {
-        var endpoint  = AppSettings.MinioEndpoint?.Trim();
-        var accessKey = AppSettings.MinioAccessKey?.Trim();
-        var secretKey = AppSettings.MinioSecretKey?.Trim();
-        var bucket    = AppSettings.MinioBucket?.Trim();
+        var bucket = AppSettings.MinioBucket?.Trim();
+        if (string.IsNullOrWhiteSpace(bucket))
+            throw new InvalidOperationException("MinIO bucket not configured");
 
-        if (string.IsNullOrWhiteSpace(endpoint) || string.IsNullOrWhiteSpace(accessKey) ||
-            string.IsNullOrWhiteSpace(secretKey) || string.IsNullOrWhiteSpace(bucket))
-            throw new InvalidOperationException("MinIO not configured");
+        var minio = GetOrCreateMinioClient();
+        var filePath = _ctx.LocalFilePath!;
+        var dateDir = Path.GetFileName(Path.GetDirectoryName(Path.GetDirectoryName(filePath)))
+                         ?? DateTime.Now.ToString("yyyy-MM-dd");
+        var objectName = $"{dateDir}/{Path.GetFileName(filePath)}";
 
-        var filePath   = _ctx.LocalFilePath!;
-        var objectName = $"{DateTime.Now:yyyy-MM-dd}/{Path.GetFileName(filePath)}";
-
-        var uri    = endpoint.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                     endpoint.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
-                   ? new Uri(endpoint) : new Uri("http://" + endpoint);
-        var builder = new MinioClient()
-            .WithEndpoint(uri.Authority)
-            .WithCredentials(accessKey, secretKey);
-        if (uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
-            builder = builder.WithSSL();
-
-        _minio      = builder.Build();
-        _bucket     = bucket;
+        _bucket = bucket;
         _objectName = objectName;
 
-        using var stream = File.OpenRead(filePath);
-        var size = stream.Length;
-        await _minio.PutObjectAsync(new PutObjectArgs()
-            .WithBucket(bucket).WithObject(objectName)
-            .WithStreamData(stream).WithObjectSize(size)
-            .WithContentType("video/mp4"), ct);
+        var gate = _uploadGate.Value;
+        await gate.WaitAsync(ct);
+        try
+        {
+            using var stream = File.OpenRead(filePath);
+            var size = stream.Length;
+            var max = AppSettings.MaxConcurrentUploads;
+            Logger.Log($"[VideoWorkflowRunner:{_ctx.VideoId}] uploading {objectName} ({size / 1_048_576.0:F1} MB) → {bucket} [gate: {max - gate.CurrentCount}/{max} active]");
+            var progress = new Progress<Minio.DataModel.ProgressReport>(p =>
+                Logger.Log($"[VideoWorkflowRunner:{_ctx.VideoId}] upload progress — {p}"));
+            using var attemptCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            attemptCts.CancelAfter(TimeSpan.FromSeconds(120));
+            Logger.Log($"[VideoWorkflowRunner:{_ctx.VideoId}] PutObjectAsync starting — parent ct={ct.IsCancellationRequested}, attempt ct={attemptCts.Token.IsCancellationRequested}");
+            var putResponse = await minio.PutObjectAsync(new PutObjectArgs()
+                .WithBucket(bucket).WithObject(objectName)
+                .WithStreamData(stream).WithObjectSize(size)
+                .WithContentType("video/mp4")
+                .WithProgress(progress), attemptCts.Token);
 
-        Logger.Log($"[VideoWorkflowRunner:{_ctx.VideoId}] uploaded {objectName} ({size / 1_048_576.0:F1} MB)");
-        return (objectName, size);
+            Logger.Log($"[VideoWorkflowRunner:{_ctx.VideoId}] uploaded {objectName} ({size / 1_048_576.0:F1} MB)");
+            return (objectName, size);
+        }
+        finally
+        {
+            gate.Release();
+        }
     }
 
     private async Task<bool> DoMinioVerifyAsync()
     {
-        if (_minio is null || _bucket is null || _objectName is null) return false;
+        if (_sharedMinio is null || _bucket is null || _objectName is null) return false;
         try
         {
-            await _minio.StatObjectAsync(new StatObjectArgs()
+            await _sharedMinio.StatObjectAsync(new StatObjectArgs()
                 .WithBucket(_bucket).WithObject(_objectName));
             return true;
         }

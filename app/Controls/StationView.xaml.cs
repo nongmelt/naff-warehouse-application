@@ -95,6 +95,40 @@ public partial class StationView : ContentView, IDisposable
     private void OnAnyCameraSelectionChanged() =>
         MainThread.BeginInvokeOnMainThread(RefreshCameraPickerLabels);
 
+    private void OnUploadProgressChanged() =>
+        MainThread.BeginInvokeOnMainThread(UpdateUploadProgressBadge);
+
+    private void UpdateUploadProgressBadge()
+    {
+        var items = VideoWorkflowManager.GetSnapshot();
+        if (items.Count == 0)
+        {
+            UploadProgressBadge.IsVisible = false;
+            return;
+        }
+
+        var uploading = items.Count(i => i.Status == "Uploading");
+        var verifying = items.Count(i => i.Status == "Verifying");
+        var retrying  = items.Count(i => i.Status.StartsWith("Retry"));
+
+        string title;
+        if (uploading > 0)
+            title = $"Uploading {uploading} file{(uploading > 1 ? "s" : "")}";
+        else if (verifying > 0)
+            title = "Verifying...";
+        else if (retrying > 0)
+            title = "Retrying...";
+        else
+            title = "Processing...";
+
+        var completed = items.Count(i => i.Status == "Completed");
+        var detail = $"{completed}/{items.Count} done";
+
+        UploadProgressTitle.Text  = title;
+        UploadProgressDetail.Text = detail;
+        UploadProgressBadge.IsVisible = true;
+    }
+
     /// <summary>
     /// Rebuilds the camera picker display names from the already-loaded camera list —
     /// no device re-fetch. Called when another station changes its selection.
@@ -269,29 +303,16 @@ public partial class StationView : ContentView, IDisposable
         _stationName = $"Station {stationId}";
         StationNameLabel.Text = _stationName;
         AnyCameraSelectionChanged += OnAnyCameraSelectionChanged;
+        VideoWorkflowManager.ProgressChanged += OnUploadProgressChanged;
         // Load devices AFTER the view (and its CameraView handler) is fully in the visual tree
         Loaded += OnViewLoaded;
     }
 
     private void OnViewLoaded(object? sender, EventArgs e)
     {
+        UpdateUploadProgressBadge();
         _ = LoadDevicesAsync();
         _ = LoadTodayVideoCountAsync();
-        _ = RecoverVideosWhenReadyAsync();
-    }
-
-    private async Task RecoverVideosWhenReadyAsync()
-    {
-        try
-        {
-            if (!AppSettings.StationIdReady.IsCompleted)
-                await AppSettings.StationIdReady;
-            await VideoWorkflowManager.RecoverAsync(AppSettings.ResolvedStationId);
-        }
-        catch (Exception ex)
-        {
-            Logger.Log($"Station {_stationId}: RecoverVideosWhenReadyAsync: {ex.Message}");
-        }
     }
 
     // ── Device Discovery ────────────────────────────────────────────────────
@@ -914,10 +935,9 @@ public partial class StationView : ContentView, IDisposable
     {
         try
         {
-            var prefix = SanitizeFileName(_stationName).Replace(' ', '-');
-            var dir = Path.Combine(AppSettings.VideoFolder, DateTime.Now.ToString("yyyy-MM-dd"), prefix);
-            _videoCount = Directory.Exists(dir)
-                ? Directory.GetFiles(dir, $"*_{prefix}_*.mp4").Length
+            var stationId = AppSettings.ResolvedStationId;
+            _videoCount = stationId is not null
+                ? await ApiService.GetTodayVideoCountAsync(stationId.Value)
                 : 0;
 
             await MainThread.InvokeOnMainThreadAsync(() =>
@@ -1111,6 +1131,7 @@ public partial class StationView : ContentView, IDisposable
 
     public void Dispose()
     {
+        VideoWorkflowManager.ProgressChanged -= OnUploadProgressChanged;
         AnyCameraSelectionChanged -= OnAnyCameraSelectionChanged;
         _stationCameraMap.TryRemove(_stationId, out _);
         AnyCameraSelectionChanged?.Invoke(); // release "in use" label on other stations

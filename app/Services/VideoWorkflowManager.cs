@@ -3,6 +3,8 @@ using System.Runtime.Versioning;
 
 namespace app.Services;
 
+public sealed record UploadProgress(int VideoId, string FileName, string Status, int Attempt);
+
 /// <summary>
 /// Creates and tracks VideoWorkflowRunner instances (one per videoId).
 /// RecoverAsync restarts runners for in-flight uploads that did not complete in a
@@ -12,6 +14,24 @@ namespace app.Services;
 public static class VideoWorkflowManager
 {
     private static readonly ConcurrentDictionary<int, Task> _active = new();
+    private static readonly ConcurrentDictionary<int, UploadProgress> _progress = new();
+
+    public static event Action? ProgressChanged;
+
+    public static IReadOnlyList<UploadProgress> GetSnapshot() =>
+        _progress.Values.ToList();
+
+    public static void ReportProgress(int videoId, string fileName, string status, int attempt)
+    {
+        _progress[videoId] = new UploadProgress(videoId, fileName, status, attempt);
+        ProgressChanged?.Invoke();
+    }
+
+    public static void RemoveProgress(int videoId)
+    {
+        _progress.TryRemove(videoId, out _);
+        ProgressChanged?.Invoke();
+    }
 
     /// <summary>
     /// Creates and starts a VideoWorkflowRunner in the background.
@@ -22,13 +42,14 @@ public static class VideoWorkflowManager
         string  localFilePath,
         string  trackingNumber,
         string? @operator,
-        int?    stationId)
+        int?    stationId,
+        bool    isRecovery = false)
     {
         _active.AddOrUpdate(
             videoId,
             addValueFactory: id =>
             {
-                var runner = new VideoWorkflowRunner(id, localFilePath, trackingNumber, @operator, stationId);
+                var runner = new VideoWorkflowRunner(id, localFilePath, trackingNumber, @operator, stationId, isRecovery);
                 return Task.Run(() => runner.RunAsync()).ContinueWith(_ => Prune(id));
             },
             updateValueFactory: (id, existing) =>
@@ -38,7 +59,7 @@ public static class VideoWorkflowManager
                     Logger.Log($"[VideoWorkflowManager] video {id} already has an active runner — skipping");
                     return existing;
                 }
-                var runner = new VideoWorkflowRunner(id, localFilePath, trackingNumber, @operator, stationId);
+                var runner = new VideoWorkflowRunner(id, localFilePath, trackingNumber, @operator, stationId, isRecovery);
                 return Task.Run(() => runner.RunAsync()).ContinueWith(_ => Prune(id));
             });
     }
@@ -69,27 +90,93 @@ public static class VideoWorkflowManager
     }
 
     /// <summary>
-    /// Queries the backend for videos with status Recorded/Uploading/Uploaded (crashed
-    /// mid-flight) and starts a runner for each whose local file still exists on disk.
-    /// Failed videos are excluded — those require an explicit dashboard retry command.
+    /// Scans all configured video folders for .mp4 files on disk, batch-resolves
+    /// them against backend by filename + stationId, then decides per file:
+    ///   - Backend status "Completed" → log as removable (manual delete for cross-check)
+    ///   - Backend status "Failed" → restart video workflow
+    ///   - No backend record → create record and start video workflow
+    ///   - Backend status in-flight (Recorded/Uploading/Uploaded) → restart workflow
     /// Safe to call on every StationView load; skips already-active runners.
     /// </summary>
     public static async Task RecoverAsync(int? stationId)
     {
         if (stationId is null) return;
 
-        var pending = await ApiService.GetPendingVideosForStationAsync(stationId.Value);
-        foreach (var v in pending)
+        var folders = AppSettings.VideoFolders;
+        var localFiles = new List<string>();
+        foreach (var folder in folders)
         {
-            if (_active.TryGetValue(v.Id, out var t) && !t.IsCompleted) continue;
-            if (string.IsNullOrEmpty(v.FilePath) || !File.Exists(v.FilePath))
-            {
-                Logger.Log($"[VideoWorkflowManager] recovery: video {v.Id} — file not found at {v.FilePath}");
-                continue;
-            }
-            Logger.Log($"[VideoWorkflowManager] recovery: restarting video {v.Id} ({v.FilePath})");
-            Start(v.Id, v.FilePath, v.TrackingNumber ?? "", v.Operator, stationId);
+            if (!Directory.Exists(folder)) continue;
+            localFiles.AddRange(Directory.EnumerateFiles(folder, "*.mp4", SearchOption.AllDirectories));
         }
+
+        if (localFiles.Count == 0) return;
+
+        var fileNames = localFiles.Select(Path.GetFileName).Where(n => n is not null).ToList()!;
+        var resolved = await ApiService.ResolveVideosByFileNamesAsync(stationId.Value, fileNames!);
+
+        var byFileName = new Dictionary<string, ApiService.VideoDetail>(StringComparer.OrdinalIgnoreCase);
+        foreach (var v in resolved)
+        {
+            var fn = Path.GetFileName(v.FilePath);
+            if (!string.IsNullOrEmpty(fn))
+                byFileName.TryAdd(fn, v);
+        }
+
+        foreach (var filePath in localFiles)
+        {
+            var fileName = Path.GetFileName(filePath);
+            if (string.IsNullOrEmpty(fileName)) continue;
+
+            if (byFileName.TryGetValue(fileName, out var record))
+            {
+                if (record.Status == "Completed")
+                {
+                    if (AppSettings.AutoDeleteCompletedVideos)
+                    {
+                        try
+                        {
+                            File.Delete(filePath);
+                            Logger.Log($"[VideoWorkflowManager] recovery: video {record.Id} completed — deleted: {filePath}");
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Log($"[VideoWorkflowManager] recovery: video {record.Id} completed — delete failed: {ex.Message}");
+                        }
+                    }
+                    continue;
+                }
+
+                if (_active.TryGetValue(record.Id, out var t) && !t.IsCompleted) continue;
+
+                Logger.Log($"[VideoWorkflowManager] recovery: video {record.Id} status={record.Status} — restarting: {filePath}");
+                Start(record.Id, filePath, record.TrackingNumber ?? "", record.Operator, stationId, isRecovery: true);
+            }
+            else
+            {
+                var trackingNumber = ParseTrackingFromFileName(Path.GetFileNameWithoutExtension(filePath));
+                Logger.Log($"[VideoWorkflowManager] recovery: no backend record — creating for: {filePath}");
+
+                var videoId = await ApiService.CreateVideoRecordAsync(
+                    trackingNumber, filePath, stationId, "recovery");
+
+                if (videoId > 0)
+                    Start(videoId, filePath, trackingNumber, null, stationId, isRecovery: true);
+                else
+                    Logger.Log($"[VideoWorkflowManager] recovery: failed to create record for {filePath}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Extracts tracking number from filename format: {yyyyMMdd_HHmmss}_{Machine}_{Station}_{Tracking}
+    /// Falls back to full filename if pattern doesn't match.
+    /// </summary>
+    private static string ParseTrackingFromFileName(string fileNameWithoutExt)
+    {
+        var parts = fileNameWithoutExt.Split('_');
+        // Expected: date_time_machine_station_tracking (5+ parts, tracking is last)
+        return parts.Length >= 5 ? parts[^1] : fileNameWithoutExt;
     }
 
     private static void Prune(int videoId)

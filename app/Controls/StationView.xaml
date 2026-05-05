@@ -101,6 +101,30 @@
                            HorizontalTextAlignment="Center"/>
                 </Border>
 
+                <!-- Upload progress badge — bottom-right, above video count -->
+                <Border x:Name="UploadProgressBadge"
+                        IsVisible="False"
+                        BackgroundColor="#CC1d4ed8"
+                        StrokeShape="RoundRectangle 6"
+                        StrokeThickness="0"
+                        Padding="10,6"
+                        HorizontalOptions="End"
+                        VerticalOptions="End"
+                        Margin="0,0,8,44"
+                        InputTransparent="True">
+                    <VerticalStackLayout Spacing="2">
+                        <Label x:Name="UploadProgressTitle"
+                               Text="Uploading"
+                               TextColor="White"
+                               FontSize="10"
+                               FontAttributes="Bold"/>
+                        <Label x:Name="UploadProgressDetail"
+                               Text="0/0 files"
+                               TextColor="#dbeafe"
+                               FontSize="9"/>
+                    </VerticalStackLayout>
+                </Border>
+
                 <!-- Saving / encoding overlay — shown between stop-scan and file write completing -->
                 <Border x:Name="SavingOverlay"
                         IsVisible="False"
