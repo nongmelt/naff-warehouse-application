@@ -29,7 +29,11 @@ public static class ApiService
             if (_http is null || _httpBase != url)
             {
                 _http?.Dispose();
-                _http = new HttpClient { BaseAddress = new Uri(url) };
+                _http = new HttpClient
+                {
+                    BaseAddress = new Uri(url),
+                    Timeout = TimeSpan.FromSeconds(30),
+                };
                 _httpBase = url;
             }
             return _http;
@@ -270,6 +274,28 @@ public static class ApiService
         }
     }
 
+    public static async Task<List<VideoDetail>> ResolveVideosByFileNamesAsync(int stationId, List<string> fileNames)
+    {
+        if (fileNames.Count == 0) return [];
+        try
+        {
+            var body = new { stationId, fileNames };
+            var resp = await Http.PostAsJsonAsync("videos/resolve", body, JsonOpts);
+            if (!resp.IsSuccessStatusCode)
+            {
+                Logger.Log($"ApiService.ResolveVideosByFileNamesAsync: HTTP {(int)resp.StatusCode}");
+                return [];
+            }
+            var result = await resp.Content.ReadFromJsonAsync<List<VideoDetail>>(JsonOpts);
+            return result ?? [];
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.ResolveVideosByFileNamesAsync: {ex.Message}");
+            return [];
+        }
+    }
+
     /// <summary>
     /// Fetches a single video record by id. Used by UploadCommandListener to
     /// get the local file path for a dashboard-triggered retry (replaces ReuploadQueue).
@@ -284,6 +310,24 @@ public static class ApiService
         {
             Logger.Log($"ApiService.GetVideoAsync: {ex.Message}");
             return null;
+        }
+    }
+
+    // ── Video count ───────────────────────────────────────────────────────────
+
+    public static async Task<int> GetTodayVideoCountAsync(int stationId)
+    {
+        try
+        {
+            var from = DateTime.Today.ToUniversalTime().ToString("o");
+            var node = await Http.GetFromJsonAsync<JsonNode>(
+                $"videos/station/{stationId}/count?from={Uri.EscapeDataString(from)}", JsonOpts);
+            return node?["count"]?.GetValue<int>() ?? 0;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.GetTodayVideoCountAsync: {ex.Message}");
+            return 0;
         }
     }
 
@@ -391,13 +435,13 @@ public static class ApiService
     private record VideoRecord(
         [property: JsonPropertyName("id")] int Id);
 
-    internal record PendingVideoRecord(
+    public record PendingVideoRecord(
         [property: JsonPropertyName("id")]             int     Id,
         [property: JsonPropertyName("trackingNumber")] string? TrackingNumber,
         [property: JsonPropertyName("filePath")]       string  FilePath,
         [property: JsonPropertyName("operator")]       string? Operator);
 
-    internal record VideoDetail(
+    public record VideoDetail(
         [property: JsonPropertyName("id")]             int     Id,
         [property: JsonPropertyName("trackingNumber")] string? TrackingNumber,
         [property: JsonPropertyName("filePath")]       string  FilePath,
