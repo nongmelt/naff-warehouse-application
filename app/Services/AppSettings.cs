@@ -10,10 +10,11 @@ public static class AppSettings
     private const string KeyVideoFolder = "settings.video_folder";
     private const string KeyVideoFolders = "settings.video_folders";            // semicolon-separated ordered list
     private const string KeyVideoFolderMinFreeSpace = "settings.video_folder_min_free_bytes";
-    private const string KeyWebhookUrl = "settings.webhook_url";
     private const string KeyApiUrl = "settings.api_url";
     private const string KeyStationId = "settings.station_id";
     private const string KeyUseDeclarativeWorkflow = "settings.use_declarative_workflow";
+    private const string KeyAutoDeleteCompletedVideos = "settings.auto_delete_completed_videos";
+    private const string KeyMaxConcurrentUploads = "settings.max_concurrent_uploads";
     private const string KeySeeded = "settings.seeded.v3";
 
     private const string KeyMinioBucket = "settings.minio.bucket";
@@ -23,9 +24,6 @@ public static class AppSettings
 
     public static readonly string DefaultVideoFolder =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Warehouse");
-
-    public const string DefaultWebhookUrl =
-        "http://localhost:5678/webhook-test/7842c780-4224-4c16-abb7-2973e1407835";
 
     public const string DefaultApiUrl = "http://localhost:8080";
 
@@ -49,10 +47,6 @@ public static class AppSettings
                 if (File.Exists(configPath))
                 {
                     var doc = JsonDocument.Parse(File.ReadAllText(configPath)).RootElement;
-
-                    if (doc.TryGetProperty("webhookUrl", out var wh) &&
-                        !string.IsNullOrWhiteSpace(wh.GetString()))
-                        Preferences.Default.Set(KeyWebhookUrl, wh.GetString()!);
 
                     if (doc.TryGetProperty("videoFolder", out var vf) &&
                         !string.IsNullOrWhiteSpace(vf.GetString()))
@@ -88,6 +82,14 @@ public static class AppSettings
                     if (doc.TryGetProperty("useDeclarativeWorkflow", out var udw) &&
                         udw.ValueKind is JsonValueKind.True or JsonValueKind.False)
                         Preferences.Default.Set(KeyUseDeclarativeWorkflow, udw.GetBoolean());
+
+                    if (doc.TryGetProperty("autoDeleteCompletedVideos", out var adv) &&
+                        adv.ValueKind is JsonValueKind.True or JsonValueKind.False)
+                        Preferences.Default.Set(KeyAutoDeleteCompletedVideos, adv.GetBoolean());
+
+                    if (doc.TryGetProperty("maxConcurrentUploads", out var mcu) &&
+                        mcu.TryGetInt32(out var mcuVal) && mcuVal > 0)
+                        Preferences.Default.Set(KeyMaxConcurrentUploads, mcuVal);
 
                     Logger.Log("AppSettings: seeded general settings from appsettings.json");
                 }
@@ -168,8 +170,7 @@ public static class AppSettings
     }
 
     /// <summary>
-    /// First path from the VideoFolders list (backward-compatible alias used by
-    /// LoadTodayVideoCountAsync and ScriptService which always reference the primary folder).
+    /// First path from the VideoFolders list (backward-compatible alias).
     /// Setting this replaces the entire list with a single entry.
     /// </summary>
     public static string VideoFolder
@@ -264,10 +265,16 @@ public static class AppSettings
         return DefaultVideoFolder;
     }
 
-    public static string WebhookUrl
+    public static bool AutoDeleteCompletedVideos
     {
-        get => Preferences.Default.Get(KeyWebhookUrl, DefaultWebhookUrl);
-        set => Preferences.Default.Set(KeyWebhookUrl, value);
+        get => Preferences.Default.Get(KeyAutoDeleteCompletedVideos, false);
+        set => Preferences.Default.Set(KeyAutoDeleteCompletedVideos, value);
+    }
+
+    public static int MaxConcurrentUploads
+    {
+        get => Math.Max(1, Preferences.Default.Get(KeyMaxConcurrentUploads, 3));
+        set => Preferences.Default.Set(KeyMaxConcurrentUploads, Math.Max(1, value));
     }
 
     public static string ApiUrl

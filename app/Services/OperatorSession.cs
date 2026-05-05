@@ -2,7 +2,7 @@ using System.Runtime.Versioning;
 
 namespace app.Services;
 
-public enum SessionKind { Packing, Qc }
+public enum SessionKind { Packing, QC }
 
 /// <summary>
 /// Per-station operator session with configurable inactivity auto-logout.
@@ -61,7 +61,7 @@ public sealed class OperatorSession : IDisposable
     {
         if (!IsLoggedIn) return;
         var idle = DateTime.UtcNow - _lastActivity;
-        var limit = _kind == SessionKind.Qc
+        var limit = _kind == SessionKind.QC
             ? AppSettings.QcInactivityMinutes
             : AppSettings.PackingInactivityMinutes;
         if (idle.TotalMinutes >= limit)

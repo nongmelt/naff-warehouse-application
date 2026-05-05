@@ -18,7 +18,10 @@ public partial class App : Application
 			Services.AppSettings.CompleteStationResolution(id);
 			Services.Logger.Log($"App: station resolved → id={id}");
 			if (id is not null)
+			{
 				Services.StationWsClient.Start(id.Value);
+				await Services.VideoWorkflowManager.RecoverAsync(id);
+			}
 		});
 		InitializeComponent();
 	}

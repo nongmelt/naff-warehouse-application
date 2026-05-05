@@ -173,4 +173,44 @@ public static class StationActions
         Task UploadAsync(WorkflowContext ctx);
         Task VerifyRemoteAsync(WorkflowContext ctx);
     }
+
+    /// <summary>
+    /// Fired in the verify state when ctx.LocalFileIsValid is true.
+    /// Creates the backend video record and hands off to VideoWorkflowManager.
+    /// Caller (StationView) populates ctx.LocalFilePath, ctx.ActiveBarcode,
+    /// ctx.Operator, and ctx.StationId before firing file_checked.
+    /// </summary>
+    public static Func<WorkflowContext, Task> StartVideoWorkflow =>
+        async ctx =>
+        {
+            if (string.IsNullOrEmpty(ctx.LocalFilePath)) return;
+
+            var videoId = await ApiService.CreateVideoRecordAsync(
+                ctx.ActiveBarcode ?? "",
+                ctx.LocalFilePath,
+                AppSettings.ResolvedStationId,
+                ctx.Operator ?? "unknown");
+
+            if (videoId > 0)
+            {
+                ctx.VideoId = videoId;
+                VideoWorkflowManager.Start(
+                    videoId,
+                    ctx.LocalFilePath,
+                    ctx.ActiveBarcode ?? "",
+                    ctx.Operator,
+                    ctx.StationId ?? AppSettings.ResolvedStationId);
+            }
+            else
+            {
+                Logger.Log($"[StationActions] failed to create video record for {ctx.LocalFilePath}");
+            }
+        };
+
+    public static Func<WorkflowContext, Task> LogInvalidFile =>
+        ctx =>
+        {
+            Logger.Log($"[StationActions] invalid or empty recording at {ctx.LocalFilePath} — skipping upload");
+            return Task.CompletedTask;
+        };
 }
