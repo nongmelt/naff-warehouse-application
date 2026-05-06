@@ -93,10 +93,10 @@ public partial class StationView : ContentView, IDisposable
     }
 
     private void OnAnyCameraSelectionChanged() =>
-        MainThread.BeginInvokeOnMainThread(RefreshCameraPickerLabels);
+        TryDispatchUI(RefreshCameraPickerLabels);
 
     private void OnUploadProgressChanged() =>
-        MainThread.BeginInvokeOnMainThread(UpdateUploadProgressBadge);
+        TryDispatchUI(UpdateUploadProgressBadge);
 
     private void UpdateUploadProgressBadge()
     {
