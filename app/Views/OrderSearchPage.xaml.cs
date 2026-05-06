@@ -408,10 +408,10 @@ public partial class OrderSearchPage : ContentPage
             _sessionIndex = _sessions.Count - 1;
 
             // Cap history — evict by priority: completed first, then incoming, incomplete last
-            const int MaxSessions = 50;
-            if (_sessions.Count > MaxSessions)
+            var maxSessions = AppSettings.SearchHistoryMaxItems;
+            if (_sessions.Count > maxSessions)
             {
-                var excess = _sessions.Count - MaxSessions;
+                var excess = _sessions.Count - maxSessions;
                 var evictIndices = Enumerable.Range(0, _sessions.Count)
                     .Where(i => i != _sessionIndex)
                     .Select(i =>
