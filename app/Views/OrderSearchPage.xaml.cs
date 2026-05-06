@@ -609,6 +609,7 @@ public partial class OrderSearchPage : ContentPage
                     ["sku"] = barcode,
                     ["qtyRemaining"] = found.Quantity,
                 });
+            found.PickQtyText = "1";
             found.IsBeingPicked = true;
             FocusItemEntry(found);
             var label = found.Name + (found.HasVariation ? $" · {found.Variation}" : "");
@@ -639,13 +640,20 @@ public partial class OrderSearchPage : ContentPage
         if (entry.BindingContext is not ProductItem item) return;
 
         var raw = e.NewTextValue ?? "";
-        // Strip any non-digit characters
         var digits = new string(raw.Where(char.IsDigit).ToArray());
         if (digits != raw) { entry.Text = digits; return; }
+        if (digits.Length > 1 && digits[0] == '0') { entry.Text = digits.TrimStart('0'); return; }
 
         if (string.IsNullOrEmpty(digits)) return;
         if (int.TryParse(digits, out var qty) && qty > item.Quantity)
-            entry.Text = item.Quantity.ToString();
+        {
+            // Overflow: use only the last typed digit if it fits, otherwise cap
+            var lastDigit = digits[^1..];
+            if (int.TryParse(lastDigit, out var single) && single <= item.Quantity)
+                entry.Text = lastDigit;
+            else
+                entry.Text = item.Quantity.ToString();
+        }
     }
 
     private void ApplySkuDeduction(ProductItem item, string? qtyText, DeductionSource source)
@@ -861,7 +869,9 @@ public partial class OrderSearchPage : ContentPage
         {
             await Task.Delay(80); // allow Entry to become visible after IsBeingPicked = true
             var entry = FindDescendant<Entry>(this, e => e.BindingContext == item && e.IsVisible);
-            entry?.Focus();
+            if (entry is null) return;
+            entry.Focus();
+            entry.CursorPosition = entry.Text?.Length ?? 0;
         });
     }
 
@@ -904,6 +914,7 @@ public partial class OrderSearchPage : ContentPage
         }
         else
         {
+            item.PickQtyText = "0";
             item.IsBeingPicked = true;
             FocusItemEntry(item);
             var label = item.Name + (item.HasVariation ? $" · {item.Variation}" : "");
