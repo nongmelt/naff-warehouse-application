@@ -117,13 +117,18 @@ public class ProductItem : INotifyPropertyChanged
         set
         {
             _isBeingPicked = value;
-            if (value) { _pickQtyText = "1"; OnPropertyChanged(nameof(PickQtyText)); }
             OnPropertyChanged();
         }
     }
 
-    private string _pickQtyText = "1";
-    [JsonIgnore] public string PickQtyText => _pickQtyText;
+    private string _pickQtyText = "";
+    /// <summary>Set this BEFORE setting IsBeingPicked = true (no auto-default).</summary>
+    [JsonIgnore]
+    public string PickQtyText
+    {
+        get => _pickQtyText;
+        set { _pickQtyText = value; OnPropertyChanged(); }
+    }
 
     private string _orderQcContext = "";
     [JsonIgnore]
