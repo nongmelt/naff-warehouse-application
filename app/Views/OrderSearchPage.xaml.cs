@@ -362,9 +362,9 @@ public partial class OrderSearchPage : ContentPage
         // Capture before session mutation so it can appear in the new event payload
         string? prevTracking = CurrentTrackingNumber;
 
-        // Check if scanning the same tracking number (dedup)
-        bool isSameQuery = _sessionIndex >= 0 &&
-            string.Equals(_sessions[_sessionIndex].Query, input, StringComparison.OrdinalIgnoreCase);
+        // Check if rescanning an existing session (dedup)
+        bool isSameQuery = _sessions.Any(s =>
+            string.Equals(s.Query, input, StringComparison.OrdinalIgnoreCase));
 
         // Immediately clear the visible results so the user knows the scan registered
         ActiveResults.Clear();
@@ -393,11 +393,14 @@ public partial class OrderSearchPage : ContentPage
                 string.Equals(r.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase))
                 _qualifiedPackingIds.Add(r.PackingId);
 
-        // Session management: dedup same query, otherwise push new session
-        if (isSameQuery)
+        // Session management: dedup matching query anywhere, otherwise push new session
+        int existingIdx = _sessions.FindIndex(s =>
+            string.Equals(s.Query, input, StringComparison.OrdinalIgnoreCase));
+
+        if (existingIdx >= 0)
         {
-            // Refresh current session data in place
-            _sessions[_sessionIndex] = new SearchSession(input, rows.ToList());
+            _sessions[existingIdx] = new SearchSession(input, rows.ToList());
+            _sessionIndex = existingIdx;
         }
         else
         {
