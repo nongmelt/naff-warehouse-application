@@ -57,7 +57,7 @@ public partial class StationView : ContentView, IDisposable
     // Operator name for API calls — falls back to station name when no operator is logged in
     private string EffectiveOperator => _currentOperator ?? _stationName.Replace(' ', '-');
 
-    // Video count for today (initialised from disk, then incremented in-memory)
+    // Video count for today (fetched from backend, then incremented in-memory)
     private int _videoCount;
 
     // Lock flags — prevent picker changes and skip re-population on Refresh
@@ -613,8 +613,7 @@ public partial class StationView : ContentView, IDisposable
 
                 if (!string.IsNullOrEmpty(filePath))
                 {
-                    _videoCount++;
-                    TryDispatchUI(() => VideoCountLabel.Text = _videoCount.ToString());
+                    IncrementVideoCount();
                     UpdateStatusFromDevices();
 
                     _ = ApiService.UpdatePackingStatusByScanAsync(resetBarcode!, "Packed", EffectiveOperator,
@@ -698,9 +697,8 @@ public partial class StationView : ContentView, IDisposable
 
                 if (!string.IsNullOrEmpty(filePath))
                 {
-                    _videoCount++;
-                    TryDispatchUI(() => VideoCountLabel.Text = _videoCount.ToString());
-                    UpdateStatusFromDevices(); // ready for next scan immediately
+                    IncrementVideoCount();
+                    UpdateStatusFromDevices();
 
                     // Update packing status to Packed
                     _ = ApiService.UpdatePackingStatusByScanAsync(finishedBarcode!, "Packed", EffectiveOperator,
@@ -940,19 +938,26 @@ public partial class StationView : ContentView, IDisposable
         UpdateStatus(status);
     }
 
+    private void IncrementVideoCount()
+    {
+        var newCount = Interlocked.Increment(ref _videoCount);
+        TryDispatchUI(() => VideoCountLabel.Text = newCount.ToString());
+    }
+
     /// <summary>
-    /// Scans today's folder for existing recordings matching this station's name prefix
-    /// and sets <see cref="_videoCount"/>. Called once at startup; afterwards the counter
-    /// is incremented in-memory each time the app saves a new file.
+    /// Fetches today's video count from the backend API for this station
+    /// and sets <see cref="_videoCount"/>. Called at startup and on camera attach;
+    /// afterwards the counter is incremented in-memory each time a recording completes.
     /// </summary>
     public async Task LoadTodayVideoCountAsync()
     {
         try
         {
             var stationId = AppSettings.ResolvedStationId;
-            _videoCount = stationId is not null
+            var count = stationId is not null
                 ? await ApiService.GetTodayVideoCountAsync(stationId.Value)
                 : 0;
+            Interlocked.Exchange(ref _videoCount, count);
 
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
