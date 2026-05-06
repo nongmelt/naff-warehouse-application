@@ -122,6 +122,7 @@ public class ProductItem : INotifyPropertyChanged
     }
 
     private string _pickQtyText = "";
+    /// <summary>Set this BEFORE setting IsBeingPicked = true (no auto-default).</summary>
     [JsonIgnore]
     public string PickQtyText
     {

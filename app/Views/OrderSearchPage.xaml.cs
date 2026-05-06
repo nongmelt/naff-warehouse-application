@@ -416,16 +416,10 @@ public partial class OrderSearchPage : ContentPage
                     .Where(i => i != _sessionIndex)
                     .Select(i =>
                     {
-                        var qualified = _sessions[i].Data
-                            .Where(o => _qualifiedPackingIds.Contains(o.PackingId))
-                            .ToList();
-                        bool allPassed = qualified.Count > 0 &&
-                            qualified.All(o => string.Equals(o.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase));
-                        bool anyHold = qualified.Any(o =>
-                            string.Equals(o.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase));
-                        int priority = (qualified.Count == 0 || allPassed) ? 0  // completed/preProcessed
-                            : !anyHold ? 1                                      // incoming
-                            : 2;                                                // incomplete (QC Hold)
+                        var status = ClassifySessionStatus(_sessions[i].Data);
+                        int priority = status is "completed" or "preProcessed" ? 0
+                            : status == "incoming" ? 1
+                            : 2;
                         return (index: i, priority);
                     })
                     .OrderBy(x => x.priority)
@@ -1015,12 +1009,7 @@ public partial class OrderSearchPage : ContentPage
         var filteredIndices = new List<int>();
         for (int i = count - 1; i >= 0; i--)
         {
-            var so = _sessions[i].Data;
-            var sq = so.Where(o => _qualifiedPackingIds.Contains(o.PackingId)).ToList();
-            string ss = sq.Count == 0 ? "preProcessed"
-                : sq.All(o => string.Equals(o.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase)) ? "completed"
-                : sq.Any(o => string.Equals(o.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase)) ? "incomplete"
-                : "incoming";
+            var ss = ClassifySessionStatus(_sessions[i].Data);
             if (_carouselFilter is null || ss == _carouselFilter)
                 filteredIndices.Add(i);
         }
@@ -1057,42 +1046,31 @@ public partial class OrderSearchPage : ContentPage
             var query = _sessions[i].Query;
 
             // ── Determine color palette (status-based for both active and inactive) ──
-            var sessionOrders = _sessions[i].Data;
-            var qualified = sessionOrders
-                .Where(o => _qualifiedPackingIds.Contains(o.PackingId))
-                .ToList();
-            bool allPassed = qualified.Count > 0 &&
-                qualified.All(o => string.Equals(o.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase));
-            bool anyHold = qualified.Any(o =>
-                string.Equals(o.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase));
+            var sessionStatus = ClassifySessionStatus(_sessions[i].Data);
 
             Color bgActive, strokeActive, idxActive;
             Color bgInactive, bgHover, strokeInactive, titleInactive, idxInactive;
 
-            if (qualified.Count == 0)
+            if (sessionStatus == "preProcessed")
             {
-                // Grey: all orders were already QC Hold/Passed when scanned
                 bgActive = Color.FromArgb("#6b7280"); strokeActive = Color.FromArgb("#4b5563"); idxActive = Color.FromArgb("#d1d5db");
                 bgInactive = Color.FromArgb("#f9fafb"); bgHover = Color.FromArgb("#f3f4f6");
                 strokeInactive = Color.FromArgb("#e5e7eb"); titleInactive = Color.FromArgb("#6b7280"); idxInactive = Color.FromArgb("#9ca3af");
             }
-            else if (allPassed)
+            else if (sessionStatus == "completed")
             {
-                // Green: all qualified orders are QC Passed
                 bgActive = Color.FromArgb("#16a34a"); strokeActive = Color.FromArgb("#15803d"); idxActive = Color.FromArgb("#bbf7d0");
                 bgInactive = Color.FromArgb("#f0fdf4"); bgHover = Color.FromArgb("#dcfce7");
                 strokeInactive = Color.FromArgb("#bbf7d0"); titleInactive = Color.FromArgb("#166534"); idxInactive = Color.FromArgb("#86efac");
             }
-            else if (anyHold)
+            else if (sessionStatus == "incomplete")
             {
-                // Yellow: at least one qualified order is QC Hold
                 bgActive = Color.FromArgb("#d97706"); strokeActive = Color.FromArgb("#b45309"); idxActive = Color.FromArgb("#fef3c7");
                 bgInactive = Color.FromArgb("#fffbeb"); bgHover = Color.FromArgb("#fef3c7");
                 strokeInactive = Color.FromArgb("#fde68a"); titleInactive = Color.FromArgb("#b45309"); idxInactive = Color.FromArgb("#fcd34d");
             }
             else
             {
-                // Blue: all qualified orders still To be packed (incoming)
                 bgActive = Color.FromArgb("#2563eb"); strokeActive = Color.FromArgb("#1d4ed8"); idxActive = Color.FromArgb("#bfdbfe");
                 bgInactive = Color.FromArgb("#eff6ff"); bgHover = Color.FromArgb("#dbeafe");
                 strokeInactive = Color.FromArgb("#bfdbfe"); titleInactive = Color.FromArgb("#1d4ed8"); idxInactive = Color.FromArgb("#93c5fd");
@@ -1246,12 +1224,26 @@ public partial class OrderSearchPage : ContentPage
         UpdateSessionStats();
     }
 
+    // Returns "preProcessed" | "completed" | "incomplete" | "incoming"
+    private string ClassifySessionStatus(List<PackingList> data)
+    {
+        var qualified = data
+            .Where(o => _qualifiedPackingIds.Contains(o.PackingId))
+            .ToList();
+        if (qualified.Count == 0)
+            return "preProcessed";
+        if (qualified.All(o => string.Equals(o.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase)))
+            return "completed";
+        if (qualified.Any(o => string.Equals(o.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase)))
+            return "incomplete";
+        return "incoming";
+    }
+
     private async Task AnimateAllCarouselCardsAsync()
     {
         var children = CarouselLayout.Children.OfType<VisualElement>().ToList();
-        if (children.Count == 0) return;
+        if (children.Count == 0 || children[0] is not Border) return;
 
-        // Only animate the newest card (leftmost, index 0)
         children[0].TranslationX = -260;
         children[0].Opacity = 0;
         await SlideCardInAsync(children[0], 0);
