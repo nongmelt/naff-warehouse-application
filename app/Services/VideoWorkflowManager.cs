@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Runtime.Versioning;
-using Minio;
 using Minio.DataModel.Args;
 
 namespace app.Services;
@@ -190,38 +189,29 @@ public static class VideoWorkflowManager
         try
         {
             var parts = remoteFilePath.Split('/', 2);
-            if (parts.Length < 2) return false;
+            if (parts.Length < 2)
+            {
+                Logger.Log($"[VideoWorkflowManager] VerifyRemoteExistsAsync: invalid remote path format: {remoteFilePath}");
+                return false;
+            }
 
             var bucket = parts[0];
             var objectName = parts[1];
 
-            var endpoint = AppSettings.MinioEndpoint?.Trim();
-            var accessKey = AppSettings.MinioAccessKey?.Trim();
-            var secretKey = AppSettings.MinioSecretKey?.Trim();
-
-            if (string.IsNullOrWhiteSpace(endpoint) || string.IsNullOrWhiteSpace(accessKey) ||
-                string.IsNullOrWhiteSpace(secretKey))
-                return false;
-
-            var uri = endpoint.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                      endpoint.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
-                ? new Uri(endpoint) : new Uri("http://" + endpoint);
-
-            var builder = new MinioClient()
-                .WithEndpoint(uri.Authority)
-                .WithCredentials(accessKey, secretKey)
-                .WithTimeout(10_000);
-            if (uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
-                builder = builder.WithSSL();
-            var minio = builder.Build();
+            var minio = VideoWorkflowRunner.GetOrCreateMinioClient();
 
             await minio.StatObjectAsync(new StatObjectArgs()
                 .WithBucket(bucket).WithObject(objectName));
             return true;
         }
-        catch
+        catch (Minio.Exceptions.ObjectNotFoundException)
         {
             return false;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"[VideoWorkflowManager] VerifyRemoteExistsAsync error for {remoteFilePath}: {ex.Message}");
+            return true;
         }
     }
 
