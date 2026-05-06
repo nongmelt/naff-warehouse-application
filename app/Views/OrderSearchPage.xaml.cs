@@ -412,6 +412,12 @@ public partial class OrderSearchPage : ContentPage
             if (_sessions.Count > MaxSessions)
             {
                 var excess = _sessions.Count - MaxSessions;
+                for (int e = 0; e < excess; e++)
+                    foreach (var order in _sessions[e].Data)
+                    {
+                        _qualifiedPackingIds.Remove(order.PackingId);
+                        _completedPackingIds.Remove(order.PackingId);
+                    }
                 _sessions.RemoveRange(0, excess);
                 _sessionIndex = Math.Max(0, _sessionIndex - excess);
             }
