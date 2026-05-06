@@ -28,6 +28,7 @@ public partial class OrderSearchPage : ContentPage
     private record SearchSession(string Query, List<PackingList> Data);
     private readonly List<SearchSession> _sessions = [];
     private int _sessionIndex = -1;
+    private readonly Queue<string> _pendingScanQueue = new();
 
     // Station identifier — computer name, resolved once
     private static readonly string StationName = Environment.MachineName;
@@ -292,6 +293,14 @@ public partial class OrderSearchPage : ContentPage
                         return;
                     }
 
+                    if (_isSearching)
+                    {
+                        _pendingScanQueue.Enqueue(line);
+                        UpdateSearchStatus($"Queued: {line} (processing previous scan…)");
+                        Logger.Log($"OrderSearch: queued scan '{line}' (busy)");
+                        return;
+                    }
+
                     // Single API call: if results come back it's a tracking number; otherwise it's a SKU.
                     var rows = await ApiService.SearchAsync(line);
                     if (rows.Count > 0)
@@ -448,6 +457,20 @@ public partial class OrderSearchPage : ContentPage
         RefreshHistoryItems();
         UpdateHistoryHeader();
         _isSearching = false;
+
+        // Drain queued scans
+        if (_pendingScanQueue.Count > 0)
+        {
+            var next = _pendingScanQueue.Dequeue();
+            Logger.Log($"OrderSearch: processing queued scan '{next}'");
+            var queuedRows = await ApiService.SearchAsync(next);
+            if (queuedRows.Count > 0)
+                await ExecuteSearchAsync(next, queuedRows);
+            else if (_orderLoaded)
+                HandleSkuScan(next);
+            else
+                await ExecuteSearchAsync(next, queuedRows);
+        }
     }
 
     // ── SKU picking ───────────────────────────────────────────────────────────
