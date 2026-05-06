@@ -319,6 +319,7 @@ public static class ApiService
     {
         try
         {
+            // Local midnight → UTC so backend counts from operator's local "today"
             var from = DateTime.Today.ToUniversalTime().ToString("o");
             var node = await Http.GetFromJsonAsync<JsonNode>(
                 $"videos/station/{stationId}/count?from={Uri.EscapeDataString(from)}", JsonOpts);
