@@ -614,7 +614,7 @@ public partial class StationView : ContentView, IDisposable
                 if (!string.IsNullOrEmpty(filePath))
                 {
                     _videoCount++;
-                    MainThread.BeginInvokeOnMainThread(() => VideoCountLabel.Text = _videoCount.ToString());
+                    TryDispatchUI(() => VideoCountLabel.Text = _videoCount.ToString());
                     UpdateStatusFromDevices();
 
                     _ = ApiService.UpdatePackingStatusByScanAsync(resetBarcode!, "Packed", EffectiveOperator,
@@ -698,7 +698,7 @@ public partial class StationView : ContentView, IDisposable
                 if (!string.IsNullOrEmpty(filePath))
                 {
                     _videoCount++;
-                    MainThread.BeginInvokeOnMainThread(() => VideoCountLabel.Text = _videoCount.ToString());
+                    TryDispatchUI(() => VideoCountLabel.Text = _videoCount.ToString());
                     UpdateStatusFromDevices(); // ready for next scan immediately
 
                     // Update packing status to Packed
@@ -907,7 +907,7 @@ public partial class StationView : ContentView, IDisposable
     // ── Helpers ─────────────────────────────────────────────────────────────
 
     private void UpdateStatus(string text) =>
-        MainThread.BeginInvokeOnMainThread(() => StatusLabel.Text = text);
+        TryDispatchUI(() => StatusLabel.Text = text);
 
     private void TryDispatchUI(Action action)
     {
