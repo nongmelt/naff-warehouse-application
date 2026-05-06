@@ -294,6 +294,12 @@ public partial class OrderSearchPage : ContentPage
                         return;
                     }
 
+                    // Normalize KEX QR codes: "KEXLM1000234185 1 1 DJD001" → "KEXLM1000234185"
+                    var rawLine = line;
+                    line = AppSettings.NormalizeTrackingNumber(line);
+                    if (line != rawLine)
+                        Logger.Log($"OrderSearch: KEX normalized: {rawLine} → {line}");
+
                     if (_isSearching)
                     {
                         _pendingScanQueue.Enqueue(line);
@@ -346,6 +352,7 @@ public partial class OrderSearchPage : ContentPage
     private async Task ExecuteSearchAsync(string input, List<PackingList>? preloaded = null, string trigger = "tracking_scan")
     {
         if (string.IsNullOrWhiteSpace(input) || _isSearching) return;
+        input = AppSettings.NormalizeTrackingNumber(input);
         SearchEntry.Text = string.Empty;
 
         if (string.IsNullOrWhiteSpace(AppSettings.ApiUrl))

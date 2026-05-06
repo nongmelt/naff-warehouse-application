@@ -410,6 +410,20 @@ public static class AppSettings
     }
 
     /// <summary>
+    /// KEX QR codes embed extra fields after the tracking number (e.g. "KEXLM1000234185 1 1 DJD001").
+    /// If the barcode starts with "KEX", return only the first space-delimited token.
+    /// All other barcodes pass through unchanged.
+    /// </summary>
+    public static string NormalizeTrackingNumber(string barcode)
+    {
+        if (!barcode.StartsWith("KEX", StringComparison.OrdinalIgnoreCase))
+            return barcode;
+
+        var spaceIdx = barcode.IndexOf(' ');
+        return spaceIdx > 0 ? barcode[..spaceIdx] : barcode;
+    }
+
+    /// <summary>
     public static string StationId
     {
         get
