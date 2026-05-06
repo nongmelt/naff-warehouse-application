@@ -445,6 +445,20 @@ public static class AppSettings
     }
 
     /// <summary>
+    /// Returns cached station ID if non-null, otherwise retries resolution once.
+    /// Use at points that need station_id (video creation, status updates).
+    /// </summary>
+    public static async Task<int?> EnsureStationIdAsync()
+    {
+        if (ResolvedStationId is not null) return ResolvedStationId;
+
+        var id = await ApiService.ResolveStationIdAsync(Environment.MachineName);
+        if (id is not null)
+            ResolvedStationId = id;
+        return id;
+    }
+
+    /// <summary>
     /// When true, host pages (StationView / OrderSearchPage) route trigger input
     /// through <c>WorkflowEngine</c> instead of the inline state-machine code.
     /// Kept as a kill-switch during rollout; once all stations have run green for

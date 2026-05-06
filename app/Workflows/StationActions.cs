@@ -185,10 +185,11 @@ public static class StationActions
         {
             if (string.IsNullOrEmpty(ctx.LocalFilePath)) return;
 
+            var stationId = await AppSettings.EnsureStationIdAsync();
             var videoId = await ApiService.CreateVideoRecordAsync(
                 ctx.ActiveBarcode ?? "",
                 ctx.LocalFilePath,
-                AppSettings.ResolvedStationId,
+                stationId,
                 ctx.Operator ?? "unknown");
 
             if (videoId > 0)
@@ -199,7 +200,7 @@ public static class StationActions
                     ctx.LocalFilePath,
                     ctx.ActiveBarcode ?? "",
                     ctx.Operator,
-                    ctx.StationId ?? AppSettings.ResolvedStationId);
+                    ctx.StationId ?? stationId);
             }
             else
             {

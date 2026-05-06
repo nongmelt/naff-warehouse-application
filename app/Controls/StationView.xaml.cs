@@ -648,8 +648,9 @@ public partial class StationView : ContentView, IDisposable
                     }
                     else
                     {
+                        var stationId = await AppSettings.EnsureStationIdAsync();
                         var videoId = await ApiService.CreateVideoRecordAsync(
-                            resetBarcode!, filePath, AppSettings.ResolvedStationId, EffectiveOperator);
+                            resetBarcode!, filePath, stationId, EffectiveOperator);
 
                         if (videoId > 0)
                         {
@@ -660,7 +661,7 @@ public partial class StationView : ContentView, IDisposable
                                 trackingNumber: resetBarcode,
                                 fromState: "recording",
                                 toState: "uploading",
-                                stationId: AppSettings.ResolvedStationId,
+                                stationId: stationId,
                                 @operator: EffectiveOperator,
                                 payload: new Dictionary<string, object?>
                                 {
@@ -668,7 +669,7 @@ public partial class StationView : ContentView, IDisposable
                                 });
                             VideoWorkflowManager.Start(
                                 videoId, filePath, resetBarcode!,
-                                EffectiveOperator, AppSettings.ResolvedStationId);
+                                EffectiveOperator, stationId);
                         }
                         else
                         {
@@ -733,8 +734,9 @@ public partial class StationView : ContentView, IDisposable
                     }
                     else
                     {
+                        var stationId = await AppSettings.EnsureStationIdAsync();
                         var videoId = await ApiService.CreateVideoRecordAsync(
-                            finishedBarcode!, filePath, AppSettings.ResolvedStationId, EffectiveOperator);
+                            finishedBarcode!, filePath, stationId, EffectiveOperator);
 
                         if (videoId > 0)
                         {
@@ -745,7 +747,7 @@ public partial class StationView : ContentView, IDisposable
                                 trackingNumber: finishedBarcode,
                                 fromState: "recording",
                                 toState: "uploading",
-                                stationId: AppSettings.ResolvedStationId,
+                                stationId: stationId,
                                 @operator: EffectiveOperator,
                                 payload: new Dictionary<string, object?>
                                 {
@@ -753,7 +755,7 @@ public partial class StationView : ContentView, IDisposable
                                 });
                             VideoWorkflowManager.Start(
                                 videoId, filePath, finishedBarcode!,
-                                EffectiveOperator, AppSettings.ResolvedStationId);
+                                EffectiveOperator, stationId);
                         }
                         else
                         {
