@@ -190,7 +190,7 @@ public sealed class VideoWorkflowRunner
 
     // ── MinIO helpers ────────────────────────────────────────────────────────
 
-    private static IMinioClient GetOrCreateMinioClient()
+    internal static IMinioClient GetOrCreateMinioClient()
     {
         if (_sharedMinio is not null) return _sharedMinio;
         lock (_minioLock)

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Runtime.Versioning;
+using Minio.DataModel.Args;
 
 namespace app.Services;
 
@@ -132,12 +133,27 @@ public static class VideoWorkflowManager
             {
                 if (record.Status == "Completed")
                 {
+                    if (string.IsNullOrWhiteSpace(record.RemoteFilePath))
+                    {
+                        Logger.Log($"[VideoWorkflowManager] recovery: video {record.Id} marked Completed but remote_file_path is null — restarting upload");
+                        Start(record.Id, filePath, record.TrackingNumber ?? "", record.Operator, stationId, isRecovery: true);
+                        continue;
+                    }
+
+                    var remoteExists = await VerifyRemoteExistsAsync(record.RemoteFilePath);
+                    if (!remoteExists)
+                    {
+                        Logger.Log($"[VideoWorkflowManager] recovery: video {record.Id} marked Completed but remote missing ({record.RemoteFilePath}) — restarting upload");
+                        Start(record.Id, filePath, record.TrackingNumber ?? "", record.Operator, stationId, isRecovery: true);
+                        continue;
+                    }
+
                     if (AppSettings.AutoDeleteCompletedVideos)
                     {
                         try
                         {
                             File.Delete(filePath);
-                            Logger.Log($"[VideoWorkflowManager] recovery: video {record.Id} completed — deleted: {filePath}");
+                            Logger.Log($"[VideoWorkflowManager] recovery: video {record.Id} completed + verified — deleted: {filePath}");
                         }
                         catch (Exception ex)
                         {
@@ -165,6 +181,37 @@ public static class VideoWorkflowManager
                 else
                     Logger.Log($"[VideoWorkflowManager] recovery: failed to create record for {filePath}");
             }
+        }
+    }
+
+    private static async Task<bool> VerifyRemoteExistsAsync(string remoteFilePath)
+    {
+        try
+        {
+            var parts = remoteFilePath.Split('/', 2);
+            if (parts.Length < 2)
+            {
+                Logger.Log($"[VideoWorkflowManager] VerifyRemoteExistsAsync: invalid remote path format: {remoteFilePath}");
+                return false;
+            }
+
+            var bucket = parts[0];
+            var objectName = parts[1];
+
+            var minio = VideoWorkflowRunner.GetOrCreateMinioClient();
+
+            await minio.StatObjectAsync(new StatObjectArgs()
+                .WithBucket(bucket).WithObject(objectName));
+            return true;
+        }
+        catch (Minio.Exceptions.ObjectNotFoundException)
+        {
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"[VideoWorkflowManager] VerifyRemoteExistsAsync error for {remoteFilePath}: {ex.Message}");
+            return true;
         }
     }
 

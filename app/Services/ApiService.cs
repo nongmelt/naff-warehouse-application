@@ -442,9 +442,10 @@ public static class ApiService
         [property: JsonPropertyName("operator")]       string? Operator);
 
     public record VideoDetail(
-        [property: JsonPropertyName("id")]             int     Id,
-        [property: JsonPropertyName("trackingNumber")] string? TrackingNumber,
-        [property: JsonPropertyName("filePath")]       string  FilePath,
-        [property: JsonPropertyName("operator")]       string? Operator,
-        [property: JsonPropertyName("status")]         string? Status);
+        [property: JsonPropertyName("id")]              int     Id,
+        [property: JsonPropertyName("trackingNumber")]  string? TrackingNumber,
+        [property: JsonPropertyName("filePath")]        string  FilePath,
+        [property: JsonPropertyName("operator")]        string? Operator,
+        [property: JsonPropertyName("status")]          string? Status,
+        [property: JsonPropertyName("remoteFilePath")]  string? RemoteFilePath = null);
 }
