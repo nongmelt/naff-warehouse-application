@@ -437,11 +437,6 @@ public partial class OrderSearchPage : ContentPage
 
                 foreach (var idx in evictIndices)
                 {
-                    foreach (var order in _sessions[idx].Data)
-                    {
-                        _qualifiedPackingIds.Remove(order.PackingId);
-                        _completedPackingIds.Remove(order.PackingId);
-                    }
                     _sessions.RemoveAt(idx);
                     if (_sessionIndex > idx)
                         _sessionIndex--;
