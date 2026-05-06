@@ -7,6 +7,10 @@ namespace app;
 
 public partial class App : Application
 {
+	private static volatile bool _windowActive = true;
+
+	public static bool IsWindowActive => _windowActive;
+
 	public App()
 	{
 		UserAppTheme = AppTheme.Light;
@@ -29,6 +33,8 @@ public partial class App : Application
 	protected override Window CreateWindow(IActivationState? activationState)
 	{
 		var window = new Window(new AppShell()) { Title = "Warehouse" };
+		window.Activated += (_, _) => _windowActive = true;
+		window.Deactivated += (_, _) => _windowActive = false;
 		window.Destroying += OnWindowDestroying;
 		return window;
 	}
