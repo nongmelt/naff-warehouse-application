@@ -850,7 +850,7 @@ public partial class StationView : ContentView, IDisposable
 
             // Show UI feedback
             // UpdateStatus("⏳ Saving...");
-            await MainThread.InvokeOnMainThreadAsync(() => SavingOverlay.IsVisible = true);
+            await TryDispatchUIAsync(() => SavingOverlay.IsVisible = true);
 
             var swStop = Stopwatch.StartNew();
 
@@ -900,7 +900,7 @@ public partial class StationView : ContentView, IDisposable
             Logger.Log($"Station {_stationId}: [DIAG] Memory after recording: " +
                        $"{GC.GetTotalMemory(false) / 1_048_576.0:F1} MB");
 
-            await MainThread.InvokeOnMainThreadAsync(() => SavingOverlay.IsVisible = false);
+            await TryDispatchUIAsync(() => SavingOverlay.IsVisible = false);
         }
     }
 
@@ -908,6 +908,18 @@ public partial class StationView : ContentView, IDisposable
 
     private void UpdateStatus(string text) =>
         MainThread.BeginInvokeOnMainThread(() => StatusLabel.Text = text);
+
+    private void TryDispatchUI(Action action)
+    {
+        if (App.IsWindowActive)
+            MainThread.BeginInvokeOnMainThread(action);
+    }
+
+    private async Task TryDispatchUIAsync(Action action)
+    {
+        if (App.IsWindowActive)
+            await MainThread.InvokeOnMainThreadAsync(action);
+    }
 
     /// <summary>Sets StatusLabel based on which devices are currently connected.</summary>
     private void UpdateStatusFromDevices()
