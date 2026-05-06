@@ -29,6 +29,7 @@ public partial class OrderSearchPage : ContentPage
     private readonly List<SearchSession> _sessions = [];
     private int _sessionIndex = -1;
     private readonly Queue<string> _pendingScanQueue = new();
+    private bool _carouselDirty;
 
     // Station identifier — computer name, resolved once
     private static readonly string StationName = Environment.MachineName;
@@ -447,6 +448,7 @@ public partial class OrderSearchPage : ContentPage
         }
 
         BuildCarouselUI();
+        _carouselDirty = false;
         if (!isSameQuery) _ = AnimateAllCarouselCardsAsync();
         UpdateSessionStats();
         NotFoundCard.IsVisible = rows.Count == 0;
@@ -675,6 +677,7 @@ public partial class OrderSearchPage : ContentPage
     {
         await CheckCompletedOrdersAsync();
         await SaveQcHoldImmediateAsync();
+        FlushCarouselIfDirty();
     }
 
     /// <summary>Immediately saves partially-picked orders as QC Hold after each deduction.</summary>
@@ -698,8 +701,7 @@ public partial class OrderSearchPage : ContentPage
                 order.UpdatedAt = now;
                 order.CheckedAt = now;
                 // Do NOT set OrderQcContext here — cards stay white while the user is scanning.
-                BuildCarouselUI();
-                UpdateSessionStats();
+                _carouselDirty = true;
 
                 // Only emit on the first transition into QC Hold — subsequent deductions
                 // on the same held order would drown out the genuine state change.
@@ -761,8 +763,7 @@ public partial class OrderSearchPage : ContentPage
             UpdateSearchStatus(ok
                 ? $"✓ {order.TrackingNumber} — QC Passed · {EffectiveOperator}"
                 : $"⚠ {order.TrackingNumber} — all picked but DB update failed");
-            BuildCarouselUI();
-            UpdateSessionStats();
+            _carouselDirty = true;
         }
     }
 
@@ -972,6 +973,8 @@ public partial class OrderSearchPage : ContentPage
         }
 
         // Display newest first (leftmost). Session list order is unchanged.
+        const int MaxVisibleCards = 25;
+        int rendered = 0;
         for (int i = count - 1; i >= 0; i--)
         {
             var capturedIdx = i;
@@ -995,6 +998,32 @@ public partial class OrderSearchPage : ContentPage
                 : "incoming";
             if (_carouselFilter is not null && sessionStatus != _carouselFilter)
                 continue;
+
+            rendered++;
+            if (rendered > MaxVisibleCards)
+            {
+                int remaining = 0;
+                for (int j = i; j >= 0; j--)
+                {
+                    var s = _sessions[j].Data;
+                    var q = s.Where(o => _qualifiedPackingIds.Contains(o.PackingId)).ToList();
+                    string st = q.Count == 0 ? "preProcessed"
+                        : q.All(o => string.Equals(o.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase)) ? "completed"
+                        : q.Any(o => string.Equals(o.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase)) ? "incomplete"
+                        : "incoming";
+                    if (_carouselFilter is null || st == _carouselFilter) remaining++;
+                }
+                if (remaining > 0)
+                    CarouselLayout.Children.Add(new Label
+                    {
+                        Text = $"+{remaining} older",
+                        FontSize = 11,
+                        TextColor = Color.FromArgb("#9ca3af"),
+                        VerticalOptions = LayoutOptions.Center,
+                        Margin = new Thickness(8, 0),
+                    });
+                break;
+            }
 
             Color bgActive, strokeActive, idxActive;
             Color bgInactive, bgHover, strokeInactive, titleInactive, idxInactive;
@@ -1161,32 +1190,23 @@ public partial class OrderSearchPage : ContentPage
         });
     }
 
+    private void FlushCarouselIfDirty()
+    {
+        if (!_carouselDirty) return;
+        _carouselDirty = false;
+        BuildCarouselUI();
+        UpdateSessionStats();
+    }
+
     private async Task AnimateAllCarouselCardsAsync()
     {
         var children = CarouselLayout.Children.OfType<VisualElement>().ToList();
         if (children.Count == 0) return;
 
-        // New card (leftmost, index 0): slide in from off-screen left
-        if (children.Count > 0)
-        {
-            children[0].TranslationX = -260;
-            children[0].Opacity = 0;
-        }
-
-        // Existing cards (index 1+): nudge from a slight rightward offset
-        // (they appear to shift right as the new card pushes in from the left)
-        for (int j = 1; j < children.Count; j++)
-        {
-            children[j].TranslationX = 60;
-            children[j].Opacity = 0.7;
-        }
-
-        var tasks = new List<Task>();
-        if (children.Count > 0)
-            tasks.Add(SlideCardInAsync(children[0], 0));
-        for (int j = 1; j < children.Count; j++)
-            tasks.Add(SlideExistingCardAsync(children[j], j * 30));
-        await Task.WhenAll(tasks);
+        // Only animate the newest card (leftmost, index 0)
+        children[0].TranslationX = -260;
+        children[0].Opacity = 0;
+        await SlideCardInAsync(children[0], 0);
     }
 
     private static async Task SlideCardInAsync(VisualElement card, int delayMs)
@@ -1195,14 +1215,6 @@ public partial class OrderSearchPage : ContentPage
         await Task.WhenAll(
             card.TranslateToAsync(0, 0, 300, Easing.SinOut),
             card.FadeToAsync(1.0, 260, Easing.SinIn));
-    }
-
-    private static async Task SlideExistingCardAsync(VisualElement card, int delayMs)
-    {
-        if (delayMs > 0) await Task.Delay(delayMs);
-        await Task.WhenAll(
-            card.TranslateToAsync(0, 0, 220, Easing.SinOut),
-            card.FadeToAsync(1.0, 180, Easing.SinIn));
     }
 
     // ── Session badge filter ──────────────────────────────────────────────────
