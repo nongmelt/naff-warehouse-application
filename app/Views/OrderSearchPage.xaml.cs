@@ -1004,11 +1004,48 @@ public partial class OrderSearchPage : ContentPage
             return;
         }
 
-        // Display newest first (leftmost). Session list order is unchanged.
+        // Precompute visible window (centered on active session, max 25 cards)
         const int MaxVisibleCards = 25;
-        int rendered = 0;
+        var filteredIndices = new List<int>();
         for (int i = count - 1; i >= 0; i--)
         {
+            var so = _sessions[i].Data;
+            var sq = so.Where(o => _qualifiedPackingIds.Contains(o.PackingId)).ToList();
+            string ss = sq.Count == 0 ? "preProcessed"
+                : sq.All(o => string.Equals(o.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase)) ? "completed"
+                : sq.Any(o => string.Equals(o.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase)) ? "incomplete"
+                : "incoming";
+            if (_carouselFilter is null || ss == _carouselFilter)
+                filteredIndices.Add(i);
+        }
+
+        int activePos = filteredIndices.IndexOf(_sessionIndex);
+        int winStart = 0, winEnd = Math.Min(MaxVisibleCards - 1, filteredIndices.Count - 1);
+        if (activePos >= 0 && filteredIndices.Count > MaxVisibleCards)
+        {
+            winStart = Math.Max(0, activePos - MaxVisibleCards / 2);
+            winEnd = Math.Min(filteredIndices.Count - 1, winStart + MaxVisibleCards - 1);
+            winStart = Math.Max(0, winEnd - MaxVisibleCards + 1);
+        }
+        var visibleSet = new HashSet<int>(
+            filteredIndices.Skip(winStart).Take(winEnd - winStart + 1));
+
+        if (winStart > 0)
+            CarouselLayout.Children.Add(new Label
+            {
+                Text = $"+{winStart} newer",
+                FontSize = 11,
+                TextColor = Color.FromArgb("#9ca3af"),
+                VerticalOptions = LayoutOptions.Center,
+                Margin = new Thickness(8, 0),
+            });
+
+        // Display newest first (leftmost). Session list order is unchanged.
+        VisualElement? activeCard = null;
+        for (int i = count - 1; i >= 0; i--)
+        {
+            if (!visibleSet.Contains(i)) continue;
+
             var capturedIdx = i;
             var isActive = i == _sessionIndex;
             var query = _sessions[i].Query;
@@ -1022,40 +1059,6 @@ public partial class OrderSearchPage : ContentPage
                 qualified.All(o => string.Equals(o.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase));
             bool anyHold = qualified.Any(o =>
                 string.Equals(o.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase));
-
-            // ── Apply carousel filter ─────────────────────────────────────────────────
-            string sessionStatus = qualified.Count == 0 ? "preProcessed"
-                : allPassed ? "completed"
-                : anyHold ? "incomplete"
-                : "incoming";
-            if (_carouselFilter is not null && sessionStatus != _carouselFilter)
-                continue;
-
-            rendered++;
-            if (rendered > MaxVisibleCards)
-            {
-                int remaining = 0;
-                for (int j = i; j >= 0; j--)
-                {
-                    var s = _sessions[j].Data;
-                    var q = s.Where(o => _qualifiedPackingIds.Contains(o.PackingId)).ToList();
-                    string st = q.Count == 0 ? "preProcessed"
-                        : q.All(o => string.Equals(o.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase)) ? "completed"
-                        : q.Any(o => string.Equals(o.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase)) ? "incomplete"
-                        : "incoming";
-                    if (_carouselFilter is null || st == _carouselFilter) remaining++;
-                }
-                if (remaining > 0)
-                    CarouselLayout.Children.Add(new Label
-                    {
-                        Text = $"+{remaining} older",
-                        FontSize = 11,
-                        TextColor = Color.FromArgb("#9ca3af"),
-                        VerticalOptions = LayoutOptions.Center,
-                        Margin = new Thickness(8, 0),
-                    });
-                break;
-            }
 
             Color bgActive, strokeActive, idxActive;
             Color bgInactive, bgHover, strokeInactive, titleInactive, idxInactive;
@@ -1205,21 +1208,28 @@ public partial class OrderSearchPage : ContentPage
             tap.Tapped += (_, _) => NavigateToSession(capturedIdx);
             card.GestureRecognizers.Add(tap);
 
+            if (isActive) activeCard = card;
             CarouselLayout.Children.Add(card);
         }
 
+        int olderOverflow = filteredIndices.Count - 1 - winEnd;
+        if (olderOverflow > 0)
+            CarouselLayout.Children.Add(new Label
+            {
+                Text = $"+{olderOverflow} older",
+                FontSize = 11,
+                TextColor = Color.FromArgb("#9ca3af"),
+                VerticalOptions = LayoutOptions.Center,
+                Margin = new Thickness(8, 0),
+            });
+
         // Auto-scroll so the active card is visible after layout settles
-        _ = Dispatcher.DispatchAsync(async () =>
-        {
-            await Task.Delay(80);
-            int n = _sessions.Count;
-            if (_sessionIndex < 0 || _sessionIndex >= n || CarouselLayout.Children.Count == 0) return;
-            // Reversed display: newest (highest session index) is at display position 0 (leftmost)
-            int displayPos = n - 1 - _sessionIndex;
-            if (displayPos >= 0 && displayPos < CarouselLayout.Children.Count &&
-                CarouselLayout.Children[displayPos] is VisualElement ve)
-                await NavRow.ScrollToAsync(ve, ScrollToPosition.MakeVisible, animated: true);
-        });
+        if (activeCard is not null)
+            _ = Dispatcher.DispatchAsync(async () =>
+            {
+                await Task.Delay(80);
+                await NavRow.ScrollToAsync(activeCard, ScrollToPosition.MakeVisible, animated: true);
+            });
     }
 
     private void FlushCarouselIfDirty()
