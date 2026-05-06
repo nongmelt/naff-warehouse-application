@@ -549,6 +549,12 @@ public partial class StationView : ContentView, IDisposable
                 return;
             }
 
+            // Normalize KEX QR codes: "KEXLM1000234185 1 1 DJD001" → "KEXLM1000234185"
+            var raw = barcode;
+            barcode = AppSettings.NormalizeTrackingNumber(barcode);
+            if (barcode != raw)
+                Logger.Log($"Station {_stationId}: KEX normalized: {raw} → {barcode}");
+
             if (barcode.Contains('-'))
             {
                 Logger.Log($"Station {_stationId}: Barcode ignored (contains dash): {barcode}");
