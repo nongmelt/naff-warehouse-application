@@ -407,19 +407,45 @@ public partial class OrderSearchPage : ContentPage
             _sessions.Add(new SearchSession(input, rows.ToList()));
             _sessionIndex = _sessions.Count - 1;
 
-            // Cap history at 50 sessions (oldest removed from the front)
+            // Cap history — evict by priority: completed first, then incoming, incomplete last
             const int MaxSessions = 50;
             if (_sessions.Count > MaxSessions)
             {
                 var excess = _sessions.Count - MaxSessions;
-                for (int e = 0; e < excess; e++)
-                    foreach (var order in _sessions[e].Data)
+                var evictIndices = Enumerable.Range(0, _sessions.Count)
+                    .Where(i => i != _sessionIndex)
+                    .Select(i =>
+                    {
+                        var qualified = _sessions[i].Data
+                            .Where(o => _qualifiedPackingIds.Contains(o.PackingId))
+                            .ToList();
+                        bool allPassed = qualified.Count > 0 &&
+                            qualified.All(o => string.Equals(o.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase));
+                        bool anyHold = qualified.Any(o =>
+                            string.Equals(o.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase));
+                        int priority = (qualified.Count == 0 || allPassed) ? 0  // completed/preProcessed
+                            : !anyHold ? 1                                      // incoming
+                            : 2;                                                // incomplete (QC Hold)
+                        return (index: i, priority);
+                    })
+                    .OrderBy(x => x.priority)
+                    .ThenBy(x => x.index)
+                    .Take(excess)
+                    .Select(x => x.index)
+                    .OrderByDescending(x => x)
+                    .ToList();
+
+                foreach (var idx in evictIndices)
+                {
+                    foreach (var order in _sessions[idx].Data)
                     {
                         _qualifiedPackingIds.Remove(order.PackingId);
                         _completedPackingIds.Remove(order.PackingId);
                     }
-                _sessions.RemoveRange(0, excess);
-                _sessionIndex = Math.Max(0, _sessionIndex - excess);
+                    _sessions.RemoveAt(idx);
+                    if (_sessionIndex > idx)
+                        _sessionIndex--;
+                }
             }
         }
 
