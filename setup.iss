@@ -1,5 +1,5 @@
 #define MyAppName      "Warehouse"
-#define MyAppVersion   "dev-1.3.3"
+#define MyAppVersion   "dev-1.3.4"
 #define MyAppPublisher "NAF Stationery"
 #define MyAppExeName   "Warehouse.exe"
 #define MyAppDir       "app\bin\Release\net10.0-windows10.0.19041.0\win-x64\publish"
