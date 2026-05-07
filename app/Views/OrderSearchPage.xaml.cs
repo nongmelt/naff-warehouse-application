@@ -1,5 +1,7 @@
 using app.Models;
 using app.Services;
+using app.Workflows;
+using CommunityToolkit.Maui.Alerts;
 using Microsoft.Maui.Controls.Shapes;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -7,8 +9,6 @@ using System.IO.Ports;
 using System.Management;
 using System.Net;
 using System.Runtime.Versioning;
-using System.Text.Encodings.Web;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace app.Views;
@@ -28,18 +28,77 @@ public partial class OrderSearchPage : ContentPage
     private record SearchSession(string Query, List<PackingList> Data);
     private readonly List<SearchSession> _sessions = [];
     private int _sessionIndex = -1;
+    private readonly Queue<string> _pendingScanQueue = new();
+    private bool _carouselDirty;
 
     // Station identifier — computer name, resolved once
     private static readonly string StationName = Environment.MachineName;
+
+    // Full barcode of the logged-in operator — null when no operator active
+    private string? _currentOperator;
+
+    // Resolved first name from API — null until lookup completes or no operator active
+    private string? _currentOperatorFirstName;
+
+    // Prevents OverlayComPortPicker ↔ ComPortPicker sync from firing recursively
+    private bool _syncingPickers;
+
+    // Inactivity auto-logout timer
+    private IDispatcherTimer? _inactivityTimer;
+
+    // Falls back to MachineName when no operator is logged in
+    private string EffectiveOperator => _currentOperator ?? StationName;
+
     public string StationNameDisplay => $"Station: {StationName}";
 
     // SKU picking state — set after an order loads; cleared on new search
     private bool _orderLoaded;
+    private bool _isFirstItemScan;
     private ProductItem? _pendingSkuProduct;
     private readonly HashSet<int> _completedPackingIds = [];
 
     // Orders that were "To be packed" when first scanned this session — the only ones counted in SessionCard
     private readonly HashSet<int> _qualifiedPackingIds = [];
+
+    // Increments on every QC mutation within a scan session — shipped on workflow_events
+    // so analytics can answer "which SKUs get scanned first on average?"
+    private int _sequenceInSession;
+
+    private int NextSequence() => ++_sequenceInSession;
+
+    private string ConsumePickingFromState()
+    {
+        var s = _isFirstItemScan ? "order-loaded" : "picking";
+        _isFirstItemScan = false;
+        return s;
+    }
+
+    private void EmitQcEvent(
+        string stepId,
+        string trigger,
+        string? trackingNumber,
+        string? fromState,
+        string? toState,
+        Dictionary<string, object?>? payload = null,
+        bool bumpSequence = true)
+    {
+        StationEvents.Emit(
+            workflowName: "QC",
+            stepId: stepId,
+            trigger: trigger,
+            trackingNumber: trackingNumber,
+            fromState: fromState,
+            toState: toState,
+            stationId: AppSettings.ResolvedStationId,
+            @operator: EffectiveOperator,
+            sequenceInSession: bumpSequence ? NextSequence() : _sequenceInSession,
+            payload: payload);
+    }
+
+    private string? CurrentTrackingNumber =>
+        _sessionIndex >= 0 && _sessionIndex < _sessions.Count
+            ? _sessions[_sessionIndex].Query
+            : null;
 
     public ObservableCollection<PackingList> Results { get; } = new();
     public ObservableCollection<PackingList> ActiveResults { get; } = new();
@@ -74,6 +133,7 @@ public partial class OrderSearchPage : ContentPage
     {
         base.OnDisappearing();
         CloseSerialPort();
+        StopInactivityTimer();
 #if WINDOWS
         UnregisterKeyboardHandler();
 #endif
@@ -97,36 +157,61 @@ public partial class OrderSearchPage : ContentPage
         _comPorts = await GetFriendlyComPortsAsync();
 
         var selectedPort = _serialPort?.IsOpen == true ? _serialPort.PortName : null;
-
-        ComPortPicker.Items.Clear();
-        ComPortPicker.Items.Add("(None)");
-        foreach (var p in _comPorts)
-            ComPortPicker.Items.Add(p.DisplayName);
-
-        // Restore selection if the previously open port is still present
+        int selIdx = 0;
         if (selectedPort != null)
         {
             var idx = _comPorts.FindIndex(p => p.PortName == selectedPort);
-            ComPortPicker.SelectedIndex = idx >= 0 ? idx + 1 : 0;
+            if (idx >= 0) selIdx = idx + 1;
         }
-        else
+
+        _syncingPickers = true;
+        ComPortPicker.Items.Clear();
+        OverlayComPortPicker.Items.Clear();
+        ComPortPicker.Items.Add("(None)");
+        OverlayComPortPicker.Items.Add("(None)");
+        foreach (var p in _comPorts)
         {
-            ComPortPicker.SelectedIndex = 0;
+            ComPortPicker.Items.Add(p.DisplayName);
+            OverlayComPortPicker.Items.Add(p.DisplayName);
         }
+        ComPortPicker.SelectedIndex = selIdx;
+        OverlayComPortPicker.SelectedIndex = selIdx;
+        _syncingPickers = false;
     }
 
     private async void OnRefreshPorts(object sender, EventArgs e)
         => await LoadComPortsAsync();
 
+    private async void OnOverlayRefreshPorts(object sender, EventArgs e)
+        => await LoadComPortsAsync();
+
     private void OnComPortSelected(object sender, EventArgs e)
     {
-        var idx = ComPortPicker.SelectedIndex;
+        if (_syncingPickers) return;
+        _syncingPickers = true;
+        OverlayComPortPicker.SelectedIndex = ComPortPicker.SelectedIndex;
+        _syncingPickers = false;
+        ApplyComPortSelection(ComPortPicker.SelectedIndex);
+    }
+
+    private void OnOverlayComPortSelected(object sender, EventArgs e)
+    {
+        if (_syncingPickers) return;
+        _syncingPickers = true;
+        ComPortPicker.SelectedIndex = OverlayComPortPicker.SelectedIndex;
+        _syncingPickers = false;
+        ApplyComPortSelection(OverlayComPortPicker.SelectedIndex);
+    }
+
+    private void ApplyComPortSelection(int idx)
+    {
         if (idx < 0) return;
 
         if (idx == 0)
         {
             CloseSerialPort();
             UpdateScannerStatus("No scanner connected");
+            UpdateOverlayScannerStatus("No scanner connected");
             return;
         }
 
@@ -146,12 +231,14 @@ public partial class OrderSearchPage : ContentPage
             _serialPort.DataReceived += OnSerialDataReceived;
             _serialPort.Open();
             UpdateScannerStatus($"Scanner ready ({portName}) — waiting for scan");
+            UpdateOverlayScannerStatus($"Scanner ready ({portName}) — scan your badge");
             Logger.Log($"OrderSearch: Serial port {portName} opened");
         }
         catch (Exception ex)
         {
             Logger.Log($"OrderSearch serial port: {ex}");
             UpdateScannerStatus($"COM error: {ex.Message}");
+            UpdateOverlayScannerStatus($"COM error: {ex.Message}");
         }
     }
 
@@ -163,6 +250,64 @@ public partial class OrderSearchPage : ContentPage
             if (!string.IsNullOrEmpty(line))
                 MainThread.BeginInvokeOnMainThread(async () =>
                 {
+                    // Operator badge detection — intercept before search
+                    if (AppSettings.TryParseOperatorBarcode(line) is { } badge)
+                    {
+                        bool loggingOut = _currentOperator == line;
+                        if (loggingOut)
+                        {
+                            var logoutName = _currentOperatorFirstName ?? line;
+                            _currentOperator = null;
+                            _currentOperatorFirstName = null;
+                            StopInactivityTimer();
+                            Services.StationWsClient.SendOperatorLogout();
+                            UpdateNavOperatorUI(null);
+                            ShowLoginOverlay();
+                            UpdateOverlayScannerStatus($"Logged out — {logoutName}");
+                            _ = Toast.Make("Logged out").Show();
+                            Logger.Log($"OrderSearch: Operator logged out — {logoutName}");
+                        }
+                        else
+                        {
+                            _currentOperator = line;
+                            _currentOperatorFirstName = null;
+                            StartInactivityTimer();
+                            Services.StationWsClient.SendOperatorLogin(line, Services.SessionKind.QC);
+                            UpdateNavOperatorUI(line);
+                            HideLoginOverlay();
+                            _ = ShowWelcomeAnimationAsync(line);
+                            Logger.Log($"OrderSearch: Operator logged in — {line}");
+                            _ = Task.Run(async () =>
+                            {
+                                var firstName = await ApiService.GetOperatorFirstNameAsync(line);
+                                if (firstName is null || _currentOperator != line) return;
+                                _currentOperatorFirstName = firstName;
+                                MainThread.BeginInvokeOnMainThread(() =>
+                                {
+                                    UpdateNavOperatorUI(firstName);
+                                    // Update banner if animation still running
+                                    if (WelcomeBanner.IsVisible)
+                                        WelcomeLabel.Text = $"Welcome, {firstName}";
+                                });
+                            });
+                        }
+                        return;
+                    }
+
+                    // Normalize KEX QR codes: "KEXLM1000234185 1 1 DJD001" → "KEXLM1000234185"
+                    var rawLine = line;
+                    line = AppSettings.NormalizeTrackingNumber(line);
+                    if (line != rawLine)
+                        Logger.Log($"OrderSearch: KEX normalized: {rawLine} → {line}");
+
+                    if (_isSearching)
+                    {
+                        _pendingScanQueue.Enqueue(line);
+                        UpdateSearchStatus($"Queued: {line} (processing previous scan…)");
+                        Logger.Log($"OrderSearch: queued scan '{line}' (busy)");
+                        return;
+                    }
+
                     // Single API call: if results come back it's a tracking number; otherwise it's a SKU.
                     var rows = await ApiService.SearchAsync(line);
                     if (rows.Count > 0)
@@ -199,14 +344,15 @@ public partial class OrderSearchPage : ContentPage
     // ── Search ───────────────────────────────────────────────────────────────
 
     private async void OnSearchClicked(object sender, EventArgs e)
-        => await ExecuteSearchAsync(SearchEntry.Text?.Trim() ?? "");
+        => await ExecuteSearchAsync(SearchEntry.Text?.Trim() ?? "", trigger: "manual_search");
 
     private async void OnSearchCommitted(object sender, EventArgs e)
-        => await ExecuteSearchAsync(SearchEntry.Text?.Trim() ?? "");
+        => await ExecuteSearchAsync(SearchEntry.Text?.Trim() ?? "", trigger: "manual_search");
 
-    private async Task ExecuteSearchAsync(string input, List<PackingList>? preloaded = null)
+    private async Task ExecuteSearchAsync(string input, List<PackingList>? preloaded = null, string trigger = "tracking_scan")
     {
         if (string.IsNullOrWhiteSpace(input) || _isSearching) return;
+        input = AppSettings.NormalizeTrackingNumber(input);
         SearchEntry.Text = string.Empty;
 
         if (string.IsNullOrWhiteSpace(AppSettings.ApiUrl))
@@ -216,11 +362,16 @@ public partial class OrderSearchPage : ContentPage
         }
 
         _isSearching = true;
+        if (_currentOperator is not null)
+            StartInactivityTimer();
         _historyNavIndex = -1;
 
-        // Check if scanning the same tracking number (dedup)
-        bool isSameQuery = _sessionIndex >= 0 &&
-            string.Equals(_sessions[_sessionIndex].Query, input, StringComparison.OrdinalIgnoreCase);
+        // Capture before session mutation so it can appear in the new event payload
+        string? prevTracking = CurrentTrackingNumber;
+
+        // Check if rescanning an existing session (dedup)
+        bool isSameQuery = _sessions.Any(s =>
+            string.Equals(s.Query, input, StringComparison.OrdinalIgnoreCase));
 
         // Immediately clear the visible results so the user knows the scan registered
         ActiveResults.Clear();
@@ -228,9 +379,10 @@ public partial class OrderSearchPage : ContentPage
 
         // Save any partial picks before discarding the current result set
         if (_orderLoaded && Results.Count > 0)
-            await SaveQcHoldForRemainingOrdersAsync();
+            await SaveQcHoldForRemainingOrdersAsync(isSameQuery ? null : input);
 
         _orderLoaded = false;
+        _isFirstItemScan = false;
         _completedPackingIds.Clear();
         if (_pendingSkuProduct != null) { _pendingSkuProduct.IsBeingPicked = false; _pendingSkuProduct = null; }
         Results.Clear();
@@ -248,11 +400,14 @@ public partial class OrderSearchPage : ContentPage
                 string.Equals(r.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase))
                 _qualifiedPackingIds.Add(r.PackingId);
 
-        // Session management: dedup same query, otherwise push new session
-        if (isSameQuery)
+        // Session management: dedup matching query anywhere, otherwise push new session
+        int existingIdx = _sessions.FindIndex(s =>
+            string.Equals(s.Query, input, StringComparison.OrdinalIgnoreCase));
+
+        if (existingIdx >= 0)
         {
-            // Refresh current session data in place
-            _sessions[_sessionIndex] = new SearchSession(input, rows.ToList());
+            _sessions[existingIdx] = new SearchSession(input, rows.ToList());
+            _sessionIndex = existingIdx;
         }
         else
         {
@@ -262,19 +417,69 @@ public partial class OrderSearchPage : ContentPage
             _sessions.Add(new SearchSession(input, rows.ToList()));
             _sessionIndex = _sessions.Count - 1;
 
-            // Cap history at 50 sessions (oldest removed from the front)
-            const int MaxSessions = 50;
-            if (_sessions.Count > MaxSessions)
+            // Cap history — evict by priority: completed first, then incoming, incomplete last
+            var maxSessions = AppSettings.SearchHistoryMaxItems;
+            if (_sessions.Count > maxSessions)
             {
-                var excess = _sessions.Count - MaxSessions;
-                _sessions.RemoveRange(0, excess);
-                _sessionIndex = Math.Max(0, _sessionIndex - excess);
+                var excess = _sessions.Count - maxSessions;
+                var evictIndices = Enumerable.Range(0, _sessions.Count)
+                    .Where(i => i != _sessionIndex)
+                    .Select(i =>
+                    {
+                        var status = ClassifySessionStatus(_sessions[i].Data);
+                        int priority = status is "completed" or "preProcessed" ? 0
+                            : status == "incoming" ? 1
+                            : 2;
+                        return (index: i, priority);
+                    })
+                    .OrderBy(x => x.priority)
+                    .ThenBy(x => x.index)
+                    .Take(excess)
+                    .Select(x => x.index)
+                    .OrderByDescending(x => x)
+                    .ToList();
+
+                foreach (var idx in evictIndices)
+                {
+                    _sessions.RemoveAt(idx);
+                    if (_sessionIndex > idx)
+                        _sessionIndex--;
+                }
             }
         }
 
         _orderLoaded = rows.Count > 0;
+        _isFirstItemScan = rows.Count > 0;
         ResetSessionStatCounts();
+
+        // New tracking scan resets the sequence counter — analytics treats the
+        // counter as "nth mutation of this session", where a session is one
+        // tracking scan's worth of picking.
+        _sequenceInSession = 0;
+        bool anyQcHold = rows.Any(r => string.Equals(r.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase));
+        bool anyToBePacked = rows.Any(r => string.Equals(r.PackingStatus, "To be packed", StringComparison.OrdinalIgnoreCase));
+        bool anyActionable = anyQcHold || anyToBePacked;
+        string initialFromState = anyQcHold ? "held" : "idle";
+        if (anyActionable || rows.Count == 0)
+        {
+            var trackingPayload = new Dictionary<string, object?>
+            {
+                ["trackingNumber"] = input,
+                ["ordersFound"] = rows.Count,
+            };
+            if (prevTracking != null && !string.Equals(prevTracking, input, StringComparison.OrdinalIgnoreCase))
+                trackingPayload["previousTrackingNumber"] = prevTracking;
+            EmitQcEvent(
+                stepId: "tracking_scanned",
+                trigger: trigger,
+                trackingNumber: input,
+                fromState: initialFromState,
+                toState: rows.Count > 0 ? "order-loaded" : "idle",
+                payload: trackingPayload);
+        }
+
         BuildCarouselUI();
+        _carouselDirty = false;
         if (!isSameQuery) _ = AnimateAllCarouselCardsAsync();
         UpdateSessionStats();
         NotFoundCard.IsVisible = rows.Count == 0;
@@ -285,6 +490,20 @@ public partial class OrderSearchPage : ContentPage
         RefreshHistoryItems();
         UpdateHistoryHeader();
         _isSearching = false;
+
+        // Drain queued scans
+        if (_pendingScanQueue.Count > 0)
+        {
+            var next = _pendingScanQueue.Dequeue();
+            Logger.Log($"OrderSearch: processing queued scan '{next}'");
+            var queuedRows = await ApiService.SearchAsync(next);
+            if (queuedRows.Count > 0)
+                await ExecuteSearchAsync(next, queuedRows);
+            else if (_orderLoaded)
+                HandleSkuScan(next);
+            else
+                await ExecuteSearchAsync(next, queuedRows);
+        }
     }
 
     // ── SKU picking ───────────────────────────────────────────────────────────
@@ -293,9 +512,24 @@ public partial class OrderSearchPage : ContentPage
     {
         // Auto-deduct 1 from the previous pending item before handling the new scan
         if (_pendingSkuProduct != null)
-            ApplySkuDeduction(_pendingSkuProduct, "1");
+        {
+            EmitQcEvent(
+                stepId: "item_scanned_auto",
+                trigger: "sku_scan",
+                trackingNumber: CurrentTrackingNumber,
+                fromState: ConsumePickingFromState(),
+                toState: "picking",
+                payload: new Dictionary<string, object?>
+                {
+                    ["sku"] = barcode,
+                    ["qtyBefore"] = _pendingSkuProduct.Quantity,
+                    ["qtyAfter"] = _pendingSkuProduct.Quantity - 1,
+                });
+            ApplySkuDeduction(_pendingSkuProduct, "1", DeductionSource.AutoPrior);
+        }
 
         ProductItem? found = null;
+        PackingList? foundOrder = null;
         bool blockedByQcPassed = false;
 
         foreach (var order in Results)
@@ -316,11 +550,26 @@ public partial class OrderSearchPage : ContentPage
             }
 
             found = match;
+            foundOrder = order;
             break;
         }
 
         if (found == null)
         {
+            if (!blockedByQcPassed)
+            {
+                EmitQcEvent(
+                    stepId: "item_scan_rejected",
+                    trigger: "sku_scan",
+                    trackingNumber: CurrentTrackingNumber,
+                    fromState: "picking",
+                    toState: "picking",
+                    payload: new Dictionary<string, object?>
+                    {
+                        ["sku"] = barcode,
+                        ["reason"] = "not-in-order",
+                    });
+            }
             UpdateSearchStatus(blockedByQcPassed
                 ? $"SKU '{barcode}' belongs to a QC Passed order — no changes allowed"
                 : $"SKU '{barcode}' not found in this order");
@@ -332,10 +581,34 @@ public partial class OrderSearchPage : ContentPage
         if (found.Quantity == 1)
         {
             // Only one left — deduct immediately, no input needed
-            ApplySkuDeduction(found, "1");
+            EmitQcEvent(
+                stepId: "item_scanned_auto",
+                trigger: "sku_scan",
+                trackingNumber: foundOrder?.TrackingNumber,
+                fromState: ConsumePickingFromState(),
+                toState: "picking",
+                payload: new Dictionary<string, object?>
+                {
+                    ["sku"] = barcode,
+                    ["qtyBefore"] = found.Quantity,
+                    ["qtyAfter"] = 0,
+                });
+            ApplySkuDeduction(found, "1", DeductionSource.ScanAuto);
         }
         else
         {
+            EmitQcEvent(
+                stepId: "item_scanned_await_qty",
+                trigger: "sku_scan",
+                trackingNumber: foundOrder?.TrackingNumber,
+                fromState: ConsumePickingFromState(),
+                toState: "picking",
+                payload: new Dictionary<string, object?>
+                {
+                    ["sku"] = barcode,
+                    ["qtyRemaining"] = found.Quantity,
+                });
+            found.PickQtyText = "1";
             found.IsBeingPicked = true;
             FocusItemEntry(found);
             var label = found.Name + (found.HasVariation ? $" · {found.Variation}" : "");
@@ -344,10 +617,20 @@ public partial class OrderSearchPage : ContentPage
         }
     }
 
+    // Differentiates which user action triggered a deduction — so ApplySkuDeduction
+    // emits the right workflow_event (manual qty entry vs card tap vs a prior auto-complete).
+    private enum DeductionSource
+    {
+        AutoPrior,   // pending item auto-deducted because user moved on to the next scan/tap
+        ScanAuto,    // scan matched a qty=1 row — immediate deduct; event already emitted in HandleSkuScan
+        ManualQty,   // user typed a number in the qty entry
+        CardTap,     // user tapped the qty area on a card
+    }
+
     private void OnPickQtyEntryCompleted(object sender, EventArgs e)
     {
         if (sender is Entry entry && entry.BindingContext is ProductItem item)
-            ApplySkuDeduction(item, entry.Text);
+            ApplySkuDeduction(item, entry.Text, DeductionSource.ManualQty);
     }
 
     private void OnPickQtyTextChanged(object sender, TextChangedEventArgs e)
@@ -356,16 +639,23 @@ public partial class OrderSearchPage : ContentPage
         if (entry.BindingContext is not ProductItem item) return;
 
         var raw = e.NewTextValue ?? "";
-        // Strip any non-digit characters
         var digits = new string(raw.Where(char.IsDigit).ToArray());
         if (digits != raw) { entry.Text = digits; return; }
+        if (digits.Length > 1 && digits[0] == '0') { entry.Text = digits.TrimStart('0'); return; }
 
         if (string.IsNullOrEmpty(digits)) return;
         if (int.TryParse(digits, out var qty) && qty > item.Quantity)
-            entry.Text = item.Quantity.ToString();
+        {
+            // Overflow: use only the last typed digit if it fits, otherwise cap
+            var lastDigit = digits[^1..];
+            if (int.TryParse(lastDigit, out var single) && single <= item.Quantity)
+                entry.Text = lastDigit;
+            else
+                entry.Text = item.Quantity.ToString();
+        }
     }
 
-    private void ApplySkuDeduction(ProductItem item, string? qtyText)
+    private void ApplySkuDeduction(ProductItem item, string? qtyText, DeductionSource source)
     {
         if (!int.TryParse(qtyText?.Trim(), out var qty)) qty = 1; // invalid input → default 1
         qty = Math.Max(0, Math.Min(qty, item.Quantity));           // clamp [0, remaining]
@@ -377,6 +667,31 @@ public partial class OrderSearchPage : ContentPage
             if (item == _pendingSkuProduct) _pendingSkuProduct = null;
             UpdateSearchStatus($"{item.SellerSku} — no deduction (0 entered)");
             return;
+        }
+
+        // Emit the action-origin event BEFORE mutating, so qtyBefore/qtyAfter reflect the change.
+        // ScanAuto is already reported in HandleSkuScan (as item_scanned_auto); skip here.
+        // AutoPrior is a housekeeping side-effect (not a user action on this item) → no event.
+        if (source is DeductionSource.ManualQty or DeductionSource.CardTap)
+        {
+            var owner = Results.FirstOrDefault(o => o.ParsedProducts.Contains(item));
+            var stepId = source == DeductionSource.ManualQty ? "manual_qty_entered" : "card_clicked";
+            var trigger = source == DeductionSource.ManualQty ? "qty_entered" : "card_tap";
+            var payload = new Dictionary<string, object?>
+            {
+                ["sku"] = item.SellerSku,
+                ["qtyBefore"] = item.Quantity,
+                ["qtyAfter"] = item.Quantity - qty,
+            };
+            if (source == DeductionSource.ManualQty) payload["qtyEntered"] = qty;
+            else payload["qtyDeducted"] = qty;
+            EmitQcEvent(
+                stepId: stepId,
+                trigger: trigger,
+                trackingNumber: owner?.TrackingNumber,
+                fromState: ConsumePickingFromState(),
+                toState: "picking",
+                payload: payload);
         }
 
         item.Quantity -= qty;
@@ -401,6 +716,7 @@ public partial class OrderSearchPage : ContentPage
     {
         await CheckCompletedOrdersAsync();
         await SaveQcHoldImmediateAsync();
+        FlushCarouselIfDirty();
     }
 
     /// <summary>Immediately saves partially-picked orders as QC Hold after each deduction.</summary>
@@ -413,18 +729,35 @@ public partial class OrderSearchPage : ContentPage
             if (order.ParsedProducts.All(p => p.IsFullyPicked)) continue;  // QC Passed path
             if (!order.ParsedProducts.Any(p => p.Quantity != p.OriginalQuantity)) continue;
 
-            var updatedJson = JsonSerializer.Serialize(order.ParsedProducts.ToList(),
-                new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+            var wasHeld = string.Equals(order.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase);
+            var payload = new ProductListPayload([.. order.ParsedProducts]);
             var now = DateTime.UtcNow;
-            var ok = await ApiService.UpdatePackingStatusAsync(order.PackingId, "QC Hold", updatedJson);
+            var ok = await ApiService.UpdatePackingStatusAsync(order.PackingId, "QC Hold", payload,
+                checkedBy: EffectiveOperator, checkingStationId: AppSettings.ResolvedStationId);
             if (ok)
             {
                 order.PackingStatus = "QC Hold";
                 order.UpdatedAt = now;
                 order.CheckedAt = now;
                 // Do NOT set OrderQcContext here — cards stay white while the user is scanning.
-                BuildCarouselUI();
-                UpdateSessionStats();
+                _carouselDirty = true;
+
+                // Only emit on the first transition into QC Hold — subsequent deductions
+                // on the same held order would drown out the genuine state change.
+                // if (!wasHeld)
+                // {
+                //     EmitQcEvent(
+                //         stepId: "order_held",
+                //         trigger: "qty_deduction",
+                //         trackingNumber: order.TrackingNumber,
+                //         fromState: "picking",
+                //         toState: "held",
+                //         bumpSequence: false,
+                //         payload: new Dictionary<string, object?>
+                //         {
+                //             ["itemsRemaining"] = order.ParsedProducts.Count(p => !p.IsFullyPicked),
+                //         });
+                // }
             }
         }
     }
@@ -440,25 +773,36 @@ public partial class OrderSearchPage : ContentPage
             if (!order.ParsedProducts.Any(p => p.Quantity != p.OriginalQuantity)) continue;
 
             _completedPackingIds.Add(order.PackingId);
-            var updatedJson = JsonSerializer.Serialize(order.ParsedProducts.ToList(),
-                new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+            var payload = new ProductListPayload([.. order.ParsedProducts]);
             var now = DateTime.UtcNow;
             var ok = await ApiService.UpdatePackingStatusAsync(
-                order.PackingId, "QC Passed", updatedJson, checkedBy: StationName);
+                order.PackingId, "QC Passed", payload,
+                checkedBy: EffectiveOperator, checkingStationId: AppSettings.ResolvedStationId);
             if (ok)
             {
                 order.PackingStatus = "QC Passed";
-                order.CheckedBy = StationName;
+                order.CheckedBy = EffectiveOperator;
                 order.UpdatedAt = now;
                 order.CheckedAt = now;
                 foreach (var p in order.ParsedProducts)
                     p.OrderQcContext = "QC Passed";
+
+                EmitQcEvent(
+                    stepId: "order_passed",
+                    trigger: "qc_complete",
+                    trackingNumber: order.TrackingNumber,
+                    fromState: "picking",
+                    toState: "passed",
+                    payload: new Dictionary<string, object?>
+                    {
+                        ["checkedBy"] = EffectiveOperator,
+                        ["itemsPicked"] = order.ParsedProducts.Count,
+                    });
             }
             UpdateSearchStatus(ok
-                ? $"✓ {order.TrackingNumber} — QC Passed · {StationName}"
+                ? $"✓ {order.TrackingNumber} — QC Passed · {EffectiveOperator}"
                 : $"⚠ {order.TrackingNumber} — all picked but DB update failed");
-            BuildCarouselUI();
-            UpdateSessionStats();
+            _carouselDirty = true;
         }
     }
 
@@ -467,7 +811,7 @@ public partial class OrderSearchPage : ContentPage
     /// Saves any partially-picked orders (with remaining items) as "QC Hold".
     /// Only updates orders where at least one SKU was actually scanned.
     /// </summary>
-    private async Task SaveQcHoldForRemainingOrdersAsync()
+    private async Task SaveQcHoldForRemainingOrdersAsync(string? newTrackingNumber = null)
     {
         foreach (var order in Results)
         {
@@ -477,11 +821,11 @@ public partial class OrderSearchPage : ContentPage
             // Skip if nothing was actually picked (order was only viewed)
             if (!order.ParsedProducts.Any(p => p.Quantity != p.OriginalQuantity)) continue;
 
-            var updatedJson = JsonSerializer.Serialize(order.ParsedProducts.ToList(),
-                new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping });
+            var dbPayload = new ProductListPayload([.. order.ParsedProducts]);
             var now = DateTime.UtcNow;
             var ok = await ApiService.UpdatePackingStatusAsync(
-                order.PackingId, "QC Hold", updatedJson);
+                order.PackingId, "QC Hold", dbPayload,
+                checkedBy: EffectiveOperator, checkingStationId: AppSettings.ResolvedStationId);
             if (ok)
             {
                 order.PackingStatus = "QC Hold";
@@ -489,6 +833,28 @@ public partial class OrderSearchPage : ContentPage
                 order.CheckedAt = now;
                 foreach (var p in order.ParsedProducts)
                     p.OrderQcContext = "QC Hold";
+
+                var trigger = newTrackingNumber != null ? "new_order_scanned" : "leave_page";
+                var eventPayload = new Dictionary<string, object?>
+                {
+                    ["itemsRemaining"] = order.ParsedProducts.Count(p => !p.IsFullyPicked),
+                };
+                if (newTrackingNumber != null)
+                {
+                    eventPayload["newTrackingNumber"] = newTrackingNumber;
+                    eventPayload["remainingProducts"] = order.ParsedProducts
+                        .Where(p => !p.IsFullyPicked)
+                        .Select(p => new Dictionary<string, object?> { ["sku"] = p.SellerSku, ["qtyRemaining"] = p.Quantity })
+                        .ToList<object?>();
+                }
+                EmitQcEvent(
+                    stepId: "order_held",
+                    trigger: trigger,
+                    trackingNumber: order.TrackingNumber,
+                    fromState: "picking",
+                    toState: "held",
+                    bumpSequence: false,
+                    payload: eventPayload);
             }
             Logger.Log($"OrderSearch: {order.TrackingNumber} → QC Hold ({(ok ? "saved" : "DB failed")})");
         }
@@ -502,7 +868,9 @@ public partial class OrderSearchPage : ContentPage
         {
             await Task.Delay(80); // allow Entry to become visible after IsBeingPicked = true
             var entry = FindDescendant<Entry>(this, e => e.BindingContext == item && e.IsVisible);
-            entry?.Focus();
+            if (entry is null) return;
+            entry.Focus();
+            entry.CursorPosition = entry.Text?.Length ?? 0;
         });
     }
 
@@ -535,16 +903,17 @@ public partial class OrderSearchPage : ContentPage
         if (item.Quantity <= 0) { UpdateSearchStatus($"{item.SellerSku} — already fully picked"); return; }
 
         if (_pendingSkuProduct != null)
-            ApplySkuDeduction(_pendingSkuProduct, "1");
+            ApplySkuDeduction(_pendingSkuProduct, "1", DeductionSource.AutoPrior);
 
         _pendingSkuProduct = item;
 
         if (item.Quantity == 1)
         {
-            ApplySkuDeduction(item, "1");
+            ApplySkuDeduction(item, "1", DeductionSource.CardTap);
         }
         else
         {
+            item.PickQtyText = "0";
             item.IsBeingPicked = true;
             FocusItemEntry(item);
             var label = item.Name + (item.HasVariation ? $" · {item.Variation}" : "");
@@ -580,6 +949,8 @@ public partial class OrderSearchPage : ContentPage
     {
         if (sender is not VisualElement el || el.BindingContext is not PackingList order) return;
 
+        var previousStatus = order.PackingStatus;
+
         var ok = await ApiService.ResetQcHoldAsync(order.PackingId);
         if (!ok)
         {
@@ -604,6 +975,18 @@ public partial class OrderSearchPage : ContentPage
         order.CheckedAt = null;
         order.UpdatedProductLists = null;
         order.ResetToOriginalQuantities();
+
+        EmitQcEvent(
+            stepId: "order_reset",
+            trigger: "reset_clicked",
+            trackingNumber: order.TrackingNumber,
+            fromState: string.Equals(previousStatus, "QC Passed", StringComparison.OrdinalIgnoreCase) ? "passed" : "held",
+            toState: "idle",
+            bumpSequence: false,
+            payload: new Dictionary<string, object?>
+            {
+                ["previousStatus"] = previousStatus,
+            });
 
         UpdateSearchStatus($"↺ {order.TrackingNumber} — reset to original");
         Logger.Log($"OrderSearch: {order.TrackingNumber} → reset QC Hold");
@@ -631,84 +1014,99 @@ public partial class OrderSearchPage : ContentPage
             return;
         }
 
-        // Display newest first (leftmost). Session list order is unchanged.
+        // Precompute visible window (centered on active session, max 25 cards)
+        const int MaxVisibleCards = 25;
+        var filteredIndices = new List<int>();
         for (int i = count - 1; i >= 0; i--)
         {
+            var ss = ClassifySessionStatus(_sessions[i].Data);
+            if (_carouselFilter is null || ss == _carouselFilter)
+                filteredIndices.Add(i);
+        }
+
+        int activePos = filteredIndices.IndexOf(_sessionIndex);
+        int winStart = 0, winEnd = Math.Min(MaxVisibleCards - 1, filteredIndices.Count - 1);
+        if (activePos >= 0 && filteredIndices.Count > MaxVisibleCards)
+        {
+            winStart = Math.Max(0, activePos - MaxVisibleCards / 2);
+            winEnd = Math.Min(filteredIndices.Count - 1, winStart + MaxVisibleCards - 1);
+            winStart = Math.Max(0, winEnd - MaxVisibleCards + 1);
+        }
+        var visibleSet = new HashSet<int>(
+            filteredIndices.Skip(winStart).Take(winEnd - winStart + 1));
+
+        if (winStart > 0)
+            CarouselLayout.Children.Add(new Label
+            {
+                Text = $"+{winStart} newer",
+                FontSize = 11,
+                TextColor = Color.FromArgb("#9ca3af"),
+                VerticalOptions = LayoutOptions.Center,
+                Margin = new Thickness(8, 0),
+            });
+
+        // Display newest first (leftmost). Session list order is unchanged.
+        VisualElement? activeCard = null;
+        for (int i = count - 1; i >= 0; i--)
+        {
+            if (!visibleSet.Contains(i)) continue;
+
             var capturedIdx = i;
-            var isActive    = i == _sessionIndex;
-            var query       = _sessions[i].Query;
+            var isActive = i == _sessionIndex;
+            var query = _sessions[i].Query;
 
             // ── Determine color palette (status-based for both active and inactive) ──
-            var sessionOrders = _sessions[i].Data;
-            var qualified     = sessionOrders
-                .Where(o => _qualifiedPackingIds.Contains(o.PackingId))
-                .ToList();
-            bool allPassed = qualified.Count > 0 &&
-                qualified.All(o => string.Equals(o.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase));
-            bool anyHold = qualified.Any(o =>
-                string.Equals(o.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase));
-
-            // ── Apply carousel filter ─────────────────────────────────────────────────
-            string sessionStatus = qualified.Count == 0 ? "preProcessed"
-                : allPassed ? "completed"
-                : anyHold   ? "incomplete"
-                :             "incoming";
-            if (_carouselFilter is not null && sessionStatus != _carouselFilter)
-                continue;
+            var sessionStatus = ClassifySessionStatus(_sessions[i].Data);
 
             Color bgActive, strokeActive, idxActive;
             Color bgInactive, bgHover, strokeInactive, titleInactive, idxInactive;
 
-            if (qualified.Count == 0)
+            if (sessionStatus == "preProcessed")
             {
-                // Grey: all orders were already QC Hold/Passed when scanned
-                bgActive       = Color.FromArgb("#6b7280"); strokeActive  = Color.FromArgb("#4b5563"); idxActive    = Color.FromArgb("#d1d5db");
-                bgInactive     = Color.FromArgb("#f9fafb"); bgHover       = Color.FromArgb("#f3f4f6");
-                strokeInactive = Color.FromArgb("#e5e7eb"); titleInactive = Color.FromArgb("#6b7280"); idxInactive  = Color.FromArgb("#9ca3af");
+                bgActive = Color.FromArgb("#6b7280"); strokeActive = Color.FromArgb("#4b5563"); idxActive = Color.FromArgb("#d1d5db");
+                bgInactive = Color.FromArgb("#f9fafb"); bgHover = Color.FromArgb("#f3f4f6");
+                strokeInactive = Color.FromArgb("#e5e7eb"); titleInactive = Color.FromArgb("#6b7280"); idxInactive = Color.FromArgb("#9ca3af");
             }
-            else if (allPassed)
+            else if (sessionStatus == "completed")
             {
-                // Green: all qualified orders are QC Passed
-                bgActive       = Color.FromArgb("#16a34a"); strokeActive  = Color.FromArgb("#15803d"); idxActive    = Color.FromArgb("#bbf7d0");
-                bgInactive     = Color.FromArgb("#f0fdf4"); bgHover       = Color.FromArgb("#dcfce7");
-                strokeInactive = Color.FromArgb("#bbf7d0"); titleInactive = Color.FromArgb("#166534"); idxInactive  = Color.FromArgb("#86efac");
+                bgActive = Color.FromArgb("#16a34a"); strokeActive = Color.FromArgb("#15803d"); idxActive = Color.FromArgb("#bbf7d0");
+                bgInactive = Color.FromArgb("#f0fdf4"); bgHover = Color.FromArgb("#dcfce7");
+                strokeInactive = Color.FromArgb("#bbf7d0"); titleInactive = Color.FromArgb("#166534"); idxInactive = Color.FromArgb("#86efac");
             }
-            else if (anyHold)
+            else if (sessionStatus == "incomplete")
             {
-                // Yellow: at least one qualified order is QC Hold
-                bgActive       = Color.FromArgb("#d97706"); strokeActive  = Color.FromArgb("#b45309"); idxActive    = Color.FromArgb("#fef3c7");
-                bgInactive     = Color.FromArgb("#fffbeb"); bgHover       = Color.FromArgb("#fef3c7");
-                strokeInactive = Color.FromArgb("#fde68a"); titleInactive = Color.FromArgb("#b45309"); idxInactive  = Color.FromArgb("#fcd34d");
+                bgActive = Color.FromArgb("#d97706"); strokeActive = Color.FromArgb("#b45309"); idxActive = Color.FromArgb("#fef3c7");
+                bgInactive = Color.FromArgb("#fffbeb"); bgHover = Color.FromArgb("#fef3c7");
+                strokeInactive = Color.FromArgb("#fde68a"); titleInactive = Color.FromArgb("#b45309"); idxInactive = Color.FromArgb("#fcd34d");
             }
             else
             {
-                // Blue: all qualified orders still To be packed (incoming)
-                bgActive       = Color.FromArgb("#2563eb"); strokeActive  = Color.FromArgb("#1d4ed8"); idxActive    = Color.FromArgb("#bfdbfe");
-                bgInactive     = Color.FromArgb("#eff6ff"); bgHover       = Color.FromArgb("#dbeafe");
-                strokeInactive = Color.FromArgb("#bfdbfe"); titleInactive = Color.FromArgb("#1d4ed8"); idxInactive  = Color.FromArgb("#93c5fd");
+                bgActive = Color.FromArgb("#2563eb"); strokeActive = Color.FromArgb("#1d4ed8"); idxActive = Color.FromArgb("#bfdbfe");
+                bgInactive = Color.FromArgb("#eff6ff"); bgHover = Color.FromArgb("#dbeafe");
+                strokeInactive = Color.FromArgb("#bfdbfe"); titleInactive = Color.FromArgb("#1d4ed8"); idxInactive = Color.FromArgb("#93c5fd");
             }
 
-            Color bgColor     = isActive ? bgActive    : bgInactive;
+            Color bgColor = isActive ? bgActive : bgInactive;
             Color strokeColor = isActive ? strokeActive : strokeInactive;
-            Color titleColor  = isActive ? Colors.White : titleInactive;
-            Color indexColor  = isActive ? idxActive    : idxInactive;
+            Color titleColor = isActive ? Colors.White : titleInactive;
+            Color indexColor = isActive ? idxActive : idxInactive;
 
             var titleLabel = new Label
             {
-                Text                    = query,
-                FontSize                = 11,
-                FontAttributes          = FontAttributes.Bold,
-                TextColor               = titleColor,
-                LineBreakMode           = LineBreakMode.NoWrap,
+                Text = query,
+                FontSize = 11,
+                FontAttributes = FontAttributes.Bold,
+                TextColor = titleColor,
+                LineBreakMode = LineBreakMode.NoWrap,
                 HorizontalTextAlignment = TextAlignment.Center,
             };
 
             var indexLabel = new Label
             {
-                Text                    = $"#{i + 1}",
-                FontSize                = 13,
-                FontAttributes          = FontAttributes.Bold,
-                TextColor               = indexColor,
+                Text = $"#{i + 1}",
+                FontSize = 13,
+                FontAttributes = FontAttributes.Bold,
+                TextColor = indexColor,
                 HorizontalTextAlignment = TextAlignment.Center,
             };
 
@@ -726,7 +1124,7 @@ public partial class OrderSearchPage : ContentPage
                 "Shopee" => Color.FromArgb("#EE4D2D"),
                 "Lazada" => Color.FromArgb("#0F146D"),
                 "TikTok" => Color.FromArgb("#000000"),
-                _        => Colors.Transparent,
+                _ => Colors.Transparent,
             };
 
             // ── Build platform tag border (top-right) ────────────────────────────────
@@ -736,15 +1134,15 @@ public partial class OrderSearchPage : ContentPage
                 {
                     BackgroundColor = platformTagColor,
                     StrokeThickness = 0,
-                    StrokeShape     = new RoundRectangle { CornerRadius = new CornerRadius(3) },
-                    Padding         = new Thickness(5, 2),
+                    StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(3) },
+                    Padding = new Thickness(5, 2),
                     VerticalOptions = LayoutOptions.Center,
-                    Content         = new Label
+                    Content = new Label
                     {
-                        Text            = platformName,
-                        FontSize        = 9,
-                        FontAttributes  = FontAttributes.Bold,
-                        TextColor       = Colors.White,
+                        Text = platformName,
+                        FontSize = 9,
+                        FontAttributes = FontAttributes.Bold,
+                        TextColor = Colors.White,
                         VerticalOptions = LayoutOptions.Center,
                     },
                 };
@@ -759,7 +1157,7 @@ public partial class OrderSearchPage : ContentPage
                     new ColumnDefinition(GridLength.Auto),  // platform tag
                 },
                 HorizontalOptions = LayoutOptions.Fill,
-                RowSpacing        = 0,
+                RowSpacing = 0,
             };
             topRow.Add(indexLabel, 0, 0);
             if (platformTagBorder != null)
@@ -774,29 +1172,29 @@ public partial class OrderSearchPage : ContentPage
                     new RowDefinition(GridLength.Auto),
                     new RowDefinition(GridLength.Auto),
                 },
-                RowSpacing        = 4,
+                RowSpacing = 4,
                 HorizontalOptions = LayoutOptions.Fill,
             };
-            cardContent.Add(topRow,      0, 0);
-            cardContent.Add(titleLabel,  0, 1);
+            cardContent.Add(topRow, 0, 0);
+            cardContent.Add(titleLabel, 0, 1);
 
             var card = new Border
             {
-                StrokeShape     = new RoundRectangle { CornerRadius = new CornerRadius(8) },
-                Stroke          = strokeColor,
+                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(8) },
+                Stroke = strokeColor,
                 StrokeThickness = 1,
                 BackgroundColor = bgColor,
-                Padding         = new Thickness(14, 6),
-                Content         = cardContent,
+                Padding = new Thickness(14, 6),
+                Content = cardContent,
             };
 
             if (!isActive)
             {
-                var capturedBg    = bgInactive;
+                var capturedBg = bgInactive;
                 var capturedHover = bgHover;
                 var ptr = new PointerGestureRecognizer();
                 ptr.PointerEntered += (_, _) => card.BackgroundColor = capturedHover;
-                ptr.PointerExited  += (_, _) => card.BackgroundColor = capturedBg;
+                ptr.PointerExited += (_, _) => card.BackgroundColor = capturedBg;
                 card.GestureRecognizers.Add(ptr);
             }
 
@@ -804,49 +1202,61 @@ public partial class OrderSearchPage : ContentPage
             tap.Tapped += (_, _) => NavigateToSession(capturedIdx);
             card.GestureRecognizers.Add(tap);
 
+            if (isActive) activeCard = card;
             CarouselLayout.Children.Add(card);
         }
 
+        int olderOverflow = filteredIndices.Count - 1 - winEnd;
+        if (olderOverflow > 0)
+            CarouselLayout.Children.Add(new Label
+            {
+                Text = $"+{olderOverflow} older",
+                FontSize = 11,
+                TextColor = Color.FromArgb("#9ca3af"),
+                VerticalOptions = LayoutOptions.Center,
+                Margin = new Thickness(8, 0),
+            });
+
         // Auto-scroll so the active card is visible after layout settles
-        _ = Dispatcher.DispatchAsync(async () =>
-        {
-            await Task.Delay(80);
-            int n = _sessions.Count;
-            if (_sessionIndex < 0 || _sessionIndex >= n || CarouselLayout.Children.Count == 0) return;
-            // Reversed display: newest (highest session index) is at display position 0 (leftmost)
-            int displayPos = n - 1 - _sessionIndex;
-            if (displayPos >= 0 && displayPos < CarouselLayout.Children.Count &&
-                CarouselLayout.Children[displayPos] is VisualElement ve)
-                await NavRow.ScrollToAsync(ve, ScrollToPosition.MakeVisible, animated: true);
-        });
+        if (activeCard is not null)
+            _ = Dispatcher.DispatchAsync(async () =>
+            {
+                await Task.Delay(80);
+                await NavRow.ScrollToAsync(activeCard, ScrollToPosition.MakeVisible, animated: true);
+            });
+    }
+
+    private void FlushCarouselIfDirty()
+    {
+        if (!_carouselDirty) return;
+        _carouselDirty = false;
+        BuildCarouselUI();
+        UpdateSessionStats();
+    }
+
+    // Returns "preProcessed" | "completed" | "incomplete" | "incoming"
+    private string ClassifySessionStatus(List<PackingList> data)
+    {
+        var qualified = data
+            .Where(o => _qualifiedPackingIds.Contains(o.PackingId))
+            .ToList();
+        if (qualified.Count == 0)
+            return "preProcessed";
+        if (qualified.All(o => string.Equals(o.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase)))
+            return "completed";
+        if (qualified.Any(o => string.Equals(o.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase)))
+            return "incomplete";
+        return "incoming";
     }
 
     private async Task AnimateAllCarouselCardsAsync()
     {
         var children = CarouselLayout.Children.OfType<VisualElement>().ToList();
-        if (children.Count == 0) return;
+        if (children.Count == 0 || children[0] is not Border) return;
 
-        // New card (leftmost, index 0): slide in from off-screen left
-        if (children.Count > 0)
-        {
-            children[0].TranslationX = -260;
-            children[0].Opacity      = 0;
-        }
-
-        // Existing cards (index 1+): nudge from a slight rightward offset
-        // (they appear to shift right as the new card pushes in from the left)
-        for (int j = 1; j < children.Count; j++)
-        {
-            children[j].TranslationX = 60;
-            children[j].Opacity      = 0.7;
-        }
-
-        var tasks = new List<Task>();
-        if (children.Count > 0)
-            tasks.Add(SlideCardInAsync(children[0], 0));
-        for (int j = 1; j < children.Count; j++)
-            tasks.Add(SlideExistingCardAsync(children[j], j * 30));
-        await Task.WhenAll(tasks);
+        children[0].TranslationX = -260;
+        children[0].Opacity = 0;
+        await SlideCardInAsync(children[0], 0);
     }
 
     private static async Task SlideCardInAsync(VisualElement card, int delayMs)
@@ -855,14 +1265,6 @@ public partial class OrderSearchPage : ContentPage
         await Task.WhenAll(
             card.TranslateToAsync(0, 0, 300, Easing.SinOut),
             card.FadeToAsync(1.0, 260, Easing.SinIn));
-    }
-
-    private static async Task SlideExistingCardAsync(VisualElement card, int delayMs)
-    {
-        if (delayMs > 0) await Task.Delay(delayMs);
-        await Task.WhenAll(
-            card.TranslateToAsync(0, 0, 220, Easing.SinOut),
-            card.FadeToAsync(1.0, 180, Easing.SinIn));
     }
 
     // ── Session badge filter ──────────────────────────────────────────────────
@@ -890,9 +1292,9 @@ public partial class OrderSearchPage : ContentPage
 
     private void UpdateBadgeFilterState()
     {
-        SessionCompletedBadge.Opacity  = _carouselFilter is null or "completed"  ? 1.0 : 0.4;
+        SessionCompletedBadge.Opacity = _carouselFilter is null or "completed" ? 1.0 : 0.4;
         SessionIncompleteBadge.Opacity = _carouselFilter is null or "incomplete" ? 1.0 : 0.4;
-        SessionIncomingBadge.Opacity   = _carouselFilter is null or "incoming"   ? 1.0 : 0.4;
+        SessionIncomingBadge.Opacity = _carouselFilter is null or "incoming" ? 1.0 : 0.4;
     }
 
     private void NavigateToSession(int index)
@@ -900,22 +1302,82 @@ public partial class OrderSearchPage : ContentPage
         if (_sessions.Count == 0 || index == _sessionIndex) return;
 
         if (_pendingSkuProduct != null)
-            ApplySkuDeduction(_pendingSkuProduct, "1");
+            ApplySkuDeduction(_pendingSkuProduct, "1", DeductionSource.AutoPrior);
+
+        var prevSession = _sessions[_sessionIndex];
+        string sourceState = GetSessionWorkflowState(prevSession.Data);
+        bool hadIncompleteWork = prevSession.Data.Any(o =>
+            _qualifiedPackingIds.Contains(o.PackingId) &&
+            !string.Equals(o.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase) &&
+            o.ParsedProducts.Any(p => p.Quantity != p.OriginalQuantity));
+
+        // Detect order-loaded: no item scans done yet and all qualified orders still "To be packed"
+        bool sourceInOrderLoaded = _isFirstItemScan && _orderLoaded &&
+            prevSession.Data.Where(o => _qualifiedPackingIds.Contains(o.PackingId))
+                            .All(o => string.Equals(o.PackingStatus, "To be packed", StringComparison.OrdinalIgnoreCase));
+        string sourceFromState = sourceInOrderLoaded ? "order-loaded" : sourceState;
+        string sourceToState = sourceInOrderLoaded ? "idle" : "held";
+        string sourceStepId = sourceInOrderLoaded ? "order_abandoned"
+            : hadIncompleteWork ? "incomplete_order_abandoned"
+            : "order_held";
 
         _sessionIndex = index;
         var session = _sessions[_sessionIndex];
+        string destFromState = GetSessionWorkflowState(session.Data);
 
         Results.Clear();
         ActiveResults.Clear();
         foreach (var r in session.Data) { Results.Add(r); ActiveResults.Add(r); }
 
         _orderLoaded = Results.Count > 0;
+        _isFirstItemScan = _orderLoaded;
         NotFoundCard.IsVisible = Results.Count == 0;
         NotFoundLabel.Text = Results.Count == 0 ? $"{session.Query} not found" : "";
         UpdateSearchStatus(session.Query);
         BuildCarouselUI();
         UpdateSessionStats(); // stats span all sessions — no reset needed here
         _ = ResultsScroll.ScrollToAsync(0, 0, false);
+
+        // Emit source order leaving (skip if already idle or passed — nothing to record)
+        if (!string.Equals(sourceState, "passed", StringComparison.Ordinal) &&
+            !string.Equals(sourceState, "idle", StringComparison.Ordinal))
+            EmitQcEvent(
+                stepId: sourceStepId,
+                trigger: "order_card_selected",
+                trackingNumber: prevSession.Query,
+                fromState: sourceFromState,
+                toState: sourceToState,
+                bumpSequence: false,
+                payload: new Dictionary<string, object?>
+                {
+                    ["toTrackingNumber"] = session.Query,
+                    ["hadIncompleteWork"] = hadIncompleteWork,
+                });
+
+        // Emit destination order loading
+        if (!string.Equals(destFromState, "passed", StringComparison.Ordinal))
+            EmitQcEvent(
+                stepId: "session_navigated",
+                trigger: "order_card_selected",
+                trackingNumber: session.Query,
+                fromState: destFromState,
+                toState: "order-loaded",
+                bumpSequence: false,
+                payload: new Dictionary<string, object?>
+                {
+                    ["fromTrackingNumber"] = prevSession.Query,
+                });
+    }
+
+    private string GetSessionWorkflowState(List<PackingList> orders)
+    {
+        var qualified = orders.Where(o => _qualifiedPackingIds.Contains(o.PackingId)).ToList();
+        if (qualified.Count == 0) return "idle";
+        if (qualified.All(o => string.Equals(o.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase)))
+            return "passed";
+        if (qualified.Any(o => string.Equals(o.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase)))
+            return "held";
+        return "picking";
     }
 
     private void NavigateSession(int delta)
@@ -1292,8 +1754,81 @@ public partial class OrderSearchPage : ContentPage
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
+    // ── Operator UI ──────────────────────────────────────────────────────────
+
+    private void UpdateNavOperatorUI(string? displayName)
+    {
+        if (displayName is null)
+        {
+            OperatorHeaderBadge.IsVisible = false;
+        }
+        else
+        {
+            NavOperatorLabel.Text = displayName;
+            OperatorHeaderBadge.IsVisible = true;
+        }
+    }
+
+    private void ShowLoginOverlay() =>
+        MainThread.BeginInvokeOnMainThread(() => LoginOverlay.IsVisible = true);
+
+    private void HideLoginOverlay() =>
+        MainThread.BeginInvokeOnMainThread(() => LoginOverlay.IsVisible = false);
+
+    private async Task ShowWelcomeAnimationAsync(string name)
+    {
+        WelcomeLabel.Text = $"Welcome, {name}";
+        WelcomeBanner.IsVisible = true;
+        WelcomeBanner.Opacity = 0;
+        WelcomeBanner.Scale = 0.85;
+        await Task.WhenAll(
+            WelcomeBanner.FadeToAsync(1.0, 280, Easing.SinOut),
+            WelcomeBanner.ScaleToAsync(1.0, 280, Easing.SinOut));
+        await Task.Delay(1800);
+        await WelcomeBanner.FadeToAsync(0.0, 350, Easing.SinIn);
+        WelcomeBanner.IsVisible = false;
+        WelcomeBanner.Scale = 1.0;
+    }
+
+    private void StartInactivityTimer()
+    {
+        StopInactivityTimer();
+        var minutes = AppSettings.QcInactivityMinutes;
+        if (minutes <= 0) return;
+        _inactivityTimer = Dispatcher.CreateTimer();
+        _inactivityTimer.Interval = TimeSpan.FromMinutes(minutes);
+        _inactivityTimer.IsRepeating = false;
+        _inactivityTimer.Tick += OnInactivityTimerTick;
+        _inactivityTimer.Start();
+    }
+
+    private void StopInactivityTimer()
+    {
+        if (_inactivityTimer is null) return;
+        _inactivityTimer.Stop();
+        _inactivityTimer.Tick -= OnInactivityTimerTick;
+        _inactivityTimer = null;
+    }
+
+    private void OnInactivityTimerTick(object? sender, EventArgs e)
+    {
+        var displayName = _currentOperatorFirstName ?? _currentOperator;
+        _currentOperator = null;
+        _currentOperatorFirstName = null;
+        StopInactivityTimer();
+        Services.StationWsClient.SendOperatorLogout();
+        UpdateNavOperatorUI(null);
+        ShowLoginOverlay();
+        if (displayName is not null)
+            _ = Toast.Make($"Session ended — {displayName}").Show();
+        Logger.Log($"OrderSearch: Operator logged out (inactivity)");
+    }
+
     private void UpdateScannerStatus(string msg) =>
         MainThread.BeginInvokeOnMainThread(() => ScannerStatusLabel.Text = msg);
+
+    private void UpdateOverlayScannerStatus(string msg) =>
+        MainThread.BeginInvokeOnMainThread(() => OverlayScannerStatusLabel.Text = msg);
 
     private void UpdateSearchStatus(string msg) =>
         MainThread.BeginInvokeOnMainThread(() => SearchStatusLabel.Text = msg);

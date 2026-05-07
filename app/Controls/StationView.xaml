@@ -13,7 +13,8 @@
         <Grid RowDefinitions="*, Auto, Auto">
 
             <!-- ── Row 0: Camera area (tap here to select this station) ── -->
-            <Grid Grid.Row="0" BackgroundColor="#111827">
+            <Grid Grid.Row="0"
+                    BackgroundColor="#111827">
                 <Grid.GestureRecognizers>
                     <TapGestureRecognizer Tapped="OnCameraAreaTapped"/>
                 </Grid.GestureRecognizers>
@@ -97,7 +98,32 @@
                            TextColor="White"
                            FontSize="28"
                            FontAttributes="Bold"
-                           HorizontalTextAlignment="Center"/></Border>
+                           HorizontalTextAlignment="Center"/>
+                </Border>
+
+                <!-- Upload progress badge — bottom-right, above video count -->
+                <Border x:Name="UploadProgressBadge"
+                        IsVisible="False"
+                        BackgroundColor="#CC1d4ed8"
+                        StrokeShape="RoundRectangle 6"
+                        StrokeThickness="0"
+                        Padding="10,6"
+                        HorizontalOptions="End"
+                        VerticalOptions="End"
+                        Margin="0,0,8,44"
+                        InputTransparent="True">
+                    <VerticalStackLayout Spacing="2">
+                        <Label x:Name="UploadProgressTitle"
+                               Text="Uploading"
+                               TextColor="White"
+                               FontSize="10"
+                               FontAttributes="Bold"/>
+                        <Label x:Name="UploadProgressDetail"
+                               Text="0/0 files"
+                               TextColor="#dbeafe"
+                               FontSize="9"/>
+                    </VerticalStackLayout>
+                </Border>
 
                 <!-- Saving / encoding overlay — shown between stop-scan and file write completing -->
                 <Border x:Name="SavingOverlay"
@@ -114,6 +140,24 @@
                            FontSize="16"
                            FontAttributes="Bold"
                            HorizontalOptions="Center"/>
+                </Border>
+
+                <!-- Station name + operator name badge — bottom-left overlay, always visible -->
+                <Border x:Name="StationNameBadge"
+                        BackgroundColor="#CC000000"
+                        StrokeShape="RoundRectangle 6"
+                        StrokeThickness="0"
+                        Padding="10,6"
+                        HorizontalOptions="Start"
+                        VerticalOptions="End"
+                        Margin="8,0,0,8"
+                        InputTransparent="True">
+                    <Label x:Name="OperatorVideoLabel"
+                           TextColor="White"
+                           FontSize="18"
+                           FontAttributes="Bold"
+                           HorizontalOptions="Start"
+                           IsVisible="False"/>
                 </Border>
 
             </Grid>
@@ -170,7 +214,7 @@
 
             <!-- ── Row 2: Always-visible footer strip ── -->
             <Grid Grid.Row="2"
-                  ColumnDefinitions="Auto, Auto, *, Auto"
+                  ColumnDefinitions="Auto, Auto, *, Auto, Auto"
                   BackgroundColor="White"
                   Padding="6,4">
 
@@ -221,9 +265,28 @@
                        LineBreakMode="TailTruncation"
                        Margin="8,0,0,0"/>
 
+                <!-- Operator indicator -->
+                <HorizontalStackLayout Grid.Column="3"
+                                       Spacing="5"
+                                       VerticalOptions="Center"
+                                       Margin="0,0,4,0">
+                    <BoxView x:Name="OperatorDot"
+                             WidthRequest="8"
+                             HeightRequest="8"
+                             Color="#9ca3af"
+                             CornerRadius="4"
+                             VerticalOptions="Center"/>
+                    <Label x:Name="OperatorFooterLabel"
+                           Text="No Operator"
+                           FontSize="11"
+                           FontAttributes="Bold"
+                           TextColor="#9ca3af"
+                           VerticalOptions="Center"/>
+                </HorizontalStackLayout>
+
                 <!-- Collapse / expand toggle -->
                 <Button x:Name="ToggleButton"
-                        Grid.Column="3"
+                        Grid.Column="4"
                         Text="▼"
                         FontSize="12"
                         HeightRequest="34"

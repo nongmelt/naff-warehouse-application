@@ -219,3 +219,6 @@ FakesAssemblies/
 installer/
 minio/
 *.exe
+# Added by code-review-graph
+.code-review-graph/
+ui-ux-pro-max/

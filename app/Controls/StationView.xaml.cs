@@ -1,4 +1,6 @@
 using app.Services;
+using app.Workflows;
+using CommunityToolkit.Maui.Alerts;
 using CommunityToolkit.Maui.Core;
 using CommunityToolkit.Maui.Views;
 using System.Collections.Concurrent;
@@ -46,7 +48,16 @@ public partial class StationView : ContentView, IDisposable
     // Editable station name (backing field so file-naming doesn't need to touch the UI)
     private string _stationName = string.Empty;
 
-    // Video count for today (initialised from disk, then incremented in-memory)
+    // Full barcode of the logged-in operator — null when no operator active
+    private string? _currentOperator;
+
+    // Resolved first name from API — null until lookup completes or when no operator active
+    private string? _currentOperatorFirstName;
+
+    // Operator name for API calls — falls back to station name when no operator is logged in
+    private string EffectiveOperator => _currentOperator ?? _stationName.Replace(' ', '-');
+
+    // Video count for today (fetched from backend, then incremented in-memory)
     private int _videoCount;
 
     // Lock flags — prevent picker changes and skip re-population on Refresh
@@ -55,6 +66,9 @@ public partial class StationView : ContentView, IDisposable
 
     // Controls panel visibility state (collapsed by default)
     private bool _controlsVisible;
+
+    // Inactivity auto-logout timer
+    private IDispatcherTimer? _inactivityTimer;
 
     // Prevents OnCameraSelected from firing while the picker is being populated
     private bool _loadingDevices;
@@ -79,7 +93,41 @@ public partial class StationView : ContentView, IDisposable
     }
 
     private void OnAnyCameraSelectionChanged() =>
-        MainThread.BeginInvokeOnMainThread(RefreshCameraPickerLabels);
+        TryDispatchUI(RefreshCameraPickerLabels);
+
+    private void OnUploadProgressChanged() =>
+        TryDispatchUI(UpdateUploadProgressBadge);
+
+    private void UpdateUploadProgressBadge()
+    {
+        var items = VideoWorkflowManager.GetSnapshot();
+        if (items.Count == 0)
+        {
+            UploadProgressBadge.IsVisible = false;
+            return;
+        }
+
+        var uploading = items.Count(i => i.Status == "Uploading");
+        var verifying = items.Count(i => i.Status == "Verifying");
+        var retrying  = items.Count(i => i.Status.StartsWith("Retry"));
+
+        string title;
+        if (uploading > 0)
+            title = $"Uploading {uploading} file{(uploading > 1 ? "s" : "")}";
+        else if (verifying > 0)
+            title = "Verifying...";
+        else if (retrying > 0)
+            title = "Retrying...";
+        else
+            title = "Processing...";
+
+        var completed = items.Count(i => i.Status == "Completed");
+        var detail = $"{completed}/{items.Count} done";
+
+        UploadProgressTitle.Text  = title;
+        UploadProgressDetail.Text = detail;
+        UploadProgressBadge.IsVisible = true;
+    }
 
     /// <summary>
     /// Rebuilds the camera picker display names from the already-loaded camera list —
@@ -255,12 +303,14 @@ public partial class StationView : ContentView, IDisposable
         _stationName = $"Station {stationId}";
         StationNameLabel.Text = _stationName;
         AnyCameraSelectionChanged += OnAnyCameraSelectionChanged;
+        VideoWorkflowManager.ProgressChanged += OnUploadProgressChanged;
         // Load devices AFTER the view (and its CameraView handler) is fully in the visual tree
         Loaded += OnViewLoaded;
     }
 
     private void OnViewLoaded(object? sender, EventArgs e)
     {
+        UpdateUploadProgressBadge();
         _ = LoadDevicesAsync();
         _ = LoadTodayVideoCountAsync();
     }
@@ -448,11 +498,75 @@ public partial class StationView : ContentView, IDisposable
         {
             Logger.Log($"Station {_stationId}: Barcode received: {barcode}");
 
+            if (!AppSettings.StationIdReady.IsCompleted)
+            {
+                UpdateStatus("Connecting to server...");
+                await AppSettings.StationIdReady;
+                UpdateStatus("Ready");
+            }
+
+            // Operator badge detection — must run before dash guard
+            if (AppSettings.TryParseOperatorBarcode(barcode) is { } badge)
+            {
+                bool loggingOut = _currentOperator == barcode;
+                if (loggingOut)
+                {
+                    var logoutName = _currentOperatorFirstName ?? barcode;
+                    _currentOperator = null;
+                    _currentOperatorFirstName = null;
+                    StopInactivityTimer();
+                    StationWsClient.SendOperatorLogout();
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        UpdateOperatorUI(null);
+                        UpdateStatus("Ready to Scan");
+                        _ = Toast.Make("Logged out").Show();
+                    });
+                    Logger.Log($"Station {_stationId}: Operator logged out — {logoutName}");
+                }
+                else
+                {
+                    _currentOperator = barcode;
+                    _currentOperatorFirstName = null;
+                    StartInactivityTimer();
+                    StationWsClient.SendOperatorLogin(barcode, SessionKind.Packing);
+                    // Show full staff_code immediately, then update to first name once API resolves
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        UpdateOperatorUI(barcode);
+                        UpdateStatus($"Welcome, {barcode}");
+                        _ = Toast.Make($"Welcome, {barcode}").Show();
+                    });
+                    Logger.Log($"Station {_stationId}: Operator logged in — {barcode}");
+                    _ = Task.Run(async () =>
+                    {
+                        var firstName = await ApiService.GetOperatorFirstNameAsync(barcode);
+                        if (firstName is null || _currentOperator != barcode) return;
+                        _currentOperatorFirstName = firstName;
+                        MainThread.BeginInvokeOnMainThread(() => UpdateOperatorUI(firstName));
+                    });
+                }
+                return;
+            }
+
+            // Normalize KEX QR codes: "KEXLM1000234185 1 1 DJD001" → "KEXLM1000234185"
+            var raw = barcode;
+            barcode = AppSettings.NormalizeTrackingNumber(barcode);
+            if (barcode != raw)
+                Logger.Log($"Station {_stationId}: KEX normalized: {raw} → {barcode}");
+
             if (barcode.Contains('-'))
             {
                 Logger.Log($"Station {_stationId}: Barcode ignored (contains dash): {barcode}");
                 return;
             }
+
+            // Reset inactivity timer — operator is actively scanning
+            if (_currentOperator is not null)
+                StartInactivityTimer();
+
+            var stationName = Environment.MachineName;
+            var stationLabel = $"{stationName}-{_stationName.Replace(' ', '-')}";
 
             if (_activeBarcode == null)
             {
@@ -472,9 +586,108 @@ public partial class StationView : ContentView, IDisposable
                 RecordingBorder.IsVisible = true;
                 StartRecording(barcode);
                 UpdateStatus("🔴 RECORDING");
-                _ = ApiService.UpdatePackingStatusByScanAsync(barcode, "Packing");
+                _ = ApiService.UpdatePackingStatusByScanAsync(barcode, "Packing",
+                    packingStationId: AppSettings.ResolvedStationId);
+
+                StationEvents.Emit(
+                    workflowName: "Packing",
+                    stepId: "tracking_scanned",
+                    trigger: "barcode_scan",
+                    trackingNumber: barcode,
+                    fromState: "idle",
+                    toState: "recording",
+                    stationId: AppSettings.ResolvedStationId,
+                    @operator: EffectiveOperator,
+                    payload: new Dictionary<string, object?>
+                    {
+                        ["stationLabel"] = stationLabel,
+                    });
             }
-            else if (_activeBarcode == barcode || barcode == "Reset")
+            else if (barcode == "Reset")
+            {
+                // Reset scan — stop and upload under the active barcode, logged as packing_reset
+                _isRecording = false;
+                UpdateCardBorder();
+                BarcodeBadge.IsVisible = false;
+                BarcodeLabel.Text = "";
+                RecBadge.IsVisible = false;
+                RecordingBorder.IsVisible = false;
+                var recordingStartedAt = _recordingStartedAt;
+                var filePath = await StopRecordingAsync();
+                var resetBarcode = _activeBarcode;
+                _activeBarcode = null;
+
+                if (!string.IsNullOrEmpty(filePath))
+                {
+                    IncrementVideoCount();
+                    UpdateStatusFromDevices();
+
+                    _ = ApiService.UpdatePackingStatusByScanAsync(resetBarcode!, "Packed", EffectiveOperator,
+                        packingStationId: AppSettings.ResolvedStationId);
+
+                    var durationSeconds = (int)Math.Round((DateTime.UtcNow - recordingStartedAt).TotalSeconds);
+                    long fileSizeBytes = 0;
+                    try { fileSizeBytes = new FileInfo(filePath).Length; } catch { /* best-effort */ }
+
+                    StationEvents.Emit(
+                        workflowName: "Packing",
+                        stepId: "packing_reset",
+                        trigger: "barcode_scan",
+                        trackingNumber: resetBarcode,
+                        fromState: "recording",
+                        toState: "uploading",
+                        stationId: AppSettings.ResolvedStationId,
+                            @operator: EffectiveOperator,
+                        payload: new Dictionary<string, object?>
+                        {
+                            ["stationLabel"] = stationLabel,
+                            ["packedBy"] = EffectiveOperator,
+                            ["durationSeconds"] = durationSeconds,
+                            ["videoFileSizeBytes"] = fileSizeBytes,
+                        });
+
+                    if (!IsValidMp4(filePath))
+                    {
+                        Logger.Log($"Station {_stationId}: recording invalid or empty — skipping upload ({filePath})");
+                        UpdateStatusFromDevices();
+                    }
+                    else
+                    {
+                        var stationId = await AppSettings.EnsureStationIdAsync();
+                        var videoId = await ApiService.CreateVideoRecordAsync(
+                            resetBarcode!, filePath, stationId, EffectiveOperator);
+
+                        if (videoId > 0)
+                        {
+                            StationEvents.Emit(
+                                workflowName: "Packing",
+                                stepId: "upload_started",
+                                trigger: "barcode_scan",
+                                trackingNumber: resetBarcode,
+                                fromState: "recording",
+                                toState: "uploading",
+                                stationId: stationId,
+                                @operator: EffectiveOperator,
+                                payload: new Dictionary<string, object?>
+                                {
+                                    ["videoId"] = videoId,
+                                });
+                            VideoWorkflowManager.Start(
+                                videoId, filePath, resetBarcode!,
+                                EffectiveOperator, stationId);
+                        }
+                        else
+                        {
+                            Logger.Log($"Station {_stationId}: failed to create video record for reset, skipping upload");
+                        }
+                    }
+                }
+                else
+                {
+                    UpdateStatus("Save failed — Ready to Scan");
+                }
+            }
+            else if (_activeBarcode == barcode)
             {
                 // Second matching scan → stop recording
                 _isRecording = false;
@@ -483,29 +696,76 @@ public partial class StationView : ContentView, IDisposable
                 BarcodeLabel.Text = "";
                 RecBadge.IsVisible = false;
                 RecordingBorder.IsVisible = false;
+                var recordingStartedAt = _recordingStartedAt;
                 var filePath = await StopRecordingAsync();
                 var finishedBarcode = _activeBarcode;
                 _activeBarcode = null;
 
                 if (!string.IsNullOrEmpty(filePath))
                 {
-                    _videoCount++;
-                    MainThread.BeginInvokeOnMainThread(() => VideoCountLabel.Text = _videoCount.ToString());
-                    UpdateStatusFromDevices(); // ready for next scan immediately
-
-                    var stationLabel = $"{Environment.MachineName}-{_stationName.Replace(' ', '-')}";
+                    IncrementVideoCount();
+                    UpdateStatusFromDevices();
 
                     // Update packing status to Packed
-                    _ = ApiService.UpdatePackingStatusByScanAsync(finishedBarcode!, "Packed", stationLabel);
+                    _ = ApiService.UpdatePackingStatusByScanAsync(finishedBarcode!, "Packed", EffectiveOperator,
+                        packingStationId: AppSettings.ResolvedStationId);
 
-                    // Register video record (status=Recorded) then upload to MinIO in background
-                    var videoId = await ApiService.CreateVideoRecordAsync(
-                        finishedBarcode!, filePath, stationLabel);
+                    var durationSeconds = (int)Math.Round((DateTime.UtcNow - recordingStartedAt).TotalSeconds);
+                    long fileSizeBytes = 0;
+                    try { fileSizeBytes = new FileInfo(filePath).Length; } catch { /* best-effort */ }
 
-                    if (videoId > 0)
-                        MinioUploadService.UploadAsync(videoId, filePath, finishedBarcode!);
+                    StationEvents.Emit(
+                        workflowName: "Packing",
+                        stepId: "packing_stopped",
+                        trigger: "barcode_scan",
+                        trackingNumber: finishedBarcode,
+                        fromState: "recording",
+                        toState: "uploading",
+                        stationId: AppSettings.ResolvedStationId,
+                            @operator: EffectiveOperator,
+                        payload: new Dictionary<string, object?>
+                        {
+                            ["stationLabel"] = stationLabel,
+                            ["packedBy"] = EffectiveOperator,
+                            ["durationSeconds"] = durationSeconds,
+                            ["videoFileSizeBytes"] = fileSizeBytes,
+                        });
+
+                    if (!IsValidMp4(filePath))
+                    {
+                        Logger.Log($"Station {_stationId}: recording invalid or empty — skipping upload ({filePath})");
+                        UpdateStatusFromDevices();
+                    }
                     else
-                        Logger.Log($"Station {_stationId}: failed to create video record, skipping upload");
+                    {
+                        var stationId = await AppSettings.EnsureStationIdAsync();
+                        var videoId = await ApiService.CreateVideoRecordAsync(
+                            finishedBarcode!, filePath, stationId, EffectiveOperator);
+
+                        if (videoId > 0)
+                        {
+                            StationEvents.Emit(
+                                workflowName: "Packing",
+                                stepId: "upload_started",
+                                trigger: "barcode_scan",
+                                trackingNumber: finishedBarcode,
+                                fromState: "recording",
+                                toState: "uploading",
+                                stationId: stationId,
+                                @operator: EffectiveOperator,
+                                payload: new Dictionary<string, object?>
+                                {
+                                    ["videoId"] = videoId,
+                                });
+                            VideoWorkflowManager.Start(
+                                videoId, filePath, finishedBarcode!,
+                                EffectiveOperator, stationId);
+                        }
+                        else
+                        {
+                            Logger.Log($"Station {_stationId}: failed to create video record, skipping upload");
+                        }
+                    }
                 }
                 else
                 {
@@ -514,8 +774,23 @@ public partial class StationView : ContentView, IDisposable
             }
             else
             {
-                // Different barcode while recording — ignore
+                // Different barcode while recording — ignore but record the mismatch
+                // so the dashboard can flag stations with high mismatch rates.
                 Logger.Log($"Station {_stationId}: Barcode mismatch (active: {_activeBarcode}, got: {barcode})");
+                StationEvents.Emit(
+                    workflowName: "Packing",
+                    stepId: "barcode_mismatch",
+                    trigger: "barcode_scan",
+                    trackingNumber: _activeBarcode,
+                    fromState: "recording",
+                    toState: "recording",
+                    stationId: AppSettings.ResolvedStationId,
+                    @operator: EffectiveOperator,
+                    payload: new Dictionary<string, object?>
+                    {
+                        ["activeBarcode"] = _activeBarcode,
+                        ["scanned"] = barcode,
+                    });
             }
         }
         catch (Exception ex)
@@ -540,7 +815,7 @@ public partial class StationView : ContentView, IDisposable
 
             // Build the output path now so we can open the file before recording begins
             var prefix = SanitizeFileName(_stationName).Replace(' ', '-');
-            var dir = Path.Combine(AppSettings.VideoFolder, DateTime.Now.ToString("yyyy-MM-dd"), prefix);
+            var dir = Path.Combine(AppSettings.GetAvailableVideoFolder(), DateTime.Now.ToString("yyyy-MM-dd"), prefix);
             Directory.CreateDirectory(dir);
             _pendingFilePath = Path.Combine(dir, $"{DateTime.Now:yyyyMMdd_HHmmss}_{Environment.MachineName}_{prefix}_{barcode}.mp4");
 
@@ -581,7 +856,7 @@ public partial class StationView : ContentView, IDisposable
 
             // Show UI feedback
             // UpdateStatus("⏳ Saving...");
-            await MainThread.InvokeOnMainThreadAsync(() => SavingOverlay.IsVisible = true);
+            await TryDispatchUIAsync(() => SavingOverlay.IsVisible = true);
 
             var swStop = Stopwatch.StartNew();
 
@@ -631,14 +906,26 @@ public partial class StationView : ContentView, IDisposable
             Logger.Log($"Station {_stationId}: [DIAG] Memory after recording: " +
                        $"{GC.GetTotalMemory(false) / 1_048_576.0:F1} MB");
 
-            await MainThread.InvokeOnMainThreadAsync(() => SavingOverlay.IsVisible = false);
+            await TryDispatchUIAsync(() => SavingOverlay.IsVisible = false);
         }
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
 
     private void UpdateStatus(string text) =>
-        MainThread.BeginInvokeOnMainThread(() => StatusLabel.Text = text);
+        TryDispatchUI(() => StatusLabel.Text = text);
+
+    private void TryDispatchUI(Action action)
+    {
+        if (App.IsWindowActive)
+            MainThread.BeginInvokeOnMainThread(action);
+    }
+
+    private async Task TryDispatchUIAsync(Action action)
+    {
+        if (App.IsWindowActive)
+            await MainThread.InvokeOnMainThreadAsync(action);
+    }
 
     /// <summary>Sets StatusLabel based on which devices are currently connected.</summary>
     private void UpdateStatusFromDevices()
@@ -657,20 +944,26 @@ public partial class StationView : ContentView, IDisposable
         UpdateStatus(status);
     }
 
+    private void IncrementVideoCount()
+    {
+        var newCount = Interlocked.Increment(ref _videoCount);
+        TryDispatchUI(() => VideoCountLabel.Text = newCount.ToString());
+    }
+
     /// <summary>
-    /// Scans today's folder for existing recordings matching this station's name prefix
-    /// and sets <see cref="_videoCount"/>. Called once at startup; afterwards the counter
-    /// is incremented in-memory each time the app saves a new file.
+    /// Fetches today's video count from the backend API for this station
+    /// and sets <see cref="_videoCount"/>. Called at startup and on camera attach;
+    /// afterwards the counter is incremented in-memory each time a recording completes.
     /// </summary>
     public async Task LoadTodayVideoCountAsync()
     {
         try
         {
-            var prefix = SanitizeFileName(_stationName).Replace(' ', '-');
-            var dir = Path.Combine(AppSettings.VideoFolder, DateTime.Now.ToString("yyyy-MM-dd"), prefix);
-            _videoCount = Directory.Exists(dir)
-                ? Directory.GetFiles(dir, $"*_{prefix}_*.mp4").Length
+            var stationId = AppSettings.ResolvedStationId;
+            var count = stationId is not null
+                ? await ApiService.GetTodayVideoCountAsync(stationId.Value)
                 : 0;
+            Interlocked.Exchange(ref _videoCount, count);
 
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
@@ -766,6 +1059,27 @@ public partial class StationView : ContentView, IDisposable
         return string.IsNullOrEmpty(safe) ? "Station" : safe;
     }
 
+    /// <summary>
+    /// Validates that a recorded file is a non-empty mp4.
+    /// Checks: exists, ≥1 KB (rules out silent-failure empty files),
+    /// and the 'ftyp' ISO Base Media box marker at bytes 4–7.
+    /// </summary>
+    private static bool IsValidMp4(string? filePath)
+    {
+        if (string.IsNullOrEmpty(filePath) || !File.Exists(filePath)) return false;
+        if (new FileInfo(filePath).Length < 1024) return false;
+        try
+        {
+            Span<byte> header = stackalloc byte[8];
+            using var fs = File.OpenRead(filePath);
+            if (fs.Read(header) < 8) return false;
+            // bytes 4–7 == 'ftyp' (0x66 0x74 0x79 0x70)
+            return header[4] == 0x66 && header[5] == 0x74 &&
+                   header[6] == 0x79 && header[7] == 0x70;
+        }
+        catch { return false; }
+    }
+
     private void CloseSerialPort()
     {
         if (_serialPort == null) return;
@@ -783,10 +1097,66 @@ public partial class StationView : ContentView, IDisposable
         }
     }
 
+    // ── Operator UI ─────────────────────────────────────────────────────────
+
+    private void UpdateOperatorUI(string? displayName)
+    {
+        if (displayName is null)
+        {
+            OperatorDot.Color = Color.FromArgb("#9ca3af");
+            OperatorFooterLabel.Text = "No Operator";
+            OperatorFooterLabel.TextColor = Color.FromArgb("#9ca3af");
+            OperatorVideoLabel.IsVisible = false;
+        }
+        else
+        {
+            OperatorDot.Color = Color.FromArgb("#16a34a");
+            OperatorFooterLabel.Text = displayName;
+            OperatorFooterLabel.TextColor = Color.FromArgb("#15803d");
+            OperatorVideoLabel.Text = displayName;
+            OperatorVideoLabel.IsVisible = true;
+        }
+    }
+
+    private void StartInactivityTimer()
+    {
+        StopInactivityTimer();
+        var minutes = AppSettings.PackingInactivityMinutes;
+        if (minutes <= 0) return;
+        _inactivityTimer = Dispatcher.CreateTimer();
+        _inactivityTimer.Interval = TimeSpan.FromMinutes(minutes);
+        _inactivityTimer.IsRepeating = false;
+        _inactivityTimer.Tick += OnInactivityTimerTick;
+        _inactivityTimer.Start();
+    }
+
+    private void StopInactivityTimer()
+    {
+        if (_inactivityTimer is null) return;
+        _inactivityTimer.Stop();
+        _inactivityTimer.Tick -= OnInactivityTimerTick;
+        _inactivityTimer = null;
+    }
+
+    private void OnInactivityTimerTick(object? sender, EventArgs e)
+    {
+        var displayName = _currentOperatorFirstName ?? _currentOperator;
+        _currentOperator = null;
+        _currentOperatorFirstName = null;
+        StopInactivityTimer();
+        StationWsClient.SendOperatorLogout();
+        UpdateOperatorUI(null);
+        UpdateStatus("Ready to Scan");
+        if (displayName is not null)
+            _ = Toast.Make($"Session ended — {displayName}").Show();
+        Logger.Log($"Station {_stationId}: Operator logged out (inactivity)");
+    }
+
     // ── Cleanup ─────────────────────────────────────────────────────────────
 
     public void Dispose()
     {
+        VideoWorkflowManager.ProgressChanged -= OnUploadProgressChanged;
         AnyCameraSelectionChanged -= OnAnyCameraSelectionChanged;
         _stationCameraMap.TryRemove(_stationId, out _);
         AnyCameraSelectionChanged?.Invoke(); // release "in use" label on other stations
@@ -797,6 +1167,7 @@ public partial class StationView : ContentView, IDisposable
             try { CameraFeed.StopCameraPreview(); } catch { }
             _cameraPreviewActive = false;
         }
+        StopInactivityTimer();
         _recordingCts?.Cancel();
         _recordingCts?.Dispose();
         _recordingFileStream?.Dispose();

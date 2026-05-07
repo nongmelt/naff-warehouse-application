@@ -15,6 +15,7 @@ public partial class MainPage : ContentPage
     public MainPage()
     {
         InitializeComponent();
+        MachineNameLabel.Text = $"Station: {Environment.MachineName}";
         Logger.Log("App started");
         AddStation(); // default first station
     }

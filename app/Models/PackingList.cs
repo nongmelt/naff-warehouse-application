@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Runtime.Versioning;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace app.Models;
@@ -16,6 +15,9 @@ public class BadgeInfo
     public Color  FgColor     { get; init; } = Colors.Black;
     public Color  BorderColor { get; init; } = Colors.Transparent;
 }
+
+/// <summary>Matches the backend jsonb payload shape: {"items": [...]}.</summary>
+public record ProductListPayload([property: JsonPropertyName("items")] List<ProductItem> Items);
 
 [SupportedOSPlatform("windows")]
 public class ProductItem : INotifyPropertyChanged
@@ -94,17 +96,18 @@ public class ProductItem : INotifyPropertyChanged
         var s when string.IsNullOrWhiteSpace(s) => [],
         _ => [new BadgeInfo { Text = ctx,       BgColor = Color.FromArgb("#f3f4f6"), FgColor = Color.FromArgb("#374151"), BorderColor = Color.FromArgb("#e5e7eb") }],
     };
+
     [JsonIgnore] public bool IsFullyPicked => Quantity <= 0;
     [JsonIgnore] public Color CardBgColor =>
         IsFullyPicked ||
         string.Equals(_orderQcContext, "QC Passed",        StringComparison.OrdinalIgnoreCase) ||
         string.Equals(_orderQcContext, "Packed Complete",  StringComparison.OrdinalIgnoreCase)
-            ? Color.FromArgb("#dcfce7")  // green — picked / QC Passed / Packed Complete
+            ? Color.FromArgb("#dcfce7")
         : string.Equals(_orderQcContext, "Packed", StringComparison.OrdinalIgnoreCase)
-            ? Color.FromArgb("#ffedd5")  // orange — Packed (in progress)
+            ? Color.FromArgb("#ffedd5")
         : string.IsNullOrEmpty(_orderQcContext)
             ? Colors.White
-            : Color.FromArgb("#fef9c3"); // yellow — QC Hold
+            : Color.FromArgb("#fef9c3");
 
     private bool _isBeingPicked;
     [JsonIgnore]
@@ -114,17 +117,20 @@ public class ProductItem : INotifyPropertyChanged
         set
         {
             _isBeingPicked = value;
-            if (value) { _pickQtyText = "1"; OnPropertyChanged(nameof(PickQtyText)); }
             OnPropertyChanged();
         }
     }
 
-    // Resets to "1" each time the entry is shown; read at apply time from Entry.Text directly.
-    private string _pickQtyText = "1";
-    [JsonIgnore] public string PickQtyText => _pickQtyText;
+    private string _pickQtyText = "";
+    /// <summary>Set this BEFORE setting IsBeingPicked = true (no auto-default).</summary>
+    [JsonIgnore]
+    public string PickQtyText
+    {
+        get => _pickQtyText;
+        set { _pickQtyText = value; OnPropertyChanged(); }
+    }
 
     private string _orderQcContext = "";
-    /// <summary>Set to "QC Passed" or "QC Hold" after in-session QC transitions to drive card colors.</summary>
     [JsonIgnore]
     public string OrderQcContext
     {
@@ -145,8 +151,8 @@ public class PackingList : INotifyPropertyChanged
     public string OrderNumber { get; set; } = "";
     public int? TotalItems { get; set; }
     public DateTime? CreatedAt { get; set; }
-    public string? ProductLists { get; set; }         // raw JSON — original quantities
-    public string? UpdatedProductLists { get; set; }  // raw JSON — saved after QC action
+    public ProductListPayload? ProductLists { get; set; }
+    public ProductListPayload? UpdatedProductLists { get; set; }
     public string? Platform { get; set; }
 
     private string? _packingStatus;
@@ -208,7 +214,7 @@ public class PackingList : INotifyPropertyChanged
         }
     }
 
-    // ── Display helpers ──────────────────────────────────────────────────────
+    // ── Display helpers ───────────────────────────────────────────────────────
 
     public bool IsQcHold    => string.Equals(_packingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase);
     public bool IsNotQcHold => !IsQcHold;
@@ -217,17 +223,8 @@ public class PackingList : INotifyPropertyChanged
     public bool IsPackedComplete =>
         IsPacked && !string.IsNullOrWhiteSpace(_checkedBy) && AllUpdatedItemsZero();
 
-    private bool AllUpdatedItemsZero()
-    {
-        if (string.IsNullOrWhiteSpace(UpdatedProductLists)) return false;
-        try
-        {
-            var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            var list = JsonSerializer.Deserialize<List<ProductItem>>(UpdatedProductLists, opts);
-            return list?.All(p => p.Quantity <= 0) ?? false;
-        }
-        catch { return false; }
-    }
+    private bool AllUpdatedItemsZero() =>
+        UpdatedProductLists?.Items is { } items && items.All(p => p.Quantity <= 0);
 
     public string StatusDisplay => _packingStatus ?? "unknown";
 
@@ -281,13 +278,14 @@ public class PackingList : INotifyPropertyChanged
 
     // ── Product line items ────────────────────────────────────────────────────
 
-    public bool HasProducts => !string.IsNullOrWhiteSpace(ProductLists);
+    public bool HasProducts => ProductLists?.Items is { Count: > 0 };
 
     private ObservableCollection<ProductItem>? _parsedProducts;
 
     /// <summary>
-    /// Parses ProductLists JSON once and caches the result so quantity changes
-    /// propagate back to the UI via INotifyPropertyChanged on each ProductItem.
+    /// Builds the product list once and caches it so quantity changes propagate
+    /// back to the UI via INotifyPropertyChanged on each ProductItem.
+    /// Items are copied from the payload so mutations don't affect the source.
     /// </summary>
     public ObservableCollection<ProductItem> ParsedProducts =>
         _parsedProducts ??= ParseProductsCore();
@@ -297,74 +295,59 @@ public class PackingList : INotifyPropertyChanged
         string.Equals(PackingStatus, "QC Hold",   StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
-    /// Resets ParsedProducts quantities back to the original values from ProductLists JSON.
-    /// Call this after a DB reset to restore the UI without re-parsing from scratch.
+    /// Resets ParsedProducts quantities back to the original required values.
+    /// Uses RequiredQuantity set at parse time — no re-parsing needed.
     /// </summary>
     public void ResetToOriginalQuantities()
     {
-        if (_parsedProducts == null || string.IsNullOrWhiteSpace(ProductLists)) return;
-        try
+        if (_parsedProducts == null || ProductLists?.Items is not { Count: > 0 }) return;
+        foreach (var item in _parsedProducts)
         {
-            var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            var originals = JsonSerializer.Deserialize<List<ProductItem>>(ProductLists, opts) ?? [];
-            var origMap = originals.ToDictionary(p => p.SellerSku, p => p.Quantity);
-            foreach (var item in _parsedProducts)
-            {
-                if (origMap.TryGetValue(item.SellerSku, out var origQty))
-                    item.Quantity = origQty;
-                item.OriginalQuantity = item.Quantity;
-                item.RequiredQuantity = item.Quantity;
-                item.OrderQcContext   = "";
-                item.IsBeingPicked    = false;
-            }
+            item.Quantity         = item.RequiredQuantity;
+            item.OriginalQuantity = item.RequiredQuantity;
+            item.OrderQcContext   = "";
+            item.IsBeingPicked    = false;
         }
-        catch { }
     }
 
     private ObservableCollection<ProductItem> ParseProductsCore()
     {
-        // QC Hold / Packed (in-progress) → show updated quantities so picker sees what's left.
-        // Packed Complete / QC Passed / everything else → show original required quantities.
-        var useUpdated = (IsQcHold || (IsPacked && !IsPackedComplete)) && !string.IsNullOrWhiteSpace(UpdatedProductLists);
-        var json = useUpdated ? UpdatedProductLists : ProductLists;
+        var useUpdated = (IsQcHold || (IsPacked && !IsPackedComplete))
+                         && UpdatedProductLists?.Items is { Count: > 0 };
+        var sourceItems = (useUpdated ? UpdatedProductLists : ProductLists)?.Items;
+        if (sourceItems is null or { Count: 0 }) return [];
 
-        if (string.IsNullOrWhiteSpace(json)) return [];
-        try
+        // Build required-quantity map from the original list when showing updated quantities.
+        Dictionary<string, int>? requiredMap = null;
+        if (useUpdated && ProductLists?.Items is { } origItems)
+            requiredMap = origItems.ToDictionary(p => p.SellerSku, p => p.Quantity);
+
+        string ctx;
+        if (IsPacked)
+            ctx = IsPackedComplete ? "Packed Complete" : "Packed";
+        else if (IsQcStatus)
+            ctx = _packingStatus!;
+        else
+            ctx = "";
+
+        // Copy items so mutations (Quantity, OrderQcContext, …) don't affect the payload source.
+        var list = sourceItems.Select(p => new ProductItem
         {
-            var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            var list = JsonSerializer.Deserialize<List<ProductItem>>(json, opts) ?? [];
+            Name      = p.Name,
+            Variation = p.Variation,
+            SellerSku = p.SellerSku,
+            Quantity  = p.Quantity,
+        }).ToList();
 
-            // Build a map of original required quantities from ProductLists
-            Dictionary<string, int>? requiredMap = null;
-            if (useUpdated && !string.IsNullOrWhiteSpace(ProductLists))
-            {
-                try
-                {
-                    var origList = JsonSerializer.Deserialize<List<ProductItem>>(ProductLists, opts) ?? [];
-                    requiredMap = origList.ToDictionary(p => p.SellerSku, p => p.Quantity);
-                }
-                catch { }
-            }
-
-            string ctx;
-            if (IsPacked)
-                ctx = IsPackedComplete ? "Packed Complete" : "Packed";
-            else if (IsQcStatus)
-                ctx = _packingStatus!;
-            else
-                ctx = "";
-
-            foreach (var item in list)
-            {
-                item.OriginalQuantity = item.Quantity;
-                item.RequiredQuantity = requiredMap != null && requiredMap.TryGetValue(item.SellerSku, out var req)
-                    ? req
-                    : item.Quantity;
-                item.OrderQcContext   = ctx;
-            }
-            return new ObservableCollection<ProductItem>(list);
+        foreach (var item in list)
+        {
+            item.OriginalQuantity = item.Quantity;
+            item.RequiredQuantity = requiredMap != null && requiredMap.TryGetValue(item.SellerSku, out var req)
+                ? req
+                : item.Quantity;
+            item.OrderQcContext = ctx;
         }
-        catch { return []; }
+        return new ObservableCollection<ProductItem>(list);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
