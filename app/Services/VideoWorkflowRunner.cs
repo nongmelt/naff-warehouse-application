@@ -211,8 +211,7 @@ public sealed class VideoWorkflowRunner
             Logger.Log($"[MinIO] connecting → endpoint={uri.Authority}, scheme={uri.Scheme}, bucket={AppSettings.MinioBucket}");
             var builder = new MinioClient()
                 .WithEndpoint(uri.Authority)
-                .WithCredentials(accessKey, secretKey)
-                .WithTimeout(180_000);
+                .WithCredentials(accessKey, secretKey);
             if (uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
                 builder = builder.WithSSL();
 
@@ -246,14 +245,12 @@ public sealed class VideoWorkflowRunner
             Logger.Log($"[VideoWorkflowRunner:{_ctx.VideoId}] uploading {objectName} ({size / 1_048_576.0:F1} MB) → {bucket} [gate: {max - gate.CurrentCount}/{max} active]");
             var progress = new Progress<Minio.DataModel.ProgressReport>(p =>
                 Logger.Log($"[VideoWorkflowRunner:{_ctx.VideoId}] upload progress — {p}"));
-            using var attemptCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            attemptCts.CancelAfter(TimeSpan.FromSeconds(120));
-            Logger.Log($"[VideoWorkflowRunner:{_ctx.VideoId}] PutObjectAsync starting — parent ct={ct.IsCancellationRequested}, attempt ct={attemptCts.Token.IsCancellationRequested}");
+            Logger.Log($"[VideoWorkflowRunner:{_ctx.VideoId}] PutObjectAsync starting");
             var putResponse = await minio.PutObjectAsync(new PutObjectArgs()
                 .WithBucket(bucket).WithObject(objectName)
                 .WithStreamData(stream).WithObjectSize(size)
                 .WithContentType("video/mp4")
-                .WithProgress(progress), attemptCts.Token);
+                .WithProgress(progress), ct);
 
             Logger.Log($"[VideoWorkflowRunner:{_ctx.VideoId}] uploaded {objectName} ({size / 1_048_576.0:F1} MB)");
             return (objectName, size);
