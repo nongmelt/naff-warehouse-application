@@ -393,6 +393,12 @@ public partial class OrderSearchPage : ContentPage
 
         foreach (var r in rows) { Results.Add(r); ActiveResults.Add(r); }
 
+        foreach (var pl in Results)
+        {
+            if (pl.HasProducts)
+                _ = EnrichProductItemsAsync(pl.ParsedProducts);
+        }
+
         // Mark orders that were "To be packed" or "QC Hold" on arrival — only these count in the session card
         // (QC Passed on arrival = pre-processed, shown as grey, not counted)
         foreach (var r in rows)
@@ -921,6 +927,68 @@ public partial class OrderSearchPage : ContentPage
         }
     }
 
+    // ── Product enrichment ──────────────────────────────────────────────────
+
+    private static async Task EnrichProductItemsAsync(IEnumerable<ProductItem> items)
+    {
+        var tasks = items.Select(async item =>
+        {
+            var info = await ApiService.GetProductBySkuAsync(item.SellerSku);
+            if (info == null) return;
+
+            item.ProductId = info.Id;
+            item.ProductType = info.ProductType;
+
+            if (info.ImagePath != null)
+            {
+                var bytes = await ApiService.GetProductImageAsync(info.Id);
+                if (bytes != null)
+                    item.ImageSource = ImageSource.FromStream(() => new MemoryStream(bytes));
+            }
+        });
+        await Task.WhenAll(tasks);
+    }
+
+    private async void OnBundleToggleTapped(object sender, TappedEventArgs e)
+    {
+        ProductItem? item = null;
+        if (sender is VisualElement ve)
+            item = ve.BindingContext as ProductItem;
+        if (item == null || !item.IsBundle) return;
+
+        if (item.IsExpanded)
+        {
+            item.IsExpanded = false;
+            return;
+        }
+
+        if (item.BundleComponents == null)
+        {
+            item.IsLoadingComponents = true;
+            var components = await ApiService.GetBundleComponentsAsync(item.ProductId);
+            var componentItems = components.Select(c => new BundleComponentItem
+            {
+                ComponentProductId = c.ComponentProductId,
+                Name = c.ProductName,
+                Variation = c.ProductVariation,
+                SellerSku = c.SellerSku,
+                Quantity = c.Quantity,
+            }).ToList();
+
+            item.BundleComponents = new ObservableCollection<BundleComponentItem>(componentItems);
+            item.IsLoadingComponents = false;
+
+            _ = Task.WhenAll(componentItems.Select(async comp =>
+            {
+                var bytes = await ApiService.GetProductImageAsync(comp.ComponentProductId);
+                if (bytes != null)
+                    comp.ImageSource = ImageSource.FromStream(() => new MemoryStream(bytes));
+            }));
+        }
+
+        item.IsExpanded = true;
+    }
+
     // ── Product card hover ───────────────────────────────────────────────────
 
     private void OnProductCardEntered(object sender, PointerEventArgs e)
@@ -1328,6 +1396,12 @@ public partial class OrderSearchPage : ContentPage
         Results.Clear();
         ActiveResults.Clear();
         foreach (var r in session.Data) { Results.Add(r); ActiveResults.Add(r); }
+
+        foreach (var pl in Results)
+        {
+            if (pl.HasProducts && pl.ParsedProducts.Any(p => p.ProductId == 0))
+                _ = EnrichProductItemsAsync(pl.ParsedProducts);
+        }
 
         _orderLoaded = Results.Count > 0;
         _isFirstItemScan = _orderLoaded;
