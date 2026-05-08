@@ -16,6 +16,31 @@ public class BadgeInfo
     public Color  BorderColor { get; init; } = Colors.Transparent;
 }
 
+[SupportedOSPlatform("windows")]
+public class BundleComponentItem : INotifyPropertyChanged
+{
+    public int ComponentProductId { get; set; }
+    public string Name { get; set; } = "";
+    public string? Variation { get; set; }
+    public string SellerSku { get; set; } = "";
+    public int Quantity { get; set; }
+
+    public bool HasVariation => !string.IsNullOrWhiteSpace(Variation);
+    public bool HasNoImage => !HasImage;
+
+    private ImageSource? _imageSource;
+    public ImageSource? ImageSource
+    {
+        get => _imageSource;
+        set { _imageSource = value; OnPropertyChanged(); OnPropertyChanged(nameof(HasImage)); OnPropertyChanged(nameof(HasNoImage)); }
+    }
+    public bool HasImage => _imageSource != null;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+    private void OnPropertyChanged([CallerMemberName] string? name = null)
+        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+}
+
 /// <summary>Matches the backend jsonb payload shape: {"items": [...]}.</summary>
 public record ProductListPayload([property: JsonPropertyName("items")] List<ProductItem> Items);
 
@@ -136,6 +161,46 @@ public class ProductItem : INotifyPropertyChanged
     {
         get => _orderQcContext;
         set { _orderQcContext = value; OnPropertyChanged(nameof(CardBgColor)); OnPropertyChanged(nameof(StatusBadges)); }
+    }
+
+    // ── Product catalog enrichment ───────────────────────────────────────────
+    [JsonIgnore] public int ProductId { get; set; }
+    [JsonIgnore] public string ProductType { get; set; } = "single";
+    [JsonIgnore] public bool IsBundle => string.Equals(ProductType, "bundle", StringComparison.OrdinalIgnoreCase);
+
+    private ImageSource? _imageSource;
+    [JsonIgnore]
+    public ImageSource? ImageSource
+    {
+        get => _imageSource;
+        set { _imageSource = value; OnPropertyChanged(); OnPropertyChanged(nameof(HasImage)); OnPropertyChanged(nameof(HasNoImage)); }
+    }
+    [JsonIgnore] public bool HasImage => _imageSource != null;
+    [JsonIgnore] public bool HasNoImage => !HasImage;
+
+    private bool _isExpanded;
+    [JsonIgnore]
+    public bool IsExpanded
+    {
+        get => _isExpanded;
+        set { _isExpanded = value; OnPropertyChanged(); }
+    }
+
+    private ObservableCollection<BundleComponentItem>? _bundleComponents;
+    [JsonIgnore]
+    public ObservableCollection<BundleComponentItem>? BundleComponents
+    {
+        get => _bundleComponents;
+        set { _bundleComponents = value; OnPropertyChanged(); OnPropertyChanged(nameof(HasBundleComponents)); }
+    }
+    [JsonIgnore] public bool HasBundleComponents => _bundleComponents is { Count: > 0 };
+
+    private bool _isLoadingComponents;
+    [JsonIgnore]
+    public bool IsLoadingComponents
+    {
+        get => _isLoadingComponents;
+        set { _isLoadingComponents = value; OnPropertyChanged(); }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
