@@ -400,6 +400,52 @@ public static class ApiService
         }
     }
 
+    // ── Products ──────────────────────────────────────────────────────────────
+
+    public static async Task<ProductInfo?> GetProductBySkuAsync(string sku)
+    {
+        try
+        {
+            return await Http.GetFromJsonAsync<ProductInfo>(
+                $"products/by-sku/{Uri.EscapeDataString(sku)}", JsonOpts);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.GetProductBySkuAsync: {ex.Message}");
+            return null;
+        }
+    }
+
+    public static async Task<byte[]?> GetProductImageAsync(int productId)
+    {
+        try
+        {
+            var resp = await Http.GetAsync($"products/{productId}/image");
+            if (!resp.IsSuccessStatusCode) return null;
+            return await resp.Content.ReadAsByteArrayAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.GetProductImageAsync: {ex.Message}");
+            return null;
+        }
+    }
+
+    public static async Task<List<BundleComponentInfo>> GetBundleComponentsAsync(int productId)
+    {
+        try
+        {
+            var list = await Http.GetFromJsonAsync<List<BundleComponentInfo>>(
+                $"products/{productId}/components", JsonOpts);
+            return list ?? [];
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.GetBundleComponentsAsync: {ex.Message}");
+            return [];
+        }
+    }
+
     // ── Private DTOs ──────────────────────────────────────────────────────────
 
     private record StatusRequest(
@@ -449,4 +495,19 @@ public static class ApiService
         [property: JsonPropertyName("operator")]        string? Operator,
         [property: JsonPropertyName("status")]          string? Status,
         [property: JsonPropertyName("remoteFilePath")]  string? RemoteFilePath = null);
+
+    public record ProductInfo(
+        [property: JsonPropertyName("id")] int Id,
+        [property: JsonPropertyName("productName")] string ProductName,
+        [property: JsonPropertyName("productType")] string ProductType,
+        [property: JsonPropertyName("imagePath")] string? ImagePath);
+
+    public record BundleComponentInfo(
+        [property: JsonPropertyName("id")] int Id,
+        [property: JsonPropertyName("componentProductId")] int ComponentProductId,
+        [property: JsonPropertyName("quantity")] int Quantity,
+        [property: JsonPropertyName("productName")] string ProductName,
+        [property: JsonPropertyName("productVariation")] string? ProductVariation,
+        [property: JsonPropertyName("sellerSku")] string SellerSku,
+        [property: JsonPropertyName("imagePath")] string? ImagePath);
 }
