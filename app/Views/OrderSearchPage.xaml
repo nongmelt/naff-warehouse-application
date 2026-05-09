@@ -187,7 +187,7 @@
               ColumnDefinitions="*, 2*"
               ColumnSpacing="12"
               BackgroundColor="#f3f4f6"
-              Padding="24,16,24,12">
+              Padding="24,8,24,6">
 
             <!-- Scanner card -->
             <Border Grid.Column="0"
@@ -195,11 +195,11 @@
                     StrokeThickness="1"
                     StrokeShape="RoundRectangle 8"
                     BackgroundColor="White"
-                    Padding="12,10">
-                <VerticalStackLayout Spacing="6">
+                    Padding="10,6">
+                <VerticalStackLayout Spacing="4">
                     <Label Text="Barcode Scanner"
                            FontAttributes="Bold"
-                           FontSize="13"
+                           FontSize="12"
                            TextColor="#111827"/>
                     <Grid ColumnDefinitions="*, Auto"
                           ColumnSpacing="8">
@@ -230,11 +230,11 @@
                     StrokeThickness="1"
                     StrokeShape="RoundRectangle 8"
                     BackgroundColor="White"
-                    Padding="12,10">
-                <VerticalStackLayout Spacing="6">
+                    Padding="10,6">
+                <VerticalStackLayout Spacing="4">
                     <Label Text="Search"
                            FontAttributes="Bold"
-                           FontSize="13"
+                           FontSize="12"
                            TextColor="#111827"/>
                     <Grid ColumnDefinitions="*, Auto"
                           ColumnSpacing="8">
@@ -318,7 +318,7 @@
               ColumnDefinitions="Auto, *"
               ColumnSpacing="12"
               BackgroundColor="#f3f4f6"
-              Padding="24,0,24,12">
+              Padding="24,0,24,6">
 
             <!-- Left: session status card (in-memory counters) -->
             <Border x:Name="SessionCard"
@@ -327,7 +327,7 @@
                     StrokeThickness="1"
                     StrokeShape="RoundRectangle 8"
                     BackgroundColor="White"
-                    Padding="12,10">
+                    Padding="10,6">
                 <VerticalStackLayout Spacing="8">
                     <Grid ColumnDefinitions="*, Auto">
                         <Label Grid.Column="0"
@@ -663,7 +663,7 @@
                                                     <Grid ColumnDefinitions="Auto, *, Auto, Auto, Auto, Auto, Auto, Auto, Auto"
                                                           ColumnSpacing="12">
 
-                                                        <!-- Col 0 · Product image thumbnail -->
+                                                        <!-- Col 0 · Product image thumbnail (tap to expand) -->
                                                         <Border Grid.Column="0"
                                                                 WidthRequest="48"
                                                                 HeightRequest="48"
@@ -671,8 +671,10 @@
                                                                 Stroke="#e5e7eb"
                                                                 StrokeThickness="1"
                                                                 BackgroundColor="#f9fafb"
-                                                                VerticalOptions="Center"
-                                                                InputTransparent="True">
+                                                                VerticalOptions="Center">
+                                                            <Border.GestureRecognizers>
+                                                                <TapGestureRecognizer Tapped="OnProductImageTapped"/>
+                                                            </Border.GestureRecognizers>
                                                             <Grid>
                                                                 <Image Source="{Binding ImageSource}"
                                                                        IsVisible="{Binding HasImage}"
@@ -966,6 +968,144 @@
 
             </VerticalStackLayout>
         </ScrollView>
+
+        <!-- ── Product image overlay ── -->
+        <Grid x:Name="ProductImageOverlay"
+              Grid.Row="0"
+              Grid.RowSpan="4"
+              BackgroundColor="#99111827"
+              IsVisible="False"
+              ZIndex="8">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnImageOverlayBackdropTapped"/>
+            </Grid.GestureRecognizers>
+
+            <Border x:Name="OverlayCard"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center"
+                    Stroke="#e5e7eb"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 12"
+                    BackgroundColor="White"
+                    Padding="0"
+                    MaximumWidthRequest="480">
+
+                <VerticalStackLayout Spacing="0">
+                    <!-- Large product image -->
+                    <Border x:Name="OverlayImageBorder"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 12,12,0,0"
+                            BackgroundColor="#f9fafb"
+                            HeightRequest="320"
+                            HorizontalOptions="Fill">
+                        <Grid>
+                            <Image x:Name="OverlayImage"
+                                   Aspect="AspectFit"
+                                   HorizontalOptions="Fill"
+                                   VerticalOptions="Fill"/>
+                            <Label x:Name="OverlayNoImage"
+                                   Text="&#x1F4E6;"
+                                   FontSize="64"
+                                   HorizontalOptions="Center"
+                                   VerticalOptions="Center"
+                                   IsVisible="False"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- Product info section -->
+                    <VerticalStackLayout Padding="20,16" Spacing="10">
+                        <!-- Name -->
+                        <Label x:Name="OverlayProductName"
+                               FontSize="18"
+                               FontAttributes="Bold"
+                               TextColor="#111827"
+                               LineBreakMode="WordWrap"/>
+
+                        <!-- SKU + Variation row -->
+                        <HorizontalStackLayout Spacing="8">
+                            <Border BackgroundColor="#f3f4f6"
+                                    Stroke="#e5e7eb"
+                                    StrokeThickness="1"
+                                    StrokeShape="RoundRectangle 4"
+                                    Padding="8,3">
+                                <Label x:Name="OverlaySkuLabel"
+                                       FontSize="12"
+                                       TextColor="#374151"/>
+                            </Border>
+                            <Border x:Name="OverlayVariationBorder"
+                                    BackgroundColor="#eff6ff"
+                                    Stroke="#bfdbfe"
+                                    StrokeThickness="1"
+                                    StrokeShape="RoundRectangle 4"
+                                    Padding="8,3"
+                                    IsVisible="False">
+                                <Label x:Name="OverlayVariationLabel"
+                                       FontSize="12"
+                                       FontAttributes="Bold"
+                                       TextColor="#1d4ed8"/>
+                            </Border>
+                        </HorizontalStackLayout>
+
+                        <!-- Quantities row -->
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                            <Border Grid.Column="0"
+                                    BackgroundColor="#f9fafb"
+                                    Stroke="#e5e7eb"
+                                    StrokeThickness="1"
+                                    StrokeShape="RoundRectangle 8"
+                                    Padding="16,12">
+                                <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
+                                    <Label x:Name="OverlayReqQty"
+                                           FontSize="32"
+                                           FontAttributes="Bold"
+                                           TextColor="#6b7280"
+                                           HorizontalTextAlignment="Center"/>
+                                    <Label Text="req qty"
+                                           FontSize="11"
+                                           TextColor="#9ca3af"
+                                           HorizontalTextAlignment="Center"/>
+                                </VerticalStackLayout>
+                            </Border>
+                            <Border Grid.Column="1"
+                                    BackgroundColor="#f9fafb"
+                                    Stroke="#e5e7eb"
+                                    StrokeThickness="1"
+                                    StrokeShape="RoundRectangle 8"
+                                    Padding="16,12">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnOverlayQtyTapped"/>
+                                </Border.GestureRecognizers>
+                                <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
+                                    <HorizontalStackLayout HorizontalOptions="Center" Spacing="8">
+                                        <Label x:Name="OverlayCurrentQty"
+                                               FontSize="32"
+                                               FontAttributes="Bold"
+                                               TextColor="#111827"
+                                               HorizontalTextAlignment="Center"
+                                               VerticalOptions="Center"/>
+                                        <Entry x:Name="OverlayPickEntry"
+                                               IsVisible="False"
+                                               Keyboard="Numeric"
+                                               WidthRequest="64"
+                                               FontSize="22"
+                                               FontAttributes="Bold"
+                                               HorizontalTextAlignment="Center"
+                                               ReturnType="Done"
+                                               Completed="OnOverlayPickEntryCompleted"
+                                               TextChanged="OnOverlayPickEntryTextChanged"
+                                               VerticalOptions="Center"/>
+                                    </HorizontalStackLayout>
+                                    <Label Text="qty"
+                                           FontSize="11"
+                                           TextColor="#9ca3af"
+                                           HorizontalTextAlignment="Center"/>
+                                </VerticalStackLayout>
+                            </Border>
+                        </Grid>
+                    </VerticalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+        </Grid>
 
         <!-- Welcome animation banner — briefly shown after login -->
         <Border x:Name="WelcomeBanner"

@@ -989,6 +989,177 @@ public partial class OrderSearchPage : ContentPage
         item.IsExpanded = true;
     }
 
+    // ── Product image overlay ──────────────────────────────────────────────
+
+    private ProductItem? _overlayItem;
+
+    private void OnProductImageTapped(object sender, TappedEventArgs e)
+    {
+        ProductItem? item = null;
+        if (sender is VisualElement ve)
+            item = ve.BindingContext as ProductItem;
+        if (item == null) return;
+
+        ShowProductImageOverlay(item);
+    }
+
+    private void ShowProductImageOverlay(ProductItem item)
+    {
+        _overlayItem = item;
+
+        // Image
+        if (item.HasImage)
+        {
+            OverlayImage.Source = item.ImageSource;
+            OverlayImage.IsVisible = true;
+            OverlayNoImage.IsVisible = false;
+        }
+        else
+        {
+            OverlayImage.IsVisible = false;
+            OverlayNoImage.IsVisible = true;
+        }
+
+        // Product info
+        OverlayProductName.Text = item.BaseName;
+        OverlaySkuLabel.Text = $"SKU: {item.SellerSku}";
+        if (item.HasVariation)
+        {
+            OverlayVariationLabel.Text = item.Variation;
+            OverlayVariationBorder.IsVisible = true;
+        }
+        else
+        {
+            OverlayVariationBorder.IsVisible = false;
+        }
+
+        // Quantities
+        OverlayReqQty.Text = item.RequiredQuantity.ToString();
+        OverlayCurrentQty.Text = item.Quantity.ToString();
+        OverlayPickEntry.IsVisible = false;
+        OverlayPickEntry.Text = "";
+
+        // Card background — match the card's QC context color
+        UpdateOverlayCardBg(item);
+
+        // Show with animation
+        ProductImageOverlay.IsVisible = true;
+        ProductImageOverlay.Opacity = 0;
+        OverlayCard.Scale = 0.85;
+        _ = Task.WhenAll(
+            ProductImageOverlay.FadeToAsync(1, 200, Easing.CubicOut),
+            OverlayCard.ScaleToAsync(1, 250, Easing.CubicOut));
+    }
+
+    private void UpdateOverlayCardBg(ProductItem item)
+    {
+        var bgColor = item.IsFullyPicked ? Color.FromArgb("#dcfce7") : Colors.White;
+        OverlayCard.BackgroundColor = bgColor;
+    }
+
+    private async void OnImageOverlayBackdropTapped(object sender, TappedEventArgs e)
+    {
+        await DismissImageOverlayAsync();
+    }
+
+    private async Task DismissImageOverlayAsync()
+    {
+        await Task.WhenAll(
+            ProductImageOverlay.FadeToAsync(0, 180, Easing.CubicIn),
+            OverlayCard.ScaleToAsync(0.85, 180, Easing.CubicIn));
+        ProductImageOverlay.IsVisible = false;
+        _overlayItem = null;
+    }
+
+    private void OnOverlayQtyTapped(object sender, TappedEventArgs e)
+    {
+        if (_overlayItem == null) return;
+
+        PackingList? order = null;
+        foreach (var o in Results)
+            if (o.ParsedProducts.Contains(_overlayItem)) { order = o; break; }
+        if (order == null) return;
+
+        bool isQcPassed = _completedPackingIds.Contains(order.PackingId)
+            || string.Equals(order.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase);
+        if (isQcPassed) { UpdateSearchStatus($"Order {order.TrackingNumber} is QC Passed — no changes allowed"); return; }
+        if (_overlayItem.Quantity <= 0) { UpdateSearchStatus($"{_overlayItem.SellerSku} — already fully picked"); return; }
+
+        if (_pendingSkuProduct != null && _pendingSkuProduct != _overlayItem)
+            ApplySkuDeduction(_pendingSkuProduct, "1", DeductionSource.AutoPrior);
+
+        _pendingSkuProduct = _overlayItem;
+
+        if (_overlayItem.Quantity == 1)
+        {
+            ApplySkuDeduction(_overlayItem, "1", DeductionSource.CardTap);
+            SyncOverlayAfterDeduction(_overlayItem);
+        }
+        else
+        {
+            OverlayPickEntry.Text = "0";
+            OverlayPickEntry.IsVisible = true;
+            _ = Dispatcher.DispatchAsync(async () =>
+            {
+                await Task.Delay(80);
+                OverlayPickEntry.Focus();
+            });
+        }
+    }
+
+    private void OnOverlayPickEntryCompleted(object sender, EventArgs e)
+    {
+        if (_overlayItem == null) return;
+        ApplySkuDeduction(_overlayItem, OverlayPickEntry.Text, DeductionSource.ManualQty);
+        OverlayPickEntry.IsVisible = false;
+        SyncOverlayAfterDeduction(_overlayItem);
+    }
+
+    private void OnOverlayPickEntryTextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_overlayItem == null) return;
+        var raw = e.NewTextValue ?? "";
+        var digits = new string(raw.Where(char.IsDigit).ToArray());
+        if (digits != raw) { OverlayPickEntry.Text = digits; return; }
+        if (digits.Length > 1 && digits[0] == '0') { OverlayPickEntry.Text = digits.TrimStart('0'); return; }
+        if (string.IsNullOrEmpty(digits)) return;
+        if (int.TryParse(digits, out var qty) && qty > _overlayItem.Quantity)
+        {
+            var lastDigit = digits[^1..];
+            if (int.TryParse(lastDigit, out var single) && single <= _overlayItem.Quantity)
+                OverlayPickEntry.Text = lastDigit;
+            else
+                OverlayPickEntry.Text = _overlayItem.Quantity.ToString();
+        }
+    }
+
+    private void SyncOverlayAfterDeduction(ProductItem item)
+    {
+        OverlayCurrentQty.Text = item.Quantity.ToString();
+        UpdateOverlayCardBg(item);
+
+        if (item.IsFullyPicked)
+            _ = AnimateOverlayDismissGreenAsync(item);
+    }
+
+    private async Task AnimateOverlayDismissGreenAsync(ProductItem item)
+    {
+        // Flash green
+        OverlayCard.BackgroundColor = Color.FromArgb("#dcfce7");
+        OverlayImageBorder.BackgroundColor = Color.FromArgb("#dcfce7");
+        await Task.Delay(600);
+
+        // Collapse: scale down + fade
+        await Task.WhenAll(
+            OverlayCard.ScaleToAsync(0.3, 350, Easing.CubicIn),
+            ProductImageOverlay.FadeToAsync(0, 350, Easing.CubicIn));
+
+        ProductImageOverlay.IsVisible = false;
+        OverlayImageBorder.BackgroundColor = Color.FromArgb("#f9fafb");
+        OverlayCard.Scale = 1;
+        _overlayItem = null;
+    }
+
     // ── Product card hover ───────────────────────────────────────────────────
 
     private void OnProductCardEntered(object sender, PointerEventArgs e)
