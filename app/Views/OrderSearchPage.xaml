@@ -655,6 +655,7 @@
                                                         BackgroundColor="{Binding CardBgColor}"
                                                         Padding="14,10">
                                                     <Border.GestureRecognizers>
+                                                        <TapGestureRecognizer Tapped="OnProductCardTapped"/>
                                                         <PointerGestureRecognizer
                                                             PointerEntered="OnProductCardEntered"
                                                             PointerExited="OnProductCardExited"/>
@@ -663,7 +664,7 @@
                                                     <Grid ColumnDefinitions="Auto, *, Auto, Auto, Auto, Auto, Auto, Auto, Auto"
                                                           ColumnSpacing="12">
 
-                                                        <!-- Col 0 · Product image thumbnail (tap to expand) -->
+                                                        <!-- Col 0 · Product image thumbnail -->
                                                         <Border Grid.Column="0"
                                                                 WidthRequest="48"
                                                                 HeightRequest="48"
@@ -671,10 +672,8 @@
                                                                 Stroke="#e5e7eb"
                                                                 StrokeThickness="1"
                                                                 BackgroundColor="#f9fafb"
-                                                                VerticalOptions="Center">
-                                                            <Border.GestureRecognizers>
-                                                                <TapGestureRecognizer Tapped="OnProductImageTapped"/>
-                                                            </Border.GestureRecognizers>
+                                                                VerticalOptions="Center"
+                                                                InputTransparent="True">
                                                             <Grid>
                                                                 <Image Source="{Binding ImageSource}"
                                                                        IsVisible="{Binding HasImage}"
@@ -988,7 +987,7 @@
                     StrokeShape="RoundRectangle 12"
                     BackgroundColor="White"
                     Padding="0"
-                    MaximumWidthRequest="480">
+                    MaximumWidthRequest="560">
 
                 <VerticalStackLayout Spacing="0">
                     <!-- Large product image -->
@@ -996,7 +995,7 @@
                             StrokeThickness="0"
                             StrokeShape="RoundRectangle 12,12,0,0"
                             BackgroundColor="#f9fafb"
-                            HeightRequest="320"
+                            HeightRequest="420"
                             HorizontalOptions="Fill">
                         <Grid>
                             <Image x:Name="OverlayImage"

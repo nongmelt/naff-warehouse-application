@@ -993,7 +993,7 @@ public partial class OrderSearchPage : ContentPage
 
     private ProductItem? _overlayItem;
 
-    private void OnProductImageTapped(object sender, TappedEventArgs e)
+    private void OnProductCardTapped(object sender, TappedEventArgs e)
     {
         ProductItem? item = null;
         if (sender is VisualElement ve)
