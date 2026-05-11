@@ -829,6 +829,20 @@ public partial class StationView : ContentView, IDisposable
             var sw = Stopwatch.StartNew();
             _recordingCts = new CancellationTokenSource();
             _recordingTask = CameraFeed.StartVideoRecording(_recordingFileStream, _recordingCts.Token);
+            _ = _recordingTask.ContinueWith(t =>
+            {
+                var msg = t.Exception?.InnerException?.Message ?? "unknown error";
+                Logger.Log($"Station {_stationId}: [ERROR] Recording task faulted mid-recording: {msg}");
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    if (!_isRecording) return;
+                    _isRecording = false;
+                    RecBadge.IsVisible = false;
+                    RecordingBorder.IsVisible = false;
+                    UpdateCardBorder();
+                    UpdateStatus("Recording failed — scan again");
+                });
+            }, TaskContinuationOptions.OnlyOnFaulted);
             sw.Stop();
 
             Logger.Log($"Station {_stationId}: Recording started for barcode {barcode} → {_pendingFilePath} " +
