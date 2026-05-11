@@ -1,3 +1,4 @@
+using app.Helpers;
 using app.Models;
 using app.Services;
 using app.Workflows;
@@ -63,6 +64,12 @@ public partial class OrderSearchPage : ContentPage
     // Increments on every QC mutation within a scan session — shipped on workflow_events
     // so analytics can answer "which SKUs get scanned first on average?"
     private int _sequenceInSession;
+
+    // Scan indicator state
+    private string? _lastScanBarcode;
+    private bool _lastScanFound;
+    private DateTime? _lastScanTime;
+    private IDispatcherTimer? _lastScanTimer;
 
     private int NextSequence() => ++_sequenceInSession;
 
@@ -393,11 +400,8 @@ public partial class OrderSearchPage : ContentPage
 
         foreach (var r in rows) { Results.Add(r); ActiveResults.Add(r); }
 
-        foreach (var pl in Results)
-        {
-            if (pl.HasProducts)
-                _ = EnrichProductItemsAsync(pl.ParsedProducts);
-        }
+        await EnrichProductItemsAsync();
+        UpdateProgressBar();
 
         // Mark orders that were "To be packed" or "QC Hold" on arrival — only these count in the session card
         // (QC Passed on arrival = pre-processed, shown as grey, not counted)
@@ -576,12 +580,14 @@ public partial class OrderSearchPage : ContentPage
                         ["reason"] = "not-in-order",
                     });
             }
+            UpdateScanIndicator(barcode, found: false);
             UpdateSearchStatus(blockedByQcPassed
                 ? $"SKU '{barcode}' belongs to a QC Passed order — no changes allowed"
                 : $"SKU '{barcode}' not found in this order");
             return;
         }
 
+        UpdateScanIndicator(barcode, found: true);
         _pendingSkuProduct = found;
 
         if (found.Quantity == 1)
@@ -715,6 +721,7 @@ public partial class OrderSearchPage : ContentPage
             : $"{item.SellerSku} — {item.Quantity} remaining");
         Logger.Log($"OrderSearch: deducted {qty} from '{item.SellerSku}', remaining: {item.Quantity}");
 
+        UpdateProgressBar();
         _ = CheckAndSaveQcStatusAsync();
     }
 
@@ -929,6 +936,44 @@ public partial class OrderSearchPage : ContentPage
 
     // ── Product enrichment ──────────────────────────────────────────────────
 
+    private async Task EnrichProductItemsAsync()
+    {
+        var allProducts = Results.SelectMany(o => o.ParsedProducts).ToList();
+        if (allProducts.Count == 0) return;
+
+        var skus = allProducts.Select(p => p.SellerSku).Distinct().ToList();
+        var enrichments = await ApiService.EnrichProductsAsync(skus);
+        if (enrichments.Count == 0) return;
+
+        foreach (var item in allProducts)
+        {
+            if (!enrichments.TryGetValue(item.SellerSku, out var e)) continue;
+            item.CategoryName = e.CategoryName;
+            item.CategoryId = e.CategoryId;
+            item.ImagePath = e.ImagePath;
+            item.QcNotes = e.QcNotes;
+            item.Brand = e.Brand;
+            item.SwatchColor = ColorSwatchHelper.ParseSwatchColor(item.Variation);
+        }
+
+        foreach (var order in Results)
+            CategoryBadgeHelper.AssignBadges(order.ParsedProducts);
+
+        var apiBase = AppSettings.ApiUrl ?? "http://localhost:8080";
+        foreach (var item in allProducts)
+        {
+            if (!item.HasImagePath) continue;
+            var captured = item;
+            _ = Task.Run(async () =>
+            {
+                var path = await ProductImageCache.EnsureAsync(captured.SellerSku, apiBase);
+                if (path != null)
+                    MainThread.BeginInvokeOnMainThread(() => captured.LocalImagePath = path);
+            });
+        }
+    }
+
+    /// <summary>Legacy per-order enrichment used during session navigation.</summary>
     private static async Task EnrichProductItemsAsync(IEnumerable<ProductItem> items)
     {
         var tasks = items.Select(async item =>
@@ -988,6 +1033,10 @@ public partial class OrderSearchPage : ContentPage
 
         item.IsExpanded = true;
     }
+
+    // ── Peek image overlay ──────────────────────────────────────────────────
+
+    private ProductItem? _peekItem;
 
     // ── Product image overlay ──────────────────────────────────────────────
 
@@ -1648,8 +1697,19 @@ public partial class OrderSearchPage : ContentPage
 
     private void OnWindowKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
-        // Don't intercept arrows while typing in any Entry / TextBox
+        // Don't intercept while typing in any Entry / TextBox
         if (e.OriginalSource is Microsoft.UI.Xaml.Controls.TextBox) return;
+
+        if (e.Key == Windows.System.VirtualKey.Escape && PeekOverlay.IsVisible)
+        {
+            HidePeekOverlay(); e.Handled = true; return;
+        }
+        if (e.Key == Windows.System.VirtualKey.I && !PeekOverlay.IsVisible)
+        {
+            var target = _pendingSkuProduct
+                ?? Results.SelectMany(o => o.ParsedProducts).FirstOrDefault(p => !p.IsFullyPicked);
+            if (target != null) { ShowPeekOverlay(target); e.Handled = true; return; }
+        }
 
         var isLeft = e.Key == Windows.System.VirtualKey.Left;
         var isRight = e.Key == Windows.System.VirtualKey.Right;
@@ -1995,6 +2055,159 @@ public partial class OrderSearchPage : ContentPage
             }
             break;
         }
+    }
+
+    // ── Scan indicator ────────────────────────────────────────────────────────
+
+    private void UpdateScanIndicator(string barcode, bool found)
+    {
+        _lastScanBarcode = barcode;
+        _lastScanFound = found;
+        _lastScanTime = DateTime.Now;
+        StartLastScanTimer();
+        UpdateScanIndicatorUI();
+    }
+
+    private void UpdateScanIndicatorUI()
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (ScanIndicatorCard == null) return;
+            ScanIndicatorCard.IsVisible = _lastScanBarcode != null;
+            ScanIndicatorLabel.Text = _lastScanBarcode ?? "";
+            ScanIndicatorCard.BackgroundColor = _lastScanFound
+                ? Color.FromArgb("#dcfce7") : Color.FromArgb("#fee2e2");
+            ScanIndicatorCard.Stroke = _lastScanFound
+                ? Color.FromArgb("#86efac") : Color.FromArgb("#fca5a5");
+            ScanIndicatorStatus.Text = _lastScanFound
+                ? "✓ SKU matched" : "⚠ SKU not in this order";
+            ScanIndicatorStatus.TextColor = _lastScanFound
+                ? Color.FromArgb("#166534") : Color.FromArgb("#991B1B");
+            ScanIndicatorLabel.TextColor = _lastScanFound
+                ? Color.FromArgb("#166534") : Color.FromArgb("#991B1B");
+        });
+    }
+
+    private void StartLastScanTimer()
+    {
+        _lastScanTimer?.Stop();
+        _lastScanTimer = Dispatcher.CreateTimer();
+        _lastScanTimer.Interval = TimeSpan.FromSeconds(1);
+        _lastScanTimer.IsRepeating = true;
+        _lastScanTimer.Tick += OnLastScanTimerTick;
+        _lastScanTimer.Start();
+    }
+
+    private void OnLastScanTimerTick(object? sender, EventArgs e)
+    {
+        if (_lastScanTime is null) return;
+        var elapsed = DateTime.Now - _lastScanTime.Value;
+        var text = elapsed.TotalSeconds < 60
+            ? $"Last scan {(int)elapsed.TotalSeconds}s ago"
+            : $"Last scan {(int)elapsed.TotalMinutes}m ago";
+        MainThread.BeginInvokeOnMainThread(() => { if (LastScanLabel != null) LastScanLabel.Text = text; });
+    }
+
+    // ── Progress tracking ────────────────────────────────────────────────────
+
+    private void UpdateProgressBar()
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (ProgressLabel == null) return;
+            var allProducts = Results.SelectMany(o => o.ParsedProducts).ToList();
+            int total = allProducts.Sum(p => p.RequiredQuantity);
+            int scanned = allProducts.Sum(p => p.RequiredQuantity - p.Quantity);
+            int done = allProducts.Count(p => p.IsFullyPicked);
+            int partial = allProducts.Count(p => !p.IsFullyPicked && p.Quantity != p.OriginalQuantity);
+            int pending = allProducts.Count(p => p.Quantity == p.OriginalQuantity);
+            int withNotes = allProducts.Count(p => p.HasQcNotes);
+
+            ProgressLabel.Text = $"{scanned} of {total} scanned";
+            ProgressDone.Text = $"Done {done}";
+            ProgressPartial.Text = $"Partial {partial}";
+            ProgressPending.Text = $"Pending {pending}";
+            ProgressNotes.Text = $"Notes {withNotes}";
+        });
+    }
+
+    // ── Peek image overlay ───────────────────────────────────────────────────
+
+    private void ShowPeekOverlay(ProductItem item)
+    {
+        if (!item.HasLocalImage) return;
+        _peekItem = item;
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            PeekOverlay.IsVisible = true;
+            PeekImage.Source = ImageSource.FromFile(item.LocalImagePath);
+            PeekSkuLabel.Text = item.SellerSku;
+            PeekNameLabel.Text = item.BaseName;
+            PeekVariationLabel.Text = item.HasVariation ? item.Variation : "";
+        });
+    }
+
+    private void HidePeekOverlay()
+    {
+        _peekItem = null;
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            PeekOverlay.IsVisible = false;
+            PeekImage.Source = null;
+        });
+    }
+
+    private void OnPeekOverlayTapped(object sender, TappedEventArgs e) => HidePeekOverlay();
+
+    private void OnProductRowTapped(object sender, TappedEventArgs e)
+    {
+        if (sender is not VisualElement el) return;
+        if (el.BindingContext is not ProductItem item) return;
+        if (item.HasLocalImage) ShowPeekOverlay(item);
+    }
+
+    // ── +/- button handlers ──────────────────────────────────────────────────
+
+    private void OnMinusClicked(object sender, EventArgs e)
+    {
+        if (sender is not VisualElement el || el.BindingContext is not ProductItem item) return;
+        if (item.Quantity <= 0) return;
+
+        PackingList? order = null;
+        foreach (var o in Results)
+            if (o.ParsedProducts.Contains(item)) { order = o; break; }
+        if (order == null) return;
+
+        bool isQcPassed = _completedPackingIds.Contains(order.PackingId)
+            || string.Equals(order.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase);
+        if (isQcPassed) { UpdateSearchStatus($"Order {order.TrackingNumber} is QC Passed — no changes allowed"); return; }
+
+        if (_pendingSkuProduct != null && _pendingSkuProduct != item)
+            ApplySkuDeduction(_pendingSkuProduct, "1", DeductionSource.AutoPrior);
+
+        _pendingSkuProduct = item;
+        ApplySkuDeduction(item, "1", DeductionSource.CardTap);
+    }
+
+    private void OnPlusClicked(object sender, EventArgs e)
+    {
+        if (sender is not VisualElement el || el.BindingContext is not ProductItem item) return;
+        if (item.Quantity >= item.RequiredQuantity) return;
+
+        PackingList? order = null;
+        foreach (var o in Results)
+            if (o.ParsedProducts.Contains(item)) { order = o; break; }
+        if (order == null) return;
+
+        bool isQcPassed = _completedPackingIds.Contains(order.PackingId)
+            || string.Equals(order.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase);
+        if (isQcPassed) { UpdateSearchStatus($"Order {order.TrackingNumber} is QC Passed — no changes allowed"); return; }
+
+        item.Quantity += 1;
+        item.OrderQcContext = "QC Hold";
+        UpdateSearchStatus($"{item.SellerSku} — qty +1, now {item.Quantity}/{item.RequiredQuantity}");
+        UpdateProgressBar();
+        _ = CheckAndSaveQcStatusAsync();
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
