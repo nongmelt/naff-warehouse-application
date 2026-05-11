@@ -17,11 +17,16 @@ namespace app.Views;
 [SupportedOSPlatform("windows")]
 public partial class OrderSearchPage : ContentPage
 {
+    private enum AppMode { QC }
+
     private record ComPortEntry(string PortName, string DisplayName);
 
     private SerialPort? _serialPort;
     private List<ComPortEntry> _comPorts = [];
     private bool _isSearching;
+    private AppMode _currentMode = AppMode.QC;
+    private IDispatcherTimer? _comHeartbeatTimer;
+    private long _lastSerialDataTicks;
     private bool _historyExpanded;
     private int _historyNavIndex = -1;
 
@@ -114,6 +119,7 @@ public partial class OrderSearchPage : ContentPage
     {
         InitializeComponent();
         BindingContext = this;
+        ApplyMode(_currentMode);
         RefreshHistoryItems();
         UpdateHistoryHeader();
     }
@@ -186,9 +192,6 @@ public partial class OrderSearchPage : ContentPage
         _syncingPickers = false;
     }
 
-    private async void OnRefreshPorts(object sender, EventArgs e)
-        => await LoadComPortsAsync();
-
     private async void OnOverlayRefreshPorts(object sender, EventArgs e)
         => await LoadComPortsAsync();
 
@@ -219,6 +222,7 @@ public partial class OrderSearchPage : ContentPage
             CloseSerialPort();
             UpdateScannerStatus("No scanner connected");
             UpdateOverlayScannerStatus("No scanner connected");
+            MainThread.BeginInvokeOnMainThread(() => HeaderComPortLabel.Text = "");
             return;
         }
 
@@ -226,6 +230,7 @@ public partial class OrderSearchPage : ContentPage
         if (portIdx >= _comPorts.Count) return;
 
         var portName = _comPorts[portIdx].PortName;
+        MainThread.BeginInvokeOnMainThread(() => HeaderComPortLabel.Text = portName);
         CloseSerialPort();
         try
         {
@@ -237,6 +242,7 @@ public partial class OrderSearchPage : ContentPage
             };
             _serialPort.DataReceived += OnSerialDataReceived;
             _serialPort.Open();
+            StartComHeartbeatTimer();
             UpdateScannerStatus($"Scanner ready ({portName}) — waiting for scan");
             UpdateOverlayScannerStatus($"Scanner ready ({portName}) — scan your badge");
             Logger.Log($"OrderSearch: Serial port {portName} opened");
@@ -251,6 +257,7 @@ public partial class OrderSearchPage : ContentPage
 
     private void OnSerialDataReceived(object sender, SerialDataReceivedEventArgs e)
     {
+        Interlocked.Exchange(ref _lastSerialDataTicks, DateTime.UtcNow.Ticks);
         try
         {
             var line = _serialPort?.ReadLine()?.Trim();
@@ -334,6 +341,7 @@ public partial class OrderSearchPage : ContentPage
 
     private void CloseSerialPort()
     {
+        StopComHeartbeatTimer();
         if (_serialPort == null) return;
         try
         {
@@ -350,17 +358,25 @@ public partial class OrderSearchPage : ContentPage
 
     // ── Search ───────────────────────────────────────────────────────────────
 
-    private async void OnSearchClicked(object sender, EventArgs e)
-        => await ExecuteSearchAsync(SearchEntry.Text?.Trim() ?? "", trigger: "manual_search");
+    private void SetSearchLoading(bool loading)
+    {
+        _isSearching = loading;
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            HeaderSearchEntry.IsEnabled = !loading;
+            HeaderSearchEntry.Placeholder = loading ? "searching…" : "search";
+            SearchPlaceholderLabel.Text = loading ? "searching…" : "search";
+        });
+    }
 
     private async void OnSearchCommitted(object sender, EventArgs e)
-        => await ExecuteSearchAsync(SearchEntry.Text?.Trim() ?? "", trigger: "manual_search");
+        => await ExecuteSearchAsync(HeaderSearchEntry.Text?.Trim() ?? "", trigger: "manual_search");
 
     private async Task ExecuteSearchAsync(string input, List<PackingList>? preloaded = null, string trigger = "tracking_scan")
     {
         if (string.IsNullOrWhiteSpace(input) || _isSearching) return;
         input = AppSettings.NormalizeTrackingNumber(input);
-        SearchEntry.Text = string.Empty;
+        HeaderSearchEntry.Text = string.Empty;
 
         if (string.IsNullOrWhiteSpace(AppSettings.ApiUrl))
         {
@@ -368,7 +384,7 @@ public partial class OrderSearchPage : ContentPage
             return;
         }
 
-        _isSearching = true;
+        SetSearchLoading(true);
         if (_currentOperator is not null)
             StartInactivityTimer();
         _historyNavIndex = -1;
@@ -393,12 +409,14 @@ public partial class OrderSearchPage : ContentPage
         _completedPackingIds.Clear();
         if (_pendingSkuProduct != null) { _pendingSkuProduct.IsBeingPicked = false; _pendingSkuProduct = null; }
         Results.Clear();
+        UpdateHeaderOrderInfo();
         NotFoundCard.IsVisible = false;
 
         Logger.Log($"OrderSearch: querying for '{input}'");
         var rows = preloaded ?? await ApiService.SearchAsync(input);
 
         foreach (var r in rows) { Results.Add(r); ActiveResults.Add(r); }
+        UpdateHeaderOrderInfo();
 
         await EnrichProductItemsAsync();
         UpdateProgressBar();
@@ -499,7 +517,7 @@ public partial class OrderSearchPage : ContentPage
         SearchHistoryService.Instance.Push(input);
         RefreshHistoryItems();
         UpdateHistoryHeader();
-        _isSearching = false;
+        SetSearchLoading(false);
 
         // Drain queued scans
         if (_pendingScanQueue.Count > 0)
@@ -1616,6 +1634,7 @@ public partial class OrderSearchPage : ContentPage
         Results.Clear();
         ActiveResults.Clear();
         foreach (var r in session.Data) { Results.Add(r); ActiveResults.Add(r); }
+        UpdateHeaderOrderInfo();
 
         foreach (var pl in Results)
         {
@@ -1629,7 +1648,7 @@ public partial class OrderSearchPage : ContentPage
         NotFoundLabel.Text = Results.Count == 0 ? $"{session.Query} not found" : "";
         UpdateSearchStatus(session.Query);
         BuildCarouselUI();
-        UpdateSessionStats(); // stats span all sessions — no reset needed here
+        UpdateSessionStats();
         _ = ResultsScroll.ScrollToAsync(0, 0, false);
 
         // Emit source order leaving (skip if already idle or passed — nothing to record)
@@ -1698,7 +1717,26 @@ public partial class OrderSearchPage : ContentPage
     private void OnWindowKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
         // Don't intercept while typing in any Entry / TextBox
-        if (e.OriginalSource is Microsoft.UI.Xaml.Controls.TextBox) return;
+        if (e.OriginalSource is Microsoft.UI.Xaml.Controls.TextBox tb)
+        {
+            // Escape blurs only the header search entry
+            if (e.Key == Windows.System.VirtualKey.Escape &&
+                ReferenceEquals(tb, HeaderSearchEntry.Handler?.PlatformView))
+            {
+                tb.IsEnabled = false; tb.IsEnabled = true;
+                e.Handled = true;
+            }
+            return;
+        }
+
+        // "/" focuses search entry (command-palette pattern)
+        const Windows.System.VirtualKey VkSlash = (Windows.System.VirtualKey)191;
+        if (e.Key == VkSlash)
+        {
+            ActivateSearchEntry();
+            e.Handled = true;
+            return;
+        }
 
         if (e.Key == Windows.System.VirtualKey.Escape && PeekOverlay.IsVisible)
         {
@@ -1731,7 +1769,7 @@ public partial class OrderSearchPage : ContentPage
         if (isLeft)
         {
             _historyNavIndex = Math.Min(_historyNavIndex + 1, items.Count - 1);
-            SearchEntry.Text = items[_historyNavIndex];
+            HeaderSearchEntry.Text = items[_historyNavIndex];
             e.Handled = true;
         }
         else
@@ -1739,12 +1777,12 @@ public partial class OrderSearchPage : ContentPage
             if (_historyNavIndex > 0)
             {
                 _historyNavIndex--;
-                SearchEntry.Text = items[_historyNavIndex];
+                HeaderSearchEntry.Text = items[_historyNavIndex];
             }
             else
             {
                 _historyNavIndex = -1;
-                SearchEntry.Text = string.Empty;
+                HeaderSearchEntry.Text = string.Empty;
             }
             e.Handled = true;
         }
@@ -1829,7 +1867,7 @@ public partial class OrderSearchPage : ContentPage
             {
                 Command = new Command(async () =>
                 {
-                    SearchEntry.Text = captured;
+                    HeaderSearchEntry.Text = captured;
                     await ExecuteSearchAsync(captured);
                 })
             });
@@ -2222,9 +2260,115 @@ public partial class OrderSearchPage : ContentPage
         }
         else
         {
-            NavOperatorLabel.Text = displayName;
+            HeaderComputerOperatorLabel.Text = $"{StationName} · {displayName.ToUpperInvariant()}";
             OperatorHeaderBadge.IsVisible = true;
         }
+    }
+
+    private void OnModeBadgeTapped(object sender, TappedEventArgs e)
+    {
+        ModeDropdownBackdrop.IsVisible = !ModeDropdownBackdrop.IsVisible;
+    }
+
+    private void OnModeDropdownBackdropTapped(object? sender, TappedEventArgs e)
+    {
+        ModeDropdownBackdrop.IsVisible = false;
+    }
+
+    private void OnModeSelectQC(object? sender, TappedEventArgs e)
+    {
+        ApplyMode(AppMode.QC);
+        ModeDropdownBackdrop.IsVisible = false;
+    }
+
+    private static string GetModeDisplayName(AppMode mode) => mode switch
+    {
+        AppMode.QC => "QC",
+        _ => mode.ToString(),
+    };
+
+    private void ApplyMode(AppMode mode)
+    {
+        _currentMode = mode;
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            ModeLabel.Text = GetModeDisplayName(mode);
+        });
+    }
+
+    private void OnSearchBoxTapped(object? sender, TappedEventArgs e)
+    {
+        ActivateSearchEntry();
+    }
+
+    private void ActivateSearchEntry()
+    {
+        SearchSlashHint.IsVisible = false;
+        SearchPlaceholderLabel.IsVisible = false;
+        HeaderSearchEntry.IsVisible = true;
+        SearchBoxBorder.Stroke = Color.FromArgb("#ccffffff");
+        SearchBoxBorder.BackgroundColor = Color.FromArgb("#22ffffff");
+        HeaderSearchEntry.Focus();
+    }
+
+    private void OnSearchEntryFocused(object? sender, FocusEventArgs e)
+    {
+        SearchBoxBorder.Stroke = Color.FromArgb("#ccffffff");
+        SearchBoxBorder.BackgroundColor = Color.FromArgb("#22ffffff");
+    }
+
+    private void OnSearchEntryUnfocused(object? sender, FocusEventArgs e)
+    {
+        SearchBoxBorder.Stroke = Color.FromArgb("#30ffffff");
+        SearchBoxBorder.BackgroundColor = Color.FromArgb("#12ffffff");
+        if (string.IsNullOrWhiteSpace(HeaderSearchEntry.Text))
+        {
+            HeaderSearchEntry.IsVisible = false;
+            SearchSlashHint.IsVisible = true;
+            SearchPlaceholderLabel.IsVisible = true;
+        }
+    }
+
+    private void UpdateHeaderOrderInfo()
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            var order = Results.FirstOrDefault();
+            if (order is null)
+            {
+                HeaderOrderLabel.IsVisible = false;
+                HeaderOrderNumber.IsVisible = false;
+                HeaderPlatformBadge.IsVisible = false;
+                HeaderTrackingLabel.IsVisible = false;
+                return;
+            }
+
+            HeaderOrderLabel.IsVisible = true;
+            HeaderOrderLabel.Text = "ORDER";
+            HeaderOrderNumber.IsVisible = true;
+            HeaderOrderNumber.Text = order.OrderNumber;
+
+            if (!string.IsNullOrWhiteSpace(order.Platform))
+            {
+                HeaderPlatformBadge.IsVisible = true;
+                HeaderPlatformLabel.Text = order.Platform.ToUpperInvariant();
+                var platformLower = order.Platform.ToLowerInvariant();
+                HeaderPlatformBadge.BackgroundColor = platformLower switch
+                {
+                    var p when p.Contains("shopee") => Color.FromArgb("#ee4d2d"),
+                    var p when p.Contains("lazada") => Color.FromArgb("#0f146d"),
+                    var p when p.Contains("tiktok") => Color.FromArgb("#111827"),
+                    _ => Color.FromArgb("#6b7280"),
+                };
+            }
+            else
+            {
+                HeaderPlatformBadge.IsVisible = false;
+            }
+
+            HeaderTrackingLabel.IsVisible = true;
+            HeaderTrackingLabel.Text = order.TrackingNumber;
+        });
     }
 
     private void ShowLoginOverlay() =>
@@ -2282,8 +2426,62 @@ public partial class OrderSearchPage : ContentPage
         Logger.Log($"OrderSearch: Operator logged out (inactivity)");
     }
 
-    private void UpdateScannerStatus(string msg) =>
-        MainThread.BeginInvokeOnMainThread(() => ScannerStatusLabel.Text = msg);
+    private enum ComState { Disconnected, Open, Ready }
+
+    private void UpdateScannerStatus(string msg)
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            ScannerStatusLabel.Text = msg;
+            var state = msg.Contains("ready", StringComparison.OrdinalIgnoreCase)
+                ? ComState.Ready
+                : msg.Contains("error", StringComparison.OrdinalIgnoreCase) || msg.Contains("No scanner")
+                    ? ComState.Disconnected
+                    : ComState.Open;
+            ApplyComStateVisuals(state);
+        });
+    }
+
+    private void ApplyComStateVisuals(ComState state)
+    {
+        var (color, label, opacity) = state switch
+        {
+            ComState.Ready => (Color.FromArgb("#4ade80"), "ready", 0.9),        // green
+            ComState.Open => (Color.FromArgb("#facc15"), "no data", 0.7),       // yellow
+            _ => (Color.FromArgb("#ef4444"), "disconnected", 0.5),              // red
+        };
+        ScannerStatusDot.TextColor = color;
+        HeaderComStatusLabel.Text = label;
+        HeaderComStatusLabel.Opacity = opacity;
+    }
+
+    private void StartComHeartbeatTimer()
+    {
+        _comHeartbeatTimer?.Stop();
+        Interlocked.Exchange(ref _lastSerialDataTicks, DateTime.UtcNow.Ticks);
+        _comHeartbeatTimer = Dispatcher.CreateTimer();
+        _comHeartbeatTimer.Interval = TimeSpan.FromSeconds(10);
+        _comHeartbeatTimer.Tick += (_, _) =>
+        {
+            if (_serialPort is not { IsOpen: true })
+            {
+                ApplyComStateVisuals(ComState.Disconnected);
+                _comHeartbeatTimer?.Stop();
+                return;
+            }
+            var lastTicks = Interlocked.Read(ref _lastSerialDataTicks);
+            var elapsed = DateTime.UtcNow - new DateTime(lastTicks, DateTimeKind.Utc);
+            if (elapsed > TimeSpan.FromSeconds(30))
+                ApplyComStateVisuals(ComState.Open);
+        };
+        _comHeartbeatTimer.Start();
+    }
+
+    private void StopComHeartbeatTimer()
+    {
+        _comHeartbeatTimer?.Stop();
+        _comHeartbeatTimer = null;
+    }
 
     private void UpdateOverlayScannerStatus(string msg) =>
         MainThread.BeginInvokeOnMainThread(() => OverlayScannerStatusLabel.Text = msg);

@@ -122,157 +122,223 @@
 
         <!-- Header bar -->
         <Grid Grid.Row="0"
+              ColumnDefinitions="Auto, *, Auto"
               BackgroundColor="{StaticResource Primary}"
-              Padding="16,10">
+              Padding="12,7">
 
-            <!-- Left: Home + operator badge (visible after login) -->
-            <HorizontalStackLayout HorizontalOptions="Start"
-                                   Spacing="12"
-                                   VerticalOptions="Center">
+            <!-- Left: Home button + mode selector -->
+            <HorizontalStackLayout Grid.Column="0" Spacing="10" VerticalOptions="Center">
                 <Button Text="⌂ Home"
                         Clicked="OnGoHome"
                         Style="{StaticResource NavOutlineButton}"/>
-                <Border x:Name="OperatorHeaderBadge"
-                        IsVisible="False"
-                        BackgroundColor="#1e3a5f"
-                        Stroke="#3b82f6"
-                        StrokeThickness="1"
+                <Border x:Name="ModeBadge" BackgroundColor="#1Affffff"
+                        Stroke="#30ffffff" StrokeThickness="1"
                         StrokeShape="RoundRectangle 6"
-                        Padding="12,5">
-                    <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
-                        <BoxView x:Name="NavOperatorDot"
-                                 WidthRequest="8"
-                                 HeightRequest="8"
-                                 Color="#4ade80"
-                                 CornerRadius="4"
-                                 VerticalOptions="Center"/>
-                        <Label x:Name="NavOperatorLabel"
-                               Text=""
-                               TextColor="White"
-                               FontSize="18"
-                               FontAttributes="Bold"
+                        Padding="12,6" VerticalOptions="Center">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnModeBadgeTapped"/>
+                    </Border.GestureRecognizers>
+                    <HorizontalStackLayout Spacing="6">
+                        <Label Text="MODE" TextColor="#94a3b8" FontSize="10"
                                VerticalOptions="Center"/>
+                        <Label x:Name="ModeLabel" Text="QC" TextColor="White"
+                               FontSize="12" FontAttributes="Bold" VerticalOptions="Center"/>
+                        <Label Text="▾" TextColor="#94a3b8" FontSize="10" VerticalOptions="Center"/>
                     </HorizontalStackLayout>
                 </Border>
             </HorizontalStackLayout>
 
-            <Label Text="Order Search"
-                   TextColor="White"
-                   FontSize="20"
-                   FontAttributes="Bold"
-                   HorizontalOptions="Center"
-                   VerticalOptions="Center"/>
-
-            <!-- Right: station info + action buttons -->
-            <HorizontalStackLayout HorizontalOptions="End"
-                                   Spacing="12"
-                                   VerticalOptions="Center">
-                <Label Text="{Binding StationNameDisplay}"
-                       TextColor="White"
-                       FontSize="13"
-                       FontAttributes="Bold"
-                       VerticalOptions="Center"/>
-                <Button Text="Open Logs"
-                        Clicked="OnOpenLogs"
-                        Style="{StaticResource NavOutlineButton}"/>
-                <Button Text="⚙ Settings"
-                        Clicked="OnOpenSettings"
-                        Style="{StaticResource NavOutlineButton}"/>
+            <!-- Center: order info (ORDER number + platform badge + tracking) -->
+            <HorizontalStackLayout Grid.Column="1" HorizontalOptions="Center"
+                                   Spacing="10" VerticalOptions="Center">
+                <Label x:Name="HeaderOrderLabel" Text="ORDER" TextColor="#94a3b8" FontSize="12"
+                       FontAttributes="Bold" VerticalOptions="Center" IsVisible="False"/>
+                <Label x:Name="HeaderOrderNumber" Text="" TextColor="White" FontSize="13"
+                       FontAttributes="Bold" VerticalOptions="Center" IsVisible="False"/>
+                <Border x:Name="HeaderPlatformBadge" IsVisible="False"
+                        StrokeThickness="0" StrokeShape="RoundRectangle 4" Padding="8,2">
+                    <Label x:Name="HeaderPlatformLabel" Text="" TextColor="White" FontSize="11"
+                           FontAttributes="Bold" VerticalOptions="Center"/>
+                </Border>
+                <Label x:Name="HeaderTrackingLabel" Text="" TextColor="White" FontSize="13"
+                       VerticalOptions="Center" IsVisible="False"/>
             </HorizontalStackLayout>
+
+            <!-- Right: search → COM status → operator -->
+            <HorizontalStackLayout Grid.Column="2" Spacing="10" VerticalOptions="Center">
+
+                <!-- Compact command-palette search -->
+                <Border x:Name="SearchBoxBorder"
+                        BackgroundColor="#12ffffff"
+                        Stroke="#30ffffff"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 5"
+                        Padding="6,0,10,0"
+                        HeightRequest="32"
+                        VerticalOptions="Center">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnSearchBoxTapped"/>
+                    </Border.GestureRecognizers>
+                    <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="8" VerticalOptions="Center">
+                        <Border x:Name="SearchSlashHint"
+                                Grid.Column="0"
+                                BackgroundColor="#18ffffff"
+                                Stroke="#30ffffff"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 3"
+                                Padding="0"
+                                HeightRequest="20" WidthRequest="20"
+                                VerticalOptions="Center">
+                            <Label Text="/"
+                                   TextColor="#80ffffff"
+                                   FontSize="11"
+                                   HorizontalTextAlignment="Center"
+                                   VerticalTextAlignment="Center"/>
+                        </Border>
+                        <Label x:Name="SearchPlaceholderLabel"
+                               Grid.Column="1"
+                               Text="search"
+                               TextColor="#60ffffff"
+                               FontSize="13"
+                               VerticalOptions="Center"
+                               VerticalTextAlignment="Center"
+                               HorizontalTextAlignment="Center"
+                               WidthRequest="80"/>
+                        <Entry x:Name="HeaderSearchEntry"
+                               Grid.Column="1"
+                               IsVisible="False"
+                               TextColor="White"
+                               FontSize="13"
+                               BackgroundColor="Transparent"
+                               PlaceholderColor="#60ffffff"
+                               ReturnType="Search"
+                               Completed="OnSearchCommitted"
+                               Focused="OnSearchEntryFocused"
+                               Unfocused="OnSearchEntryUnfocused"
+                               HorizontalTextAlignment="Center"
+                               VerticalOptions="Center"
+                               WidthRequest="140"/>
+                    </Grid>
+                </Border>
+
+                <Label Text="|" TextColor="#40ffffff" FontSize="16" VerticalOptions="Center"/>
+
+                <!-- COM port status (read-only, selected at login) -->
+                <HorizontalStackLayout Spacing="5" VerticalOptions="Center">
+                    <Label x:Name="ScannerStatusDot"
+                           Text="●" FontSize="10" TextColor="#6b7280"
+                           VerticalOptions="Center"/>
+                    <Label x:Name="HeaderComPortLabel" Text="" TextColor="White"
+                           FontSize="12" VerticalOptions="Center"/>
+                    <Label Text="·" TextColor="White" FontSize="12" VerticalOptions="Center"
+                           Opacity="0.5"/>
+                    <Label x:Name="HeaderComStatusLabel" Text="disconnected" TextColor="White"
+                           FontSize="12" VerticalOptions="Center" Opacity="0.7"/>
+                </HorizontalStackLayout>
+
+                <Label Text="|" TextColor="#40ffffff" FontSize="16" VerticalOptions="Center"/>
+
+                <!-- Computer · Operator -->
+                <Border x:Name="OperatorHeaderBadge" IsVisible="False"
+                        BackgroundColor="Transparent" Stroke="Transparent" Padding="0">
+                    <Label x:Name="HeaderComputerOperatorLabel" Text=""
+                           TextColor="White" FontSize="13" VerticalOptions="Center"/>
+                </Border>
+            </HorizontalStackLayout>
+
+            <!-- Hidden COM port picker (managed by login overlay, referenced by code-behind) -->
+            <Picker x:Name="ComPortPicker"
+                    IsVisible="False"
+                    SelectedIndexChanged="OnComPortSelected"
+                    WidthRequest="0" HeightRequest="0"/>
 
         </Grid>
 
-        <!-- Fixed top bar: Scanner (1/3) + Search (2/3) -->
-        <Grid Grid.Row="1"
-              ColumnDefinitions="*, 2*"
-              ColumnSpacing="12"
-              BackgroundColor="#f3f4f6"
-              Padding="24,8,24,6">
-
-            <!-- Scanner card -->
-            <Border Grid.Column="0"
-                    Stroke="#d1d5db"
+        <!-- Mode dropdown popover -->
+        <Grid x:Name="ModeDropdownBackdrop"
+              Grid.Row="0" Grid.RowSpan="6"
+              BackgroundColor="Transparent"
+              IsVisible="False"
+              ZIndex="20"
+              InputTransparent="False">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnModeDropdownBackdropTapped"/>
+            </Grid.GestureRecognizers>
+            <Border x:Name="ModeDropdownCard"
+                    HorizontalOptions="Start"
+                    VerticalOptions="Start"
+                    Margin="80,48,0,0"
+                    Stroke="#e5e7eb"
                     StrokeThickness="1"
-                    StrokeShape="RoundRectangle 8"
+                    StrokeShape="RoundRectangle 6"
                     BackgroundColor="White"
-                    Padding="10,6">
-                <VerticalStackLayout Spacing="4">
-                    <Label Text="Barcode Scanner"
-                           FontAttributes="Bold"
-                           FontSize="12"
-                           TextColor="#111827"/>
-                    <Grid ColumnDefinitions="*, Auto"
-                          ColumnSpacing="8">
-                        <Picker x:Name="ComPortPicker"
-                                Grid.Column="0"
-                                Title="Select COM port"
-                                SelectedIndexChanged="OnComPortSelected"
-                                FontSize="12"/>
-                        <Button Grid.Column="1"
-                                Text="Refresh"
-                                Clicked="OnRefreshPorts"
-                                Style="{StaticResource HoverButton}"
-                                WidthRequest="72"
-                                FontSize="12"
-                                Padding="0,6"/>
-                    </Grid>
-                    <Label x:Name="ScannerStatusLabel"
-                           Text="No scanner connected"
-                           FontSize="11"
-                           TextColor="#6b7280"
-                           MinimumHeightRequest="16"/>
+                    Padding="0"
+                    WidthRequest="220"
+                    InputTransparent="False">
+                <Border.Shadow>
+                    <Shadow Brush="#26000000" Offset="0,4" Radius="12"/>
+                </Border.Shadow>
+                <VerticalStackLayout Spacing="0" Padding="8">
+                    <!-- QC mode (active) -->
+                    <Border BackgroundColor="#f5f5ff"
+                            Stroke="Transparent"
+                            StrokeShape="RoundRectangle 6"
+                            Padding="16">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnModeSelectQC"/>
+                        </Border.GestureRecognizers>
+                        <Grid ColumnDefinitions="*, Auto">
+                            <VerticalStackLayout Grid.Column="0" Spacing="4">
+                                <Label Text="QC" TextColor="#4338ca" FontSize="15"
+                                       FontAttributes="Bold"/>
+                                <Label Text="scan &amp; verify" TextColor="#9ca3af" FontSize="11"
+                                       FontFamily="Consolas"/>
+                            </VerticalStackLayout>
+                            <Label Grid.Column="1" Text="✓" TextColor="#4338ca" FontSize="16"
+                                   FontAttributes="Bold" VerticalOptions="Center"/>
+                        </Grid>
+                    </Border>
+                    <!-- Cancel mode (disabled / coming soon) -->
+                    <Border BackgroundColor="Transparent"
+                            Stroke="Transparent"
+                            StrokeShape="RoundRectangle 6"
+                            Padding="16"
+                            Opacity="0.5"
+                            InputTransparent="True">
+                        <VerticalStackLayout Spacing="4">
+                            <Label Text="Cancel" TextColor="#6b7280" FontSize="15"/>
+                            <Label Text="coming soon" TextColor="#cccccc" FontSize="11"
+                                   FontFamily="Consolas"/>
+                        </VerticalStackLayout>
+                    </Border>
                 </VerticalStackLayout>
             </Border>
+        </Grid>
 
-            <!-- Search card -->
-            <Border Grid.Column="1"
-                    Stroke="#d1d5db"
-                    StrokeThickness="1"
-                    StrokeShape="RoundRectangle 8"
-                    BackgroundColor="White"
-                    Padding="10,6">
-                <VerticalStackLayout Spacing="4">
-                    <Label Text="Search"
-                           FontAttributes="Bold"
-                           FontSize="12"
-                           TextColor="#111827"/>
-                    <Grid ColumnDefinitions="*, Auto"
-                          ColumnSpacing="8">
-                        <Entry x:Name="SearchEntry"
-                               Grid.Column="0"
-                               Placeholder="Tracking or order number…"
-                               FontSize="13"
-                               ReturnType="Search"
-                               Completed="OnSearchCommitted"
-                               VerticalOptions="Center"/>
-                        <Button Grid.Column="1"
-                                Text="Search"
-                                Clicked="OnSearchClicked"
-                                Style="{StaticResource HoverButton}"
-                                WidthRequest="80"
-                                FontSize="13"
-                                Padding="0,6"/>
-                    </Grid>
-                    <Label x:Name="SearchStatusLabel"
-                           Text=" "
-                           FontSize="11"
-                           TextColor="#6b7280"
-                           MinimumHeightRequest="16"/>
-
-                    <!-- History header — hidden when list is empty -->
-                    <Grid x:Name="HistoryHeaderRow"
-                          ColumnDefinitions="*, Auto"
-                          IsVisible="False"
-                          Margin="0,4,0,0">
-                        <Label Grid.Column="0"
-                               Text="Recent searches"
+        <!-- Row 1: Status strip + history -->
+        <Grid Grid.Row="1"
+              BackgroundColor="#f3f4f6"
+              Padding="24,4,24,4">
+            <VerticalStackLayout Spacing="4">
+                <Grid ColumnDefinitions="*, Auto">
+                    <HorizontalStackLayout Grid.Column="0" Spacing="12" VerticalOptions="Center">
+                        <Label x:Name="SearchStatusLabel"
+                               Text=" "
                                FontSize="11"
-                               TextColor="#9ca3af"
-                               VerticalOptions="Center"/>
-                        <HorizontalStackLayout Grid.Column="1"
-                                               Spacing="12"
-                                               VerticalOptions="Center">
-                            <Label Text="Clear all"
+                               TextColor="#6b7280"/>
+                        <Label Text="·" FontSize="11" TextColor="#d1d5db" VerticalOptions="Center"/>
+                        <Label x:Name="ScannerStatusLabel"
+                               Text="No scanner connected"
+                               FontSize="11"
+                               TextColor="#6b7280"/>
+                    </HorizontalStackLayout>
+                    <HorizontalStackLayout Grid.Column="1" Spacing="8" VerticalOptions="Center">
+                        <Grid x:Name="HistoryHeaderRow"
+                              ColumnDefinitions="Auto, Auto"
+                              ColumnSpacing="8"
+                              IsVisible="False">
+                            <Label Grid.Column="0"
+                                   Text="Clear all"
                                    FontSize="11"
                                    TextColor="#6b7280"
                                    VerticalOptions="Center">
@@ -281,6 +347,7 @@
                                 </Label.GestureRecognizers>
                             </Label>
                             <Label x:Name="HistoryChevron"
+                                   Grid.Column="1"
                                    Text="▾"
                                    FontSize="11"
                                    TextColor="#6b7280"
@@ -289,28 +356,28 @@
                                     <TapGestureRecognizer Tapped="OnHistoryToggle"/>
                                 </Label.GestureRecognizers>
                             </Label>
-                        </HorizontalStackLayout>
-                    </Grid>
+                        </Grid>
+                    </HorizontalStackLayout>
+                </Grid>
 
-                    <!-- History dropdown — collapsed by default, populated in code-behind -->
-                    <Border x:Name="HistoryDropdown"
-                            IsVisible="False"
-                            Stroke="#e5e7eb"
-                            StrokeThickness="1"
-                            StrokeShape="RoundRectangle 8"
-                            BackgroundColor="White"
-                            Padding="0"
-                            Margin="0,4,0,0">
-                        <ScrollView MaximumHeightRequest="220">
-                            <VerticalStackLayout x:Name="HistoryItemsLayout"
-                                                 Spacing="0"
-                                                 Padding="4,4"/>
-                        </ScrollView>
-                    </Border>
-
-                </VerticalStackLayout>
-            </Border>
-
+                <!-- History dropdown -->
+                <Border x:Name="HistoryDropdown"
+                        IsVisible="False"
+                        Stroke="#e5e7eb"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 8"
+                        BackgroundColor="White"
+                        Padding="0"
+                        ZIndex="5"
+                        HorizontalOptions="End"
+                        MinimumWidthRequest="300">
+                    <ScrollView MaximumHeightRequest="220">
+                        <VerticalStackLayout x:Name="HistoryItemsLayout"
+                                             Spacing="0"
+                                             Padding="4,4"/>
+                    </ScrollView>
+                </Border>
+            </VerticalStackLayout>
         </Grid>
 
         <!-- ── Session card + carousel (same row) ────── -->
