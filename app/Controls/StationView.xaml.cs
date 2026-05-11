@@ -566,6 +566,33 @@ public partial class StationView : ContentView, IDisposable
             if (_currentOperator is not null)
                 StartInactivityTimer();
 
+            // If recording task faulted, clean up state before processing next scan
+            if (_activeBarcode != null && _recordingTask is { IsCompleted: true, IsFaulted: true })
+            {
+                Logger.Log($"Station {_stationId}: Cleaning up faulted recording for {_activeBarcode}");
+                _activeBarcode = null;
+                _isRecording = false;
+                _recordingCts?.Cancel();
+                _recordingCts?.Dispose();
+                _recordingCts = null;
+                _recordingTask = null;
+                if (_recordingFileStream != null)
+                {
+                    _recordingFileStream.Dispose();
+                    _recordingFileStream = null;
+                }
+                _pendingFilePath = null;
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    BarcodeBadge.IsVisible = false;
+                    BarcodeLabel.Text = "";
+                    RecBadge.IsVisible = false;
+                    RecordingBorder.IsVisible = false;
+                    UpdateCardBorder();
+                    UpdateStatusFromDevices();
+                });
+            }
+
             var stationName = Environment.MachineName;
             var stationLabel = $"{stationName}-{_stationName.Replace(' ', '-')}";
 
