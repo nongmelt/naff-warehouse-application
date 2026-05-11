@@ -578,7 +578,7 @@ public partial class StationView : ContentView, IDisposable
                 _recordingTask = null;
                 if (_recordingFileStream != null)
                 {
-                    _recordingFileStream.Dispose();
+                    await _recordingFileStream.DisposeAsync();
                     _recordingFileStream = null;
                 }
                 _pendingFilePath = null;
@@ -858,6 +858,7 @@ public partial class StationView : ContentView, IDisposable
             _recordingTask = CameraFeed.StartVideoRecording(_recordingFileStream, _recordingCts.Token);
             _ = _recordingTask.ContinueWith(t =>
             {
+                if (!_isRecording) return;
                 var msg = t.Exception?.InnerException?.Message ?? "unknown error";
                 Logger.Log($"Station {_stationId}: [ERROR] Recording task faulted mid-recording: {msg}");
                 MainThread.BeginInvokeOnMainThread(() =>
@@ -1250,6 +1251,7 @@ public partial class StationView : ContentView, IDisposable
             try { _recordingTask.Wait(TimeSpan.FromSeconds(2)); }
             catch { /* task may fault — that's fine during shutdown */ }
         }
+        _recordingTask = null;
 
         _recordingCts?.Dispose();
         _recordingFileStream?.Dispose();
