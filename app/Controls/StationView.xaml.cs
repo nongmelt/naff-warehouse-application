@@ -34,6 +34,7 @@ public partial class StationView : ContentView, IDisposable
     // Diagnostics
     private DateTime _recordingStartedAt;
     private static readonly TimeSpan RecordingDurationWarnThreshold = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan StopRecordingTimeout = TimeSpan.FromSeconds(10);
 
     // Serializes barcode events so rapid double-scans cannot interleave state
     private readonly SemaphoreSlim _barcodeLock = new(1, 1);
@@ -565,6 +566,33 @@ public partial class StationView : ContentView, IDisposable
             if (_currentOperator is not null)
                 StartInactivityTimer();
 
+            // If recording task faulted, clean up state before processing next scan
+            if (_activeBarcode != null && _recordingTask is { IsCompleted: true, IsFaulted: true })
+            {
+                Logger.Log($"Station {_stationId}: Cleaning up faulted recording for {_activeBarcode}");
+                _activeBarcode = null;
+                _isRecording = false;
+                _recordingCts?.Cancel();
+                _recordingCts?.Dispose();
+                _recordingCts = null;
+                _recordingTask = null;
+                if (_recordingFileStream != null)
+                {
+                    await _recordingFileStream.DisposeAsync();
+                    _recordingFileStream = null;
+                }
+                _pendingFilePath = null;
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    BarcodeBadge.IsVisible = false;
+                    BarcodeLabel.Text = "";
+                    RecBadge.IsVisible = false;
+                    RecordingBorder.IsVisible = false;
+                    UpdateCardBorder();
+                    UpdateStatusFromDevices();
+                });
+            }
+
             var stationName = Environment.MachineName;
             var stationLabel = $"{stationName}-{_stationName.Replace(' ', '-')}";
 
@@ -828,6 +856,21 @@ public partial class StationView : ContentView, IDisposable
             var sw = Stopwatch.StartNew();
             _recordingCts = new CancellationTokenSource();
             _recordingTask = CameraFeed.StartVideoRecording(_recordingFileStream, _recordingCts.Token);
+            _ = _recordingTask.ContinueWith(t =>
+            {
+                if (!_isRecording) return;
+                var msg = t.Exception?.InnerException?.Message ?? "unknown error";
+                Logger.Log($"Station {_stationId}: [ERROR] Recording task faulted mid-recording: {msg}");
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    if (!_isRecording) return;
+                    _isRecording = false;
+                    RecBadge.IsVisible = false;
+                    RecordingBorder.IsVisible = false;
+                    UpdateCardBorder();
+                    UpdateStatus("Recording failed — scan again");
+                });
+            }, TaskContinuationOptions.OnlyOnFaulted);
             sw.Stop();
 
             Logger.Log($"Station {_stationId}: Recording started for barcode {barcode} → {_pendingFilePath} " +
@@ -845,7 +888,6 @@ public partial class StationView : ContentView, IDisposable
         {
             if (_recordingTask == null) return null;
 
-            // Duration warning
             var duration = DateTime.UtcNow - _recordingStartedAt;
             if (duration > RecordingDurationWarnThreshold)
                 Logger.Log($"Station {_stationId}: [WARN] Long recording: " +
@@ -854,17 +896,45 @@ public partial class StationView : ContentView, IDisposable
             Logger.Log($"Station {_stationId}: [DIAG] Memory before StopVideoRecording: " +
                        $"{GC.GetTotalMemory(false) / 1_048_576.0:F1} MB");
 
-            // Show UI feedback
-            // UpdateStatus("⏳ Saving...");
             await TryDispatchUIAsync(() => SavingOverlay.IsVisible = true);
 
             var swStop = Stopwatch.StartNew();
 
-            // Signal toolkit to finish encoding and flush remaining bytes to the FileStream
-            _ = await CameraFeed.StopVideoRecording(CancellationToken.None);
-            await _recordingTask;
+            // Phase 1: Ask toolkit to stop encoding (bounded).
+            using var stopCts = new CancellationTokenSource(StopRecordingTimeout);
+            try
+            {
+                _ = await CameraFeed.StopVideoRecording(stopCts.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                Logger.Log($"Station {_stationId}: [WARN] StopVideoRecording timed out — forcing cancel");
+                _recordingCts?.Cancel();
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Station {_stationId}: StopVideoRecording threw: {ex.Message}");
+                _recordingCts?.Cancel();
+            }
 
-            // Flush and close the FileStream — all MP4 data is now on disk
+            // Phase 2: Wait for recording task to finish (bounded).
+            if (_recordingTask is { IsCompleted: false })
+            {
+                _recordingCts?.Cancel();
+                using var delayCts = new CancellationTokenSource();
+                var completed = await Task.WhenAny(_recordingTask, Task.Delay(StopRecordingTimeout, delayCts.Token));
+                if (completed == _recordingTask)
+                    delayCts.Cancel();
+                if (completed != _recordingTask)
+                    Logger.Log($"Station {_stationId}: [WARN] Recording task did not complete within {StopRecordingTimeout.TotalSeconds}s — abandoning");
+                else if (_recordingTask.IsFaulted)
+                {
+                    var ex = _recordingTask.Exception;
+                    Logger.Log($"Station {_stationId}: Recording task faulted: {ex?.InnerException?.Message}");
+                }
+            }
+
+            // Phase 3: Flush and close the FileStream.
             if (_recordingFileStream != null)
             {
                 await _recordingFileStream.FlushAsync();
@@ -898,6 +968,7 @@ public partial class StationView : ContentView, IDisposable
                 await _recordingFileStream.DisposeAsync();
                 _recordingFileStream = null;
             }
+            _recordingCts?.Cancel();
             _recordingCts?.Dispose();
             _recordingCts = null;
             _recordingTask = null;
@@ -1168,7 +1239,20 @@ public partial class StationView : ContentView, IDisposable
             _cameraPreviewActive = false;
         }
         StopInactivityTimer();
+
+        // Cancel recording first — gives the recording task a chance to exit
+        // before we yank the FileStream from under it.
         _recordingCts?.Cancel();
+
+        // Best-effort wait for recording task to notice cancellation.
+        // Can't await in Dispose, so use synchronous Wait with timeout.
+        if (_recordingTask is { IsCompleted: false })
+        {
+            try { _recordingTask.Wait(TimeSpan.FromSeconds(2)); }
+            catch { /* task may fault — that's fine during shutdown */ }
+        }
+        _recordingTask = null;
+
         _recordingCts?.Dispose();
         _recordingFileStream?.Dispose();
         _recordingFileStream = null;

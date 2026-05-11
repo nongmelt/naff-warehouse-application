@@ -243,14 +243,10 @@ public sealed class VideoWorkflowRunner
             var size = stream.Length;
             var max = AppSettings.MaxConcurrentUploads;
             Logger.Log($"[VideoWorkflowRunner:{_ctx.VideoId}] uploading {objectName} ({size / 1_048_576.0:F1} MB) → {bucket} [gate: {max - gate.CurrentCount}/{max} active]");
-            var progress = new Progress<Minio.DataModel.ProgressReport>(p =>
-                Logger.Log($"[VideoWorkflowRunner:{_ctx.VideoId}] upload progress — {p}"));
-            Logger.Log($"[VideoWorkflowRunner:{_ctx.VideoId}] PutObjectAsync starting");
             var putResponse = await minio.PutObjectAsync(new PutObjectArgs()
                 .WithBucket(bucket).WithObject(objectName)
                 .WithStreamData(stream).WithObjectSize(size)
-                .WithContentType("video/mp4")
-                .WithProgress(progress), ct);
+                .WithContentType("video/mp4"), ct);
 
             Logger.Log($"[VideoWorkflowRunner:{_ctx.VideoId}] uploaded {objectName} ({size / 1_048_576.0:F1} MB)");
             return (objectName, size);
