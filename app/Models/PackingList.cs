@@ -203,6 +203,43 @@ public class ProductItem : INotifyPropertyChanged
         set { _isLoadingComponents = value; OnPropertyChanged(); }
     }
 
+    // ── Enrichment (populated after search via EnrichProductsAsync) ──────────
+
+    [JsonIgnore] public string? CategoryName { get; set; }
+    [JsonIgnore] public int? CategoryId { get; set; }
+    [JsonIgnore] public string? ImagePath { get; set; }
+    [JsonIgnore] public string? QcNotes { get; set; }
+    [JsonIgnore] public string? Brand { get; set; }
+
+    [JsonIgnore] public bool HasQcNotes => !string.IsNullOrWhiteSpace(QcNotes);
+    [JsonIgnore] public bool HasImagePath => !string.IsNullOrWhiteSpace(ImagePath);
+
+    /// <summary>Category badge text like "TEE-01".</summary>
+    [JsonIgnore] public string CategoryBadge { get; set; } = "";
+
+    /// <summary>Category badge background color.</summary>
+    [JsonIgnore] public Color CategoryBadgeBg { get; set; } = Colors.Transparent;
+
+    /// <summary>Category badge text color.</summary>
+    [JsonIgnore] public Color CategoryBadgeFg { get; set; } = Colors.White;
+
+    /// <summary>Color swatch parsed from variation.</summary>
+    [JsonIgnore] public Color? SwatchColor { get; set; }
+
+    [JsonIgnore] public bool HasSwatch => SwatchColor != null;
+
+    private string? _localImagePath;
+    [JsonIgnore]
+    public string? LocalImagePath
+    {
+        get => _localImagePath;
+        set { _localImagePath = value; OnPropertyChanged(); OnPropertyChanged(nameof(HasLocalImage)); }
+    }
+
+    [JsonIgnore] public bool HasLocalImage => !string.IsNullOrWhiteSpace(_localImagePath);
+
+    [JsonIgnore] public int RowNumber { get; set; }
+
     public event PropertyChangedEventHandler? PropertyChanged;
     private void OnPropertyChanged([CallerMemberName] string? name = null)
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
@@ -412,6 +449,10 @@ public class PackingList : INotifyPropertyChanged
                 : item.Quantity;
             item.OrderQcContext = ctx;
         }
+
+        for (int i = 0; i < list.Count; i++)
+            list[i].RowNumber = i + 1;
+
         return new ObservableCollection<ProductItem>(list);
     }
 
