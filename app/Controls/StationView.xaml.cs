@@ -1211,7 +1211,19 @@ public partial class StationView : ContentView, IDisposable
             _cameraPreviewActive = false;
         }
         StopInactivityTimer();
+
+        // Cancel recording first — gives the recording task a chance to exit
+        // before we yank the FileStream from under it.
         _recordingCts?.Cancel();
+
+        // Best-effort wait for recording task to notice cancellation.
+        // Can't await in Dispose, so use synchronous Wait with timeout.
+        if (_recordingTask is { IsCompleted: false })
+        {
+            try { _recordingTask.Wait(TimeSpan.FromSeconds(2)); }
+            catch { /* task may fault — that's fine during shutdown */ }
+        }
+
         _recordingCts?.Dispose();
         _recordingFileStream?.Dispose();
         _recordingFileStream = null;
