@@ -757,10 +757,10 @@ public partial class OrderSearchPage : ContentPage
         if (item.IsFullyPicked)
             _ = AnimateAndMoveItemToBottomAsync(item);
 
-        UpdateSearchStatus(item.Quantity == 0
-            ? $"✓ {item.SellerSku} fully picked"
-            : $"{item.SellerSku} — {item.Quantity} remaining");
-        Logger.Log($"OrderSearch: deducted {qty} from '{item.SellerSku}', remaining: {item.Quantity}");
+        UpdateSearchStatus(item.IsFullyPicked
+            ? $"✓ {item.SellerSku} fully verified"
+            : $"{item.SellerSku} — {item.VerifiedQuantity}/{item.RequiredQuantity} verified");
+        Logger.Log($"OrderSearch: verified {qty} for '{item.SellerSku}', now {item.VerifiedQuantity}/{item.RequiredQuantity}");
 
         _ = CheckAndSaveQcStatusAsync();
     }
@@ -1124,7 +1124,7 @@ public partial class OrderSearchPage : ContentPage
 
         // Quantities
         OverlayReqQty.Text = item.RequiredQuantity.ToString();
-        OverlayCurrentQty.Text = item.Quantity.ToString();
+        OverlayCurrentQty.Text = item.VerifiedQuantity.ToString();
         OverlayPickEntry.IsVisible = false;
         OverlayPickEntry.Text = "";
 
@@ -1224,7 +1224,7 @@ public partial class OrderSearchPage : ContentPage
 
     private void SyncOverlayAfterDeduction(ProductItem item)
     {
-        OverlayCurrentQty.Text = item.Quantity.ToString();
+        OverlayCurrentQty.Text = item.VerifiedQuantity.ToString();
         UpdateOverlayCardBg(item);
 
         if (item.IsFullyPicked)
@@ -2092,10 +2092,10 @@ public partial class OrderSearchPage : ContentPage
 
     // ── +/- button handlers ──────────────────────────────────────────────────
 
-    private void OnMinusClicked(object sender, EventArgs e)
+    private void OnPlusClicked(object sender, EventArgs e)
     {
         if (sender is not VisualElement el || el.BindingContext is not ProductItem item) return;
-        if (item.Quantity <= 0) return;
+        if (item.Quantity <= 0) return; // already fully verified
 
         PackingList? order = null;
         foreach (var o in Results)
@@ -2113,10 +2113,10 @@ public partial class OrderSearchPage : ContentPage
         ApplySkuDeduction(item, "1", DeductionSource.CardTap);
     }
 
-    private void OnPlusClicked(object sender, EventArgs e)
+    private void OnMinusClicked(object sender, EventArgs e)
     {
         if (sender is not VisualElement el || el.BindingContext is not ProductItem item) return;
-        if (item.Quantity >= item.RequiredQuantity) return;
+        if (item.Quantity >= item.RequiredQuantity) return; // already at 0 verified
 
         PackingList? order = null;
         foreach (var o in Results)
@@ -2129,7 +2129,7 @@ public partial class OrderSearchPage : ContentPage
 
         item.Quantity += 1;
         item.OrderQcContext = "QC Hold";
-        UpdateSearchStatus($"{item.SellerSku} — qty +1, now {item.Quantity}/{item.RequiredQuantity}");
+        UpdateSearchStatus($"{item.SellerSku} — unverified, {item.VerifiedQuantity}/{item.RequiredQuantity}");
         _ = CheckAndSaveQcStatusAsync();
     }
 

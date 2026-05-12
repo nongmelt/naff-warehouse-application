@@ -700,7 +700,7 @@
                                                                 <TapGestureRecognizer Tapped="OnQuantityTapped"/>
                                                             </VerticalStackLayout.GestureRecognizers>
                                                             <HorizontalStackLayout HorizontalOptions="Center" Spacing="2" VerticalOptions="Center">
-                                                                <Label Text="{Binding Quantity}" FontSize="22" FontAttributes="Bold"
+                                                                <Label Text="{Binding VerifiedQuantity}" FontSize="22" FontAttributes="Bold"
                                                                        TextColor="#111827" VerticalOptions="Center"/>
                                                                 <Label Text="/" FontSize="14" TextColor="#d1d5db" VerticalOptions="Center"/>
                                                                 <Label Text="{Binding RequiredQuantity}" FontSize="14"

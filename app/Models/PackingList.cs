@@ -60,6 +60,7 @@ public class ProductItem : INotifyPropertyChanged
         {
             _quantity = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(VerifiedQuantity));
             OnPropertyChanged(nameof(IsFullyPicked));
             OnPropertyChanged(nameof(CardBgColor));
         }
@@ -70,6 +71,9 @@ public class ProductItem : INotifyPropertyChanged
 
     /// <summary>Original required quantity from the order (ProductLists), regardless of picking state.</summary>
     [JsonIgnore] public int RequiredQuantity { get; set; }
+
+    /// <summary>Number of items verified so far (RequiredQuantity − remaining Quantity).</summary>
+    [JsonIgnore] public int VerifiedQuantity => RequiredQuantity - Quantity;
 
     // ── Product name helpers ──────────────────────────────────────────────────
 
