@@ -669,7 +669,32 @@
                                                         <Button Text="-" Clicked="OnMinusClicked" WidthRequest="32" HeightRequest="32"
                                                                 FontSize="16" FontAttributes="Bold" Padding="0" CornerRadius="4"
                                                                 BackgroundColor="#f3f4f6" TextColor="#374151" VerticalOptions="Center"
-                                                                ToolTipProperties.Text="Unverify (decrease count)"/>
+                                                                ToolTipProperties.Text="Unverify (decrease count)">
+                                                            <VisualStateManager.VisualStateGroups>
+                                                                <VisualStateGroupList>
+                                                                    <VisualStateGroup x:Name="CommonStates">
+                                                                        <VisualState x:Name="Normal">
+                                                                            <VisualState.Setters>
+                                                                                <Setter Property="BackgroundColor" Value="#f3f4f6"/>
+                                                                                <Setter Property="TextColor" Value="#374151"/>
+                                                                            </VisualState.Setters>
+                                                                        </VisualState>
+                                                                        <VisualState x:Name="PointerOver">
+                                                                            <VisualState.Setters>
+                                                                                <Setter Property="BackgroundColor" Value="#fecaca"/>
+                                                                                <Setter Property="TextColor" Value="#dc2626"/>
+                                                                            </VisualState.Setters>
+                                                                        </VisualState>
+                                                                        <VisualState x:Name="Pressed">
+                                                                            <VisualState.Setters>
+                                                                                <Setter Property="BackgroundColor" Value="#fca5a5"/>
+                                                                                <Setter Property="TextColor" Value="#b91c1c"/>
+                                                                            </VisualState.Setters>
+                                                                        </VisualState>
+                                                                    </VisualStateGroup>
+                                                                </VisualStateGroupList>
+                                                            </VisualStateManager.VisualStateGroups>
+                                                        </Button>
                                                         <VerticalStackLayout VerticalOptions="Center" Spacing="0">
                                                             <VerticalStackLayout.GestureRecognizers>
                                                                 <TapGestureRecognizer Tapped="OnQuantityTapped"/>
@@ -690,7 +715,32 @@
                                                         <Button Text="+" Clicked="OnPlusClicked" WidthRequest="32" HeightRequest="32"
                                                                 FontSize="16" FontAttributes="Bold" Padding="0" CornerRadius="4"
                                                                 BackgroundColor="#f3f4f6" TextColor="#374151" VerticalOptions="Center"
-                                                                ToolTipProperties.Text="Verify (increase count)"/>
+                                                                ToolTipProperties.Text="Verify (increase count)">
+                                                            <VisualStateManager.VisualStateGroups>
+                                                                <VisualStateGroupList>
+                                                                    <VisualStateGroup x:Name="CommonStates">
+                                                                        <VisualState x:Name="Normal">
+                                                                            <VisualState.Setters>
+                                                                                <Setter Property="BackgroundColor" Value="#f3f4f6"/>
+                                                                                <Setter Property="TextColor" Value="#374151"/>
+                                                                            </VisualState.Setters>
+                                                                        </VisualState>
+                                                                        <VisualState x:Name="PointerOver">
+                                                                            <VisualState.Setters>
+                                                                                <Setter Property="BackgroundColor" Value="#bbf7d0"/>
+                                                                                <Setter Property="TextColor" Value="#16a34a"/>
+                                                                            </VisualState.Setters>
+                                                                        </VisualState>
+                                                                        <VisualState x:Name="Pressed">
+                                                                            <VisualState.Setters>
+                                                                                <Setter Property="BackgroundColor" Value="#86efac"/>
+                                                                                <Setter Property="TextColor" Value="#15803d"/>
+                                                                            </VisualState.Setters>
+                                                                        </VisualState>
+                                                                    </VisualStateGroup>
+                                                                </VisualStateGroupList>
+                                                            </VisualStateManager.VisualStateGroups>
+                                                        </Button>
                                                     </HorizontalStackLayout>
                                                 </Grid>
                                             </Border>
