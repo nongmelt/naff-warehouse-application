@@ -118,7 +118,7 @@
         </ResourceDictionary>
     </ContentPage.Resources>
 
-    <Grid RowDefinitions="Auto, Auto, Auto, Auto, *, Auto">
+    <Grid RowDefinitions="Auto, Auto, Auto, *, Auto">
 
         <!-- Header bar -->
         <Grid Grid.Row="0"
@@ -148,21 +148,53 @@
                 </Border>
             </HorizontalStackLayout>
 
-            <!-- Center: order info (ORDER number + platform badge + tracking) -->
-            <HorizontalStackLayout Grid.Column="1" HorizontalOptions="Center"
-                                   Spacing="10" VerticalOptions="Center">
-                <Label x:Name="HeaderOrderLabel" Text="ORDER" TextColor="#94a3b8" FontSize="12"
-                       FontAttributes="Bold" VerticalOptions="Center" IsVisible="False"/>
-                <Label x:Name="HeaderOrderNumber" Text="" TextColor="White" FontSize="13"
-                       FontAttributes="Bold" VerticalOptions="Center" IsVisible="False"/>
-                <Border x:Name="HeaderPlatformBadge" IsVisible="False"
-                        StrokeThickness="0" StrokeShape="RoundRectangle 4" Padding="8,2">
-                    <Label x:Name="HeaderPlatformLabel" Text="" TextColor="White" FontSize="11"
-                           FontAttributes="Bold" VerticalOptions="Center"/>
+            <!-- Center: swappable order info ↔ scan alert -->
+            <Grid Grid.Column="1" HorizontalOptions="Fill" VerticalOptions="Center">
+                <!-- Default: order metadata -->
+                <HorizontalStackLayout x:Name="HeaderOrderInfo"
+                                       HorizontalOptions="Center"
+                                       Spacing="10" VerticalOptions="Center">
+                    <Label x:Name="HeaderOrderLabel" Text="ORDER" TextColor="#94a3b8" FontSize="12"
+                           FontAttributes="Bold" VerticalOptions="Center" IsVisible="False"/>
+                    <Label x:Name="HeaderOrderNumber" Text="" TextColor="White" FontSize="13"
+                           FontAttributes="Bold" VerticalOptions="Center" IsVisible="False"/>
+                    <Border x:Name="HeaderPlatformBadge" IsVisible="False"
+                            StrokeThickness="0" StrokeShape="RoundRectangle 4" Padding="8,2">
+                        <Label x:Name="HeaderPlatformLabel" Text="" TextColor="White" FontSize="11"
+                               FontAttributes="Bold" VerticalOptions="Center"/>
+                    </Border>
+                    <Label x:Name="HeaderTrackingLabel" Text="" TextColor="White" FontSize="13"
+                           VerticalOptions="Center" IsVisible="False"/>
+                </HorizontalStackLayout>
+
+                <!-- Scan alert pill (hidden by default, shown on scan events) -->
+                <Border x:Name="HeaderScanAlert"
+                        IsVisible="False"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 16"
+                        Padding="14,6"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center"
+                        Opacity="0">
+                    <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                        <Label x:Name="ScanAlertIcon" Text="SCAN" FontSize="9"
+                               FontAttributes="Bold" TextColor="White" Opacity="0.8"
+                               VerticalOptions="Center"/>
+                        <Border x:Name="ScanAlertSkuBadge"
+                                BackgroundColor="#20ffffff"
+                                StrokeThickness="0"
+                                StrokeShape="RoundRectangle 4"
+                                Padding="6,2">
+                            <Label x:Name="ScanAlertSkuLabel" Text=""
+                                   FontSize="12" FontAttributes="Bold" FontFamily="Consolas"
+                                   TextColor="White" VerticalOptions="Center"/>
+                        </Border>
+                        <Label x:Name="ScanAlertMessage" Text=""
+                               FontSize="12" FontAttributes="Bold" TextColor="White"
+                               VerticalOptions="Center"/>
+                    </HorizontalStackLayout>
                 </Border>
-                <Label x:Name="HeaderTrackingLabel" Text="" TextColor="White" FontSize="13"
-                       VerticalOptions="Center" IsVisible="False"/>
-            </HorizontalStackLayout>
+            </Grid>
 
             <!-- Right: search → COM status → operator -->
             <HorizontalStackLayout Grid.Column="2" Spacing="10" VerticalOptions="Center">
@@ -179,9 +211,9 @@
                     <Border.GestureRecognizers>
                         <TapGestureRecognizer Tapped="OnSearchBoxTapped"/>
                     </Border.GestureRecognizers>
-                    <Grid ColumnDefinitions="Auto, Auto" ColumnSpacing="8" VerticalOptions="Center">
+                    <HorizontalStackLayout Spacing="8" VerticalOptions="Center"
+                                           HeightRequest="30">
                         <Border x:Name="SearchSlashHint"
-                                Grid.Column="0"
                                 BackgroundColor="#18ffffff"
                                 Stroke="#30ffffff"
                                 StrokeThickness="1"
@@ -195,30 +227,34 @@
                                    HorizontalTextAlignment="Center"
                                    VerticalTextAlignment="Center"/>
                         </Border>
-                        <Label x:Name="SearchPlaceholderLabel"
-                               Grid.Column="1"
-                               Text="search"
-                               TextColor="#60ffffff"
-                               FontSize="13"
-                               VerticalOptions="Center"
-                               VerticalTextAlignment="Center"
-                               HorizontalTextAlignment="Center"
-                               WidthRequest="80"/>
-                        <Entry x:Name="HeaderSearchEntry"
-                               Grid.Column="1"
-                               IsVisible="False"
-                               TextColor="White"
-                               FontSize="13"
-                               BackgroundColor="Transparent"
-                               PlaceholderColor="#60ffffff"
-                               ReturnType="Search"
-                               Completed="OnSearchCommitted"
-                               Focused="OnSearchEntryFocused"
-                               Unfocused="OnSearchEntryUnfocused"
-                               HorizontalTextAlignment="Center"
-                               VerticalOptions="Center"
-                               WidthRequest="140"/>
-                    </Grid>
+                        <Grid VerticalOptions="Fill"
+                              HeightRequest="30">
+                            <Label x:Name="SearchPlaceholderLabel"
+                                   Text="search"
+                                   TextColor="#60ffffff"
+                                   FontSize="13"
+                                   VerticalOptions="Center"
+                                   VerticalTextAlignment="Center"
+                                   HorizontalTextAlignment="Start"
+                                   WidthRequest="140"
+                                   Margin="2,0,0,0"/>
+                            <Entry x:Name="HeaderSearchEntry"
+                                   IsVisible="False"
+                                   TextColor="White"
+                                   FontSize="13"
+                                   BackgroundColor="Transparent"
+                                   PlaceholderColor="#60ffffff"
+                                   ReturnType="Search"
+                                   Completed="OnSearchCommitted"
+                                   Focused="OnSearchEntryFocused"
+                                   Unfocused="OnSearchEntryUnfocused"
+                                   HorizontalTextAlignment="Start"
+                                   VerticalOptions="Fill"
+                                   VerticalTextAlignment="Center"
+                                   HeightRequest="30"
+                                   WidthRequest="140"/>
+                        </Grid>
+                    </HorizontalStackLayout>
                 </Border>
 
                 <Label Text="|" TextColor="#40ffffff" FontSize="16" VerticalOptions="Center"/>
@@ -256,7 +292,7 @@
 
         <!-- Mode dropdown popover -->
         <Grid x:Name="ModeDropdownBackdrop"
-              Grid.Row="0" Grid.RowSpan="6"
+              Grid.Row="0" Grid.RowSpan="5"
               BackgroundColor="Transparent"
               IsVisible="False"
               ZIndex="20"
@@ -315,239 +351,147 @@
             </Border>
         </Grid>
 
-        <!-- Row 1: Status strip + history -->
-        <Grid Grid.Row="1"
-              BackgroundColor="#f3f4f6"
-              Padding="24,4,24,4">
-            <VerticalStackLayout Spacing="4">
-                <Grid ColumnDefinitions="*, Auto">
-                    <HorizontalStackLayout Grid.Column="0" Spacing="12" VerticalOptions="Center">
-                        <Label x:Name="SearchStatusLabel"
-                               Text=" "
-                               FontSize="11"
-                               TextColor="#6b7280"/>
-                        <Label Text="·" FontSize="11" TextColor="#d1d5db" VerticalOptions="Center"/>
-                        <Label x:Name="ScannerStatusLabel"
-                               Text="No scanner connected"
-                               FontSize="11"
-                               TextColor="#6b7280"/>
-                    </HorizontalStackLayout>
-                    <HorizontalStackLayout Grid.Column="1" Spacing="8" VerticalOptions="Center">
-                        <Grid x:Name="HistoryHeaderRow"
-                              ColumnDefinitions="Auto, Auto"
-                              ColumnSpacing="8"
-                              IsVisible="False">
-                            <Label Grid.Column="0"
-                                   Text="Clear all"
-                                   FontSize="11"
-                                   TextColor="#6b7280"
-                                   VerticalOptions="Center">
-                                <Label.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnHistoryClearAll"/>
-                                </Label.GestureRecognizers>
-                            </Label>
-                            <Label x:Name="HistoryChevron"
-                                   Grid.Column="1"
-                                   Text="▾"
-                                   FontSize="11"
-                                   TextColor="#6b7280"
-                                   VerticalOptions="Center">
-                                <Label.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnHistoryToggle"/>
-                                </Label.GestureRecognizers>
-                            </Label>
-                        </Grid>
-                    </HorizontalStackLayout>
-                </Grid>
+        <!-- Row 1: collapsed (metadata removed) -->
+        <Grid Grid.Row="1" HeightRequest="0" IsVisible="False"/>
 
-                <!-- History dropdown -->
-                <Border x:Name="HistoryDropdown"
-                        IsVisible="False"
-                        Stroke="#e5e7eb"
-                        StrokeThickness="1"
-                        StrokeShape="RoundRectangle 8"
-                        BackgroundColor="White"
-                        Padding="0"
-                        ZIndex="5"
-                        HorizontalOptions="End"
-                        MinimumWidthRequest="300">
-                    <ScrollView MaximumHeightRequest="220">
-                        <VerticalStackLayout x:Name="HistoryItemsLayout"
-                                             Spacing="0"
-                                             Padding="4,4"/>
-                    </ScrollView>
-                </Border>
-            </VerticalStackLayout>
-        </Grid>
+        <!-- ── History section: stats + carousel (unified belt) ────── -->
+        <Border Grid.Row="2"
+                BackgroundColor="White"
+                Stroke="#e5e7eb"
+                StrokeThickness="1"
+                StrokeShape="RoundRectangle 4"
+                Margin="24,4,24,0">
+            <Grid ColumnDefinitions="Auto, Auto, Auto, *, Auto, Auto"
+                  ColumnSpacing="0">
 
-        <!-- ── Session card + carousel (same row) ────── -->
-        <Grid Grid.Row="2"
-              ColumnDefinitions="Auto, *, Auto"
-              ColumnSpacing="12"
-              BackgroundColor="#f3f4f6"
-              Padding="24,0,24,6">
+                <Label x:Name="SessionTotalLabel" IsVisible="False" Text="0"/>
 
-            <!-- Left: session status card (in-memory counters) -->
-            <Border x:Name="SessionCard"
-                    Grid.Column="0"
-                    Stroke="#d1d5db"
-                    StrokeThickness="1"
-                    StrokeShape="RoundRectangle 8"
-                    BackgroundColor="White"
-                    Padding="10,6">
-                <VerticalStackLayout Spacing="8">
-                    <Grid ColumnDefinitions="*, Auto">
-                        <Label Grid.Column="0"
-                               Text="Session"
-                               FontAttributes="Bold"
-                               FontSize="13"
-                               TextColor="#111827"
-                               VerticalOptions="Center"/>
-                        <HorizontalStackLayout Grid.Column="1"
-                                               Spacing="3"
-                                               VerticalOptions="Center">
-                            <Label x:Name="SessionTotalLabel"
-                                   Text="0"
-                                   FontSize="15"
-                                   FontAttributes="Bold"
-                                   TextColor="#111827"
-                                   VerticalOptions="Center"/>
-                            <Label Text="orders"
-                                   FontSize="11"
-                                   TextColor="#6b7280"
-                                   VerticalOptions="End"
-                                   Margin="0,0,0,1"/>
+                <!-- Summary stats pills -->
+                <HorizontalStackLayout Grid.Column="0" Spacing="4" VerticalOptions="Center"
+                                       Padding="6,0">
+                    <!-- Green: Completed -->
+                    <Border x:Name="SessionCompletedBadge"
+                            BackgroundColor="#f0fdf4"
+                            Stroke="#bbf7d0"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 4"
+                            Padding="8,4">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnSessionCompletedBadgeTapped"/>
+                        </Border.GestureRecognizers>
+                        <HorizontalStackLayout Spacing="4" VerticalOptions="Center">
+                            <BoxView WidthRequest="6" HeightRequest="6"
+                                     Color="#16a34a" CornerRadius="3" VerticalOptions="Center"/>
+                            <Label x:Name="SessionCompletedLabel"
+                                   Text="0" FontSize="12" FontAttributes="Bold"
+                                   TextColor="#166534" VerticalOptions="Center"/>
+                            <Label Text="Completed" FontSize="10"
+                                   TextColor="#6b7280" VerticalOptions="Center"/>
                         </HorizontalStackLayout>
-                    </Grid>
-                    <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                    </Border>
+                    <!-- Orange: Incompleted -->
+                    <Border x:Name="SessionIncompleteBadge"
+                            BackgroundColor="#fffbeb"
+                            Stroke="#fde68a"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 4"
+                            Padding="8,4">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnSessionIncompleteBadgeTapped"/>
+                        </Border.GestureRecognizers>
+                        <HorizontalStackLayout Spacing="4" VerticalOptions="Center">
+                            <BoxView WidthRequest="6" HeightRequest="6"
+                                     Color="#d97706" CornerRadius="3" VerticalOptions="Center"/>
+                            <Label x:Name="SessionIncompleteLabel"
+                                   Text="0" FontSize="12" FontAttributes="Bold"
+                                   TextColor="#b45309" VerticalOptions="Center"/>
+                            <Label Text="Incompleted" FontSize="10"
+                                   TextColor="#6b7280" VerticalOptions="Center"/>
+                        </HorizontalStackLayout>
+                    </Border>
+                    <!-- Blue: Incoming -->
+                    <Border x:Name="SessionIncomingBadge"
+                            BackgroundColor="#eff6ff"
+                            Stroke="#bfdbfe"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 4"
+                            Padding="8,4">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnSessionIncomingBadgeTapped"/>
+                        </Border.GestureRecognizers>
+                        <HorizontalStackLayout Spacing="4" VerticalOptions="Center">
+                            <BoxView WidthRequest="6" HeightRequest="6"
+                                     Color="#2563eb" CornerRadius="3" VerticalOptions="Center"/>
+                            <Label x:Name="SessionIncomingLabel"
+                                   Text="0" FontSize="12" FontAttributes="Bold"
+                                   TextColor="#1d4ed8" VerticalOptions="Center"/>
+                            <Label Text="Incoming" FontSize="10"
+                                   TextColor="#6b7280" VerticalOptions="Center"/>
+                        </HorizontalStackLayout>
+                    </Border>
+                </HorizontalStackLayout>
 
-                        <!-- Green: Completed (QC Passed) -->
-                        <Border x:Name="SessionCompletedBadge"
-                                BackgroundColor="#f0fdf4"
-                                Stroke="#bbf7d0"
-                                StrokeThickness="1"
-                                StrokeShape="RoundRectangle 8"
-                                Padding="10,6">
-                            <Border.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnSessionCompletedBadgeTapped"/>
-                            </Border.GestureRecognizers>
-                            <HorizontalStackLayout Spacing="5" VerticalOptions="Center">
-                                <BoxView WidthRequest="7" HeightRequest="7"
-                                         Color="#166534" CornerRadius="3.5" VerticalOptions="Center"/>
-                                <Label x:Name="SessionCompletedLabel"
-                                       Text="0" FontSize="18" FontAttributes="Bold"
-                                       TextColor="#166534" VerticalOptions="Center"/>
-                                <Label Text="Completed" FontSize="10"
-                                       TextColor="#166534" VerticalOptions="End" Margin="0,0,0,1"/>
-                            </HorizontalStackLayout>
-                        </Border>
+                <!-- Vertical divider -->
+                <BoxView Grid.Column="1"
+                         WidthRequest="1"
+                         BackgroundColor="#e5e7eb"
+                         VerticalOptions="Center"
+                         HeightRequest="24"
+                         Margin="4,0"/>
 
-                        <!-- Yellow: Incompleted (QC Hold) -->
-                        <Border x:Name="SessionIncompleteBadge"
-                                BackgroundColor="#fffbeb"
-                                Stroke="#fde68a"
-                                StrokeThickness="1"
-                                StrokeShape="RoundRectangle 8"
-                                Padding="10,6">
-                            <Border.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnSessionIncompleteBadgeTapped"/>
-                            </Border.GestureRecognizers>
-                            <HorizontalStackLayout Spacing="5" VerticalOptions="Center">
-                                <BoxView WidthRequest="7" HeightRequest="7"
-                                         Color="#b45309" CornerRadius="3.5" VerticalOptions="Center"/>
-                                <Label x:Name="SessionIncompleteLabel"
-                                       Text="0" FontSize="18" FontAttributes="Bold"
-                                       TextColor="#b45309" VerticalOptions="Center"/>
-                                <Label Text="Incompleted" FontSize="10"
-                                       TextColor="#b45309" VerticalOptions="End" Margin="0,0,0,1"/>
-                            </HorizontalStackLayout>
-                        </Border>
+                <!-- Left arrow -->
+                <Border Grid.Column="2"
+                        BackgroundColor="Transparent"
+                        StrokeThickness="0"
+                        Padding="8,4"
+                        VerticalOptions="Center">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnCarouselPrevTapped"/>
+                    </Border.GestureRecognizers>
+                    <Label Text="‹" FontSize="16" FontAttributes="Bold" TextColor="#9ca3af"
+                           HorizontalTextAlignment="Center" VerticalTextAlignment="Center"/>
+                </Border>
 
-                        <!-- Blue: Incoming (tracking scanned, no items picked) -->
-                        <Border x:Name="SessionIncomingBadge"
-                                BackgroundColor="#eff6ff"
-                                Stroke="#bfdbfe"
-                                StrokeThickness="1"
-                                StrokeShape="RoundRectangle 8"
-                                Padding="10,6">
-                            <Border.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnSessionIncomingBadgeTapped"/>
-                            </Border.GestureRecognizers>
-                            <HorizontalStackLayout Spacing="5" VerticalOptions="Center">
-                                <BoxView WidthRequest="7" HeightRequest="7"
-                                         Color="#1d4ed8" CornerRadius="3.5" VerticalOptions="Center"/>
-                                <Label x:Name="SessionIncomingLabel"
-                                       Text="0" FontSize="18" FontAttributes="Bold"
-                                       TextColor="#1d4ed8" VerticalOptions="Center"/>
-                                <Label Text="Incoming" FontSize="10"
-                                       TextColor="#1d4ed8" VerticalOptions="End" Margin="0,0,0,1"/>
-                            </HorizontalStackLayout>
-                        </Border>
-
-                    </HorizontalStackLayout>
-                </VerticalStackLayout>
-            </Border>
-
-            <!-- Right: session carousel — fills all remaining width -->
-            <Border Grid.Column="1"
-                    Stroke="#d1d5db"
-                    StrokeThickness="1"
-                    StrokeShape="RoundRectangle 8"
-                    BackgroundColor="White"
-                    Padding="8,8">
+                <!-- Carousel -->
                 <ScrollView x:Name="NavRow"
+                            Grid.Column="3"
                             Orientation="Horizontal"
                             HorizontalScrollBarVisibility="Never"
-                            VerticalOptions="Center">
+                            VerticalOptions="Center"
+                            Padding="4,0">
                     <HorizontalStackLayout x:Name="CarouselLayout"
-                                           Spacing="6"
+                                           Spacing="4"
                                            VerticalOptions="Center"/>
                 </ScrollView>
-            </Border>
 
-            <!-- Scan indicator -->
-            <Border x:Name="ScanIndicatorCard"
-                    Grid.Column="2"
-                    IsVisible="False"
-                    StrokeThickness="1"
-                    StrokeShape="RoundRectangle 8"
-                    Padding="12,8"
-                    MinimumWidthRequest="200">
-                <VerticalStackLayout Spacing="2" VerticalOptions="Center">
-                    <Label Text="SCAN" FontSize="9" FontAttributes="Bold" TextColor="#9ca3af"/>
-                    <Label x:Name="ScanIndicatorLabel" Text="" FontSize="13" FontAttributes="Bold"/>
-                    <Label x:Name="ScanIndicatorStatus" Text="" FontSize="11"/>
-                </VerticalStackLayout>
-            </Border>
+                <!-- Right arrow -->
+                <Border Grid.Column="4"
+                        BackgroundColor="Transparent"
+                        StrokeThickness="0"
+                        Padding="8,4"
+                        VerticalOptions="Center">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnCarouselNextTapped"/>
+                    </Border.GestureRecognizers>
+                    <Label Text="›" FontSize="16" FontAttributes="Bold" TextColor="#9ca3af"
+                           HorizontalTextAlignment="Center" VerticalTextAlignment="Center"/>
+                </Border>
 
-        </Grid>
+                <!-- Hidden scan indicator (legacy refs, scan feedback now in header) -->
+                <Border x:Name="ScanIndicatorCard" Grid.Column="5" IsVisible="False"
+                        HeightRequest="0" WidthRequest="0">
+                    <VerticalStackLayout>
+                        <Label x:Name="ScanIndicatorLabel"/>
+                        <Label x:Name="ScanIndicatorStatus"/>
+                    </VerticalStackLayout>
+                </Border>
 
-        <!-- Progress bar -->
-        <Grid Grid.Row="3" BackgroundColor="#f3f4f6" Padding="24,0,24,8">
-            <HorizontalStackLayout Spacing="16" VerticalOptions="Center">
-                <Label x:Name="ProgressLabel" Text="0 of 0 scanned" FontSize="12" FontAttributes="Bold" TextColor="#374151"/>
-                <HorizontalStackLayout Spacing="4" VerticalOptions="Center">
-                    <BoxView WidthRequest="7" HeightRequest="7" Color="#16a34a" CornerRadius="3.5" VerticalOptions="Center"/>
-                    <Label x:Name="ProgressDone" Text="Done 0" FontSize="11" TextColor="#6b7280"/>
-                </HorizontalStackLayout>
-                <HorizontalStackLayout Spacing="4" VerticalOptions="Center">
-                    <BoxView WidthRequest="7" HeightRequest="7" Color="#d97706" CornerRadius="3.5" VerticalOptions="Center"/>
-                    <Label x:Name="ProgressPartial" Text="Partial 0" FontSize="11" TextColor="#6b7280"/>
-                </HorizontalStackLayout>
-                <HorizontalStackLayout Spacing="4" VerticalOptions="Center">
-                    <BoxView WidthRequest="7" HeightRequest="7" Color="#6b7280" CornerRadius="3.5" VerticalOptions="Center"/>
-                    <Label x:Name="ProgressPending" Text="Pending 0" FontSize="11" TextColor="#6b7280"/>
-                </HorizontalStackLayout>
-                <HorizontalStackLayout Spacing="4" VerticalOptions="Center">
-                    <BoxView WidthRequest="7" HeightRequest="7" Color="#dc2626" CornerRadius="3.5" VerticalOptions="Center"/>
-                    <Label x:Name="ProgressNotes" Text="Notes 0" FontSize="11" TextColor="#6b7280"/>
-                </HorizontalStackLayout>
-            </HorizontalStackLayout>
-        </Grid>
+            </Grid>
+        </Border>
 
         <!-- Scrollable results -->
         <ScrollView x:Name="ResultsScroll"
-                    Grid.Row="4"
+                    Grid.Row="3"
                     BackgroundColor="#f3f4f6">
             <VerticalStackLayout Padding="24,0,24,24"
                                  Spacing="0">
@@ -580,169 +524,78 @@
                                                  Margin="0,16,0,0">
 
                                 <!-- Summary card -->
-                                <Border Stroke="#d1d5db"
+                                <Border Stroke="#e5e7eb"
                                         StrokeThickness="1"
-                                        StrokeShape="RoundRectangle 8"
+                                        StrokeShape="RoundRectangle 6"
                                         BackgroundColor="White"
-                                        Padding="14,8">
-                                    <VerticalStackLayout Spacing="3">
-                                        <!-- Tracking + platform icon + status -->
-                                        <Grid ColumnDefinitions="Auto, *, Auto"
-                                              ColumnSpacing="10">
-                                            <!-- Platform icon (only when known) -->
-                                            <Image Grid.Column="0"
-                                                   Source="{Binding PlatformIcon}"
-                                                   IsVisible="{Binding HasPlatformIcon}"
-                                                   WidthRequest="48"
-                                                   HeightRequest="48"
-                                                   Aspect="AspectFit"
-                                                   VerticalOptions="Center"/>
-                                            <VerticalStackLayout Grid.Column="1"
-                                                                 Spacing="1"
-                                                                 VerticalOptions="Center">
-                                                <Label Text="{Binding TrackingNumber}"
-                                                       FontAttributes="Bold"
-                                                       FontSize="18"
-                                                       TextColor="#111827"/>
-                                                <!-- Submitted + Checked at on same line -->
-                                                <HorizontalStackLayout Spacing="14">
-                                                    <Label FontSize="11"
-                                                           TextColor="#9ca3af">
-                                                        <Label.FormattedText>
-                                                            <FormattedString>
-                                                                <Span Text="Submitted: "/>
-                                                                <Span Text="{Binding CreatedAtDisplay}"
-                                                                      TextColor="#6b7280"/>
-                                                            </FormattedString>
-                                                        </Label.FormattedText>
-                                                    </Label>
-                                                    <Label FontSize="11"
-                                                           TextColor="#9ca3af"
-                                                           IsVisible="{Binding HasBeenChecked}">
-                                                        <Label.FormattedText>
-                                                            <FormattedString>
-                                                                <Span Text="Checked at: "/>
-                                                                <Span Text="{Binding CheckedAtDisplay}"
-                                                                      TextColor="#6b7280"/>
-                                                            </FormattedString>
-                                                        </Label.FormattedText>
-                                                    </Label>
-                                                </HorizontalStackLayout>
-                                                <!-- Packed by + Checked by beside tracking -->
-                                                <HorizontalStackLayout Spacing="14">
-                                                    <Label FontSize="11"
-                                                           TextColor="#9ca3af">
-                                                        <Label.FormattedText>
-                                                            <FormattedString>
-                                                                <Span Text="Packed by: "/>
-                                                                <Span Text="{Binding PackedByDisplay}"
-                                                                      TextColor="#6b7280"/>
-                                                            </FormattedString>
-                                                        </Label.FormattedText>
-                                                    </Label>
-                                                    <Label FontSize="11"
-                                                           TextColor="#9ca3af">
-                                                        <Label.FormattedText>
-                                                            <FormattedString>
-                                                                <Span Text="Checked by: "/>
-                                                                <Span Text="{Binding CheckedByDisplay}"
-                                                                      TextColor="#6b7280"/>
-                                                            </FormattedString>
-                                                        </Label.FormattedText>
-                                                    </Label>
-                                                </HorizontalStackLayout>
-                                            </VerticalStackLayout>
-                                            <!-- Status badge(s) + Reset button -->
-                                            <VerticalStackLayout Grid.Column="2"
-                                                                 Spacing="3"
-                                                                 HorizontalOptions="End"
-                                                                 VerticalOptions="Center">
-                                                <HorizontalStackLayout Spacing="4"
-                                                                       HorizontalOptions="End">
-                                                    <Border BackgroundColor="{Binding StatusBgColor}"
-                                                            Stroke="Transparent"
-                                                            StrokeShape="RoundRectangle 4"
-                                                            Padding="10,5">
-                                                        <Label Text="{Binding StatusDisplay}"
-                                                               TextColor="{Binding StatusFgColor}"
-                                                               FontSize="15"
-                                                               FontAttributes="Bold"/>
-                                                    </Border>
-                                                    <!-- Green "✓ QC Passed" — only when Packed Complete -->
-                                                    <Border IsVisible="{Binding IsPackedComplete}"
-                                                            BackgroundColor="#dcfce7"
-                                                            Stroke="#86efac"
-                                                            StrokeThickness="1"
-                                                            StrokeShape="RoundRectangle 4"
-                                                            Padding="10,5">
-                                                        <Label Text="✓ QC Passed"
-                                                               TextColor="#166534"
-                                                               FontSize="15"
-                                                               FontAttributes="Bold"/>
-                                                    </Border>
-                                                </HorizontalStackLayout>
-                                                <!-- Reset — always reserves height so all cards stay the same size -->
-                                                <Button Text="Reset"
-                                                        Clicked="OnResetClicked"
-                                                        Opacity="{Binding ResetOpacity}"
-                                                        InputTransparent="{Binding IsNotQcHold}"
-                                                        HorizontalOptions="End"
-                                                        FontSize="11"
-                                                        Padding="8,3"
-                                                        BackgroundColor="#fef9c3"
-                                                        TextColor="#713f12"
-                                                        CornerRadius="6"
-                                                        BorderColor="#fde68a"
-                                                        BorderWidth="1"/>
-                                            </VerticalStackLayout>
-                                        </Grid>
-                                        <!-- Meta row -->
-                                        <HorizontalStackLayout Spacing="16">
-                                            <Label FontSize="11"
-                                                   TextColor="#6b7280">
+                                        Padding="16,10,24,10">
+                                    <Grid ColumnDefinitions="Auto, *, Auto"
+                                          ColumnSpacing="14"
+                                          RowDefinitions="Auto, Auto"
+                                          RowSpacing="4">
+                                        <!-- Platform icon -->
+                                        <Image Grid.Column="0" Grid.RowSpan="2"
+                                               Source="{Binding PlatformIcon}"
+                                               IsVisible="{Binding HasPlatformIcon}"
+                                               WidthRequest="44" HeightRequest="44"
+                                               Aspect="AspectFit"
+                                               VerticalOptions="Center"/>
+                                        <!-- Tracking ID -->
+                                        <Label Grid.Column="1" Grid.Row="0"
+                                               Text="{Binding TrackingNumber}"
+                                               FontAttributes="Bold" FontSize="18"
+                                               TextColor="#111827" VerticalOptions="Center"/>
+                                        <!-- Metadata row -->
+                                        <HorizontalStackLayout Grid.Column="1" Grid.Row="1"
+                                                               Spacing="16" VerticalOptions="Center">
+                                            <Label FontSize="11" TextColor="#6b7280">
                                                 <Label.FormattedText>
                                                     <FormattedString>
-                                                        <Span Text="Order: "
-                                                              TextColor="#9ca3af"/>
-                                                        <Span Text="{Binding OrderNumber}"
-                                                              TextColor="#374151"/>
+                                                        <Span Text="Order: " TextColor="#9ca3af"/>
+                                                        <Span Text="{Binding OrderNumber}" TextColor="#374151"/>
                                                     </FormattedString>
                                                 </Label.FormattedText>
                                             </Label>
-                                            <Label FontSize="11"
-                                                   TextColor="#6b7280">
+                                            <Label FontSize="11" TextColor="#6b7280">
                                                 <Label.FormattedText>
                                                     <FormattedString>
-                                                        <Span Text="Items: "
-                                                              TextColor="#9ca3af"/>
-                                                        <Span Text="{Binding TotalItemsDisplay}"
-                                                              TextColor="#374151"/>
+                                                        <Span Text="Items: " TextColor="#9ca3af"/>
+                                                        <Span Text="{Binding TotalItemsDisplay}" TextColor="#374151"/>
                                                     </FormattedString>
                                                 </Label.FormattedText>
                                             </Label>
-                                            <HorizontalStackLayout Spacing="3"
-                                                                   VerticalOptions="Center"
-                                                                   IsVisible="{Binding HasBeenUpdated}">
-                                                <Label Text="↻"
-                                                       TextColor="#2563eb"
-                                                       FontSize="11"
-                                                       FontAttributes="Bold"
-                                                       VerticalOptions="Center"/>
-                                                <Label FontSize="11"
-                                                       TextColor="#6b7280"
-                                                       VerticalOptions="Center">
-                                                    <Label.FormattedText>
-                                                        <FormattedString>
-                                                            <Span Text="Updated: "
-                                                                  TextColor="#9ca3af"/>
-                                                            <Span Text="{Binding UpdatedAtDisplay}"
-                                                                  TextColor="#374151"/>
-                                                        </FormattedString>
-                                                    </Label.FormattedText>
-                                                </Label>
-                                            </HorizontalStackLayout>
+                                            <Label FontSize="11" TextColor="#9ca3af">
+                                                <Label.FormattedText>
+                                                    <FormattedString>
+                                                        <Span Text="Submitted: "/>
+                                                        <Span Text="{Binding CreatedAtDisplay}" TextColor="#6b7280"/>
+                                                    </FormattedString>
+                                                </Label.FormattedText>
+                                            </Label>
                                         </HorizontalStackLayout>
-                                    </VerticalStackLayout>
+                                        <!-- Status badges (right) -->
+                                        <HorizontalStackLayout Grid.Column="2" Grid.RowSpan="2"
+                                                               Spacing="4" VerticalOptions="Center"
+                                                               HorizontalOptions="End">
+                                            <Border BackgroundColor="{Binding StatusBgColor}"
+                                                    Stroke="Transparent"
+                                                    StrokeShape="RoundRectangle 4"
+                                                    Padding="10,5">
+                                                <Label Text="{Binding StatusDisplay}"
+                                                       TextColor="{Binding StatusFgColor}"
+                                                       FontSize="15" FontAttributes="Bold"/>
+                                            </Border>
+                                            <Border IsVisible="{Binding IsPackedComplete}"
+                                                    BackgroundColor="#dcfce7"
+                                                    Stroke="#86efac" StrokeThickness="1"
+                                                    StrokeShape="RoundRectangle 4"
+                                                    Padding="10,5">
+                                                <Label Text="✓ QC Passed"
+                                                       TextColor="#166534"
+                                                       FontSize="15" FontAttributes="Bold"/>
+                                            </Border>
+                                        </HorizontalStackLayout>
+                                    </Grid>
                                 </Border>
 
                                 <!-- Table header -->
@@ -853,7 +706,7 @@
         <!-- ── Product image overlay ── -->
         <Grid x:Name="ProductImageOverlay"
               Grid.Row="0"
-              Grid.RowSpan="6"
+              Grid.RowSpan="5"
               BackgroundColor="#99111827"
               IsVisible="False"
               ZIndex="8">
@@ -991,7 +844,7 @@
         <!-- Welcome animation banner — briefly shown after login -->
         <Border x:Name="WelcomeBanner"
                 Grid.Row="1"
-                Grid.RowSpan="5"
+                Grid.RowSpan="4"
                 IsVisible="False"
                 HorizontalOptions="Center"
                 VerticalOptions="Center"
@@ -1011,7 +864,7 @@
         </Border>
 
         <!-- ── Peek image overlay ── -->
-        <Grid x:Name="PeekOverlay" Grid.Row="0" Grid.RowSpan="6"
+        <Grid x:Name="PeekOverlay" Grid.Row="0" Grid.RowSpan="5"
               BackgroundColor="#CC111827" IsVisible="False" ZIndex="8">
             <Grid.GestureRecognizers>
                 <TapGestureRecognizer Tapped="OnPeekOverlayTapped"/>
@@ -1030,7 +883,7 @@
         </Grid>
 
         <!-- ── Bottom keyboard shortcuts bar ── -->
-        <Border Grid.Row="5" BackgroundColor="#f9fafb" Stroke="#e5e7eb" StrokeThickness="1" Padding="16,6">
+        <Border Grid.Row="4" BackgroundColor="#f9fafb" Stroke="#e5e7eb" StrokeThickness="1" Padding="16,6">
             <Grid ColumnDefinitions="*, Auto">
                 <HorizontalStackLayout Grid.Column="0" Spacing="20" VerticalOptions="Center">
                     <HorizontalStackLayout Spacing="4">
@@ -1078,7 +931,7 @@
         <!-- Login overlay — dark blur-like backdrop until operator scans badge -->
         <Grid x:Name="LoginOverlay"
               Grid.Row="1"
-              Grid.RowSpan="5"
+              Grid.RowSpan="4"
               BackgroundColor="#CC111827"
               IsVisible="True"
               ZIndex="10">

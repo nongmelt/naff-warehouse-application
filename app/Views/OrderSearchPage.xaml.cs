@@ -27,7 +27,6 @@ public partial class OrderSearchPage : ContentPage
     private AppMode _currentMode = AppMode.QC;
     private IDispatcherTimer? _comHeartbeatTimer;
     private long _lastSerialDataTicks;
-    private bool _historyExpanded;
     private int _historyNavIndex = -1;
 
     // Search-session navigation (back / forward through previous scans)
@@ -122,6 +121,18 @@ public partial class OrderSearchPage : ContentPage
         ApplyMode(_currentMode);
         RefreshHistoryItems();
         UpdateHistoryHeader();
+
+#if WINDOWS
+        HeaderSearchEntry.HandlerChanged += (_, _) =>
+        {
+            if (HeaderSearchEntry.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.TextBox tb)
+            {
+                tb.VerticalContentAlignment = Microsoft.UI.Xaml.VerticalAlignment.Center;
+                tb.Padding = new Microsoft.UI.Xaml.Thickness(2, 0, 0, 0);
+                tb.BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
+            }
+        };
+#endif
     }
 
     // ── Lifecycle ────────────────────────────────────────────────────────────
@@ -419,7 +430,6 @@ public partial class OrderSearchPage : ContentPage
         UpdateHeaderOrderInfo();
 
         await EnrichProductItemsAsync();
-        UpdateProgressBar();
 
         // Mark orders that were "To be packed" or "QC Hold" on arrival — only these count in the session card
         // (QC Passed on arrival = pre-processed, shown as grey, not counted)
@@ -739,7 +749,6 @@ public partial class OrderSearchPage : ContentPage
             : $"{item.SellerSku} — {item.Quantity} remaining");
         Logger.Log($"OrderSearch: deducted {qty} from '{item.SellerSku}', remaining: {item.Quantity}");
 
-        UpdateProgressBar();
         _ = CheckAndSaveQcStatusAsync();
     }
 
@@ -1320,7 +1329,6 @@ public partial class OrderSearchPage : ContentPage
             return;
         }
 
-        // Precompute visible window (centered on active session, max 25 cards)
         const int MaxVisibleCards = 25;
         var filteredIndices = new List<int>();
         for (int i = count - 1; i >= 0; i--)
@@ -1344,14 +1352,13 @@ public partial class OrderSearchPage : ContentPage
         if (winStart > 0)
             CarouselLayout.Children.Add(new Label
             {
-                Text = $"+{winStart} newer",
-                FontSize = 11,
+                Text = $"+{winStart}",
+                FontSize = 10,
                 TextColor = Color.FromArgb("#9ca3af"),
                 VerticalOptions = LayoutOptions.Center,
-                Margin = new Thickness(8, 0),
+                Margin = new Thickness(4, 0),
             });
 
-        // Display newest first (leftmost). Session list order is unchanged.
         VisualElement? activeCard = null;
         for (int i = count - 1; i >= 0; i--)
         {
@@ -1360,63 +1367,36 @@ public partial class OrderSearchPage : ContentPage
             var capturedIdx = i;
             var isActive = i == _sessionIndex;
             var query = _sessions[i].Query;
-
-            // ── Determine color palette (status-based for both active and inactive) ──
             var sessionStatus = ClassifySessionStatus(_sessions[i].Data);
 
-            Color bgActive, strokeActive, idxActive;
             Color bgInactive, bgHover, strokeInactive, titleInactive, idxInactive;
 
             if (sessionStatus == "preProcessed")
             {
-                bgActive = Color.FromArgb("#6b7280"); strokeActive = Color.FromArgb("#4b5563"); idxActive = Color.FromArgb("#d1d5db");
                 bgInactive = Color.FromArgb("#f9fafb"); bgHover = Color.FromArgb("#f3f4f6");
                 strokeInactive = Color.FromArgb("#e5e7eb"); titleInactive = Color.FromArgb("#6b7280"); idxInactive = Color.FromArgb("#9ca3af");
             }
             else if (sessionStatus == "completed")
             {
-                bgActive = Color.FromArgb("#16a34a"); strokeActive = Color.FromArgb("#15803d"); idxActive = Color.FromArgb("#bbf7d0");
                 bgInactive = Color.FromArgb("#f0fdf4"); bgHover = Color.FromArgb("#dcfce7");
                 strokeInactive = Color.FromArgb("#bbf7d0"); titleInactive = Color.FromArgb("#166534"); idxInactive = Color.FromArgb("#86efac");
             }
             else if (sessionStatus == "incomplete")
             {
-                bgActive = Color.FromArgb("#d97706"); strokeActive = Color.FromArgb("#b45309"); idxActive = Color.FromArgb("#fef3c7");
                 bgInactive = Color.FromArgb("#fffbeb"); bgHover = Color.FromArgb("#fef3c7");
                 strokeInactive = Color.FromArgb("#fde68a"); titleInactive = Color.FromArgb("#b45309"); idxInactive = Color.FromArgb("#fcd34d");
             }
             else
             {
-                bgActive = Color.FromArgb("#2563eb"); strokeActive = Color.FromArgb("#1d4ed8"); idxActive = Color.FromArgb("#bfdbfe");
                 bgInactive = Color.FromArgb("#eff6ff"); bgHover = Color.FromArgb("#dbeafe");
                 strokeInactive = Color.FromArgb("#bfdbfe"); titleInactive = Color.FromArgb("#1d4ed8"); idxInactive = Color.FromArgb("#93c5fd");
             }
 
-            Color bgColor = isActive ? bgActive : bgInactive;
-            Color strokeColor = isActive ? strokeActive : strokeInactive;
-            Color titleColor = isActive ? Colors.White : titleInactive;
-            Color indexColor = isActive ? idxActive : idxInactive;
+            Color bgColor = isActive ? Color.FromArgb("#f0fdf4") : bgInactive;
+            Color strokeColor = isActive ? Color.FromArgb("#2563eb") : strokeInactive;
+            Color titleColor = isActive ? Color.FromArgb("#111827") : titleInactive;
+            Color indexColor = isActive ? Color.FromArgb("#2563eb") : idxInactive;
 
-            var titleLabel = new Label
-            {
-                Text = query,
-                FontSize = 11,
-                FontAttributes = FontAttributes.Bold,
-                TextColor = titleColor,
-                LineBreakMode = LineBreakMode.NoWrap,
-                HorizontalTextAlignment = TextAlignment.Center,
-            };
-
-            var indexLabel = new Label
-            {
-                Text = $"#{i + 1}",
-                FontSize = 13,
-                FontAttributes = FontAttributes.Bold,
-                TextColor = indexColor,
-                HorizontalTextAlignment = TextAlignment.Center,
-            };
-
-            // ── Platform tag (coloured pill label) ───────────────────────────────────
             var rawPlatform = _sessions[i].Data.FirstOrDefault()?.Platform ?? "";
             string? platformName = rawPlatform.ToLower() switch
             {
@@ -1433,65 +1413,58 @@ public partial class OrderSearchPage : ContentPage
                 _ => Colors.Transparent,
             };
 
-            // ── Build platform tag border (top-right) ────────────────────────────────
-            Border? platformTagBorder = null;
+            // Single-line layout: [#Index] [Platform Badge] [Tracking Number]
+            var row = new HorizontalStackLayout { Spacing = 6, VerticalOptions = LayoutOptions.Center };
+
+            row.Children.Add(new Label
+            {
+                Text = $"#{i + 1}",
+                FontSize = 11,
+                FontAttributes = FontAttributes.Bold,
+                TextColor = indexColor,
+                VerticalOptions = LayoutOptions.Center,
+            });
+
             if (platformName != null)
-                platformTagBorder = new Border
+            {
+                row.Children.Add(new Border
                 {
                     BackgroundColor = platformTagColor,
                     StrokeThickness = 0,
-                    StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(3) },
-                    Padding = new Thickness(5, 2),
+                    StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(2) },
+                    Padding = new Thickness(4, 1),
+                    HeightRequest = 16,
                     VerticalOptions = LayoutOptions.Center,
                     Content = new Label
                     {
                         Text = platformName,
-                        FontSize = 9,
+                        FontSize = 8,
                         FontAttributes = FontAttributes.Bold,
                         TextColor = Colors.White,
                         VerticalOptions = LayoutOptions.Center,
                     },
-                };
+                });
+            }
 
-            // ── Top row: #N (left) ── spacer ── platform tag (right) ─────────────────
-            var topRow = new Grid
+            row.Children.Add(new Label
             {
-                ColumnDefinitions = new ColumnDefinitionCollection
-                {
-                    new ColumnDefinition(GridLength.Auto),  // #N
-                    new ColumnDefinition(GridLength.Star),  // spacer
-                    new ColumnDefinition(GridLength.Auto),  // platform tag
-                },
-                HorizontalOptions = LayoutOptions.Fill,
-                RowSpacing = 0,
-            };
-            topRow.Add(indexLabel, 0, 0);
-            if (platformTagBorder != null)
-                topRow.Add(platformTagBorder, 2, 0);
-
-            // Tracking number spans all columns below
-            Grid.SetColumnSpan(titleLabel, 3);
-            var cardContent = new Grid
-            {
-                RowDefinitions = new RowDefinitionCollection
-                {
-                    new RowDefinition(GridLength.Auto),
-                    new RowDefinition(GridLength.Auto),
-                },
-                RowSpacing = 4,
-                HorizontalOptions = LayoutOptions.Fill,
-            };
-            cardContent.Add(topRow, 0, 0);
-            cardContent.Add(titleLabel, 0, 1);
+                Text = query,
+                FontSize = 11,
+                FontAttributes = FontAttributes.Bold,
+                TextColor = titleColor,
+                LineBreakMode = LineBreakMode.NoWrap,
+                VerticalOptions = LayoutOptions.Center,
+            });
 
             var card = new Border
             {
-                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(8) },
+                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(4) },
                 Stroke = strokeColor,
-                StrokeThickness = 1,
+                StrokeThickness = isActive ? 2 : 1,
                 BackgroundColor = bgColor,
-                Padding = new Thickness(14, 6),
-                Content = cardContent,
+                Padding = new Thickness(8, 4),
+                VerticalOptions = LayoutOptions.Center,
+                Content = row,
             };
 
             if (!isActive)
@@ -1516,14 +1489,13 @@ public partial class OrderSearchPage : ContentPage
         if (olderOverflow > 0)
             CarouselLayout.Children.Add(new Label
             {
-                Text = $"+{olderOverflow} older",
-                FontSize = 11,
+                Text = $"+{olderOverflow}",
+                FontSize = 10,
                 TextColor = Color.FromArgb("#9ca3af"),
                 VerticalOptions = LayoutOptions.Center,
-                Margin = new Thickness(8, 0),
+                Margin = new Thickness(4, 0),
             });
 
-        // Auto-scroll so the active card is visible after layout settles
         if (activeCard is not null)
             _ = Dispatcher.DispatchAsync(async () =>
             {
@@ -1539,6 +1511,9 @@ public partial class OrderSearchPage : ContentPage
         BuildCarouselUI();
         UpdateSessionStats();
     }
+
+    private void OnCarouselPrevTapped(object? sender, TappedEventArgs e) => NavigateSession(+1);
+    private void OnCarouselNextTapped(object? sender, TappedEventArgs e) => NavigateSession(-1);
 
     // Returns "preProcessed" | "completed" | "incomplete" | "incoming"
     private string ClassifySessionStatus(List<PackingList> data)
@@ -1791,151 +1766,14 @@ public partial class OrderSearchPage : ContentPage
 
     // ── Search history ────────────────────────────────────────────────────────
 
-    private void OnHistoryToggle(object sender, TappedEventArgs e)
-    {
-        _historyExpanded = !_historyExpanded;
-        HistoryDropdown.IsVisible = _historyExpanded;
-        HistoryChevron.Text = _historyExpanded ? "▴" : "▾";
-    }
-
     private void OnHistoryClearAll(object sender, TappedEventArgs e)
     {
         SearchHistoryService.Instance.Clear();
-        RefreshHistoryItems();
-        UpdateHistoryHeader();
     }
 
-    private void RefreshHistoryItems()
-    {
-        HistoryItemsLayout.Children.Clear();
-        var items = SearchHistoryService.Instance.Items;
+    private void RefreshHistoryItems() { }
 
-        for (var i = 0; i < items.Count; i++)
-        {
-            var captured = items[i];
-
-            var icon = new Label
-            {
-                Text = "↩",
-                FontSize = 11,
-                TextColor = Color.FromArgb("#9ca3af"),
-                VerticalOptions = LayoutOptions.Center,
-                WidthRequest = 18
-            };
-
-            var text = new Label
-            {
-                Text = captured,
-                FontSize = 12,
-                TextColor = Color.FromArgb("#374151"),
-                VerticalOptions = LayoutOptions.Center,
-                LineBreakMode = LineBreakMode.TailTruncation
-            };
-
-            var del = new Label
-            {
-                Text = "×",
-                FontSize = 15,
-                TextColor = Color.FromArgb("#d1d5db"),
-                Margin = new Thickness(6, 0, 10, 0),
-                VerticalOptions = LayoutOptions.Center
-            };
-            del.GestureRecognizers.Add(new TapGestureRecognizer
-            {
-                Command = new Command(() =>
-                {
-                    SearchHistoryService.Instance.Remove(captured);
-                    RefreshHistoryItems();
-                    UpdateHistoryHeader();
-                })
-            });
-
-            // Left clickable area: icon + text
-            var searchGrid = new Grid
-            {
-                ColumnDefinitions = new ColumnDefinitionCollection
-                {
-                    new ColumnDefinition(GridLength.Auto),
-                    new ColumnDefinition(GridLength.Star)
-                },
-                ColumnSpacing = 8,
-                Padding = new Thickness(10, 9, 6, 9)
-            };
-            searchGrid.Add(icon, 0, 0);
-            searchGrid.Add(text, 1, 0);
-            searchGrid.GestureRecognizers.Add(new TapGestureRecognizer
-            {
-                Command = new Command(async () =>
-                {
-                    HeaderSearchEntry.Text = captured;
-                    await ExecuteSearchAsync(captured);
-                })
-            });
-
-            // Row container
-            var row = new Grid
-            {
-                ColumnDefinitions = new ColumnDefinitionCollection
-                {
-                    new ColumnDefinition(GridLength.Star),
-                    new ColumnDefinition(GridLength.Auto)
-                },
-                BackgroundColor = Colors.White
-            };
-
-            // Hover effects via local helpers (capture row-level variables)
-            void EnterHover()
-            {
-                row.BackgroundColor = Color.FromArgb("#f5f3ff");
-                text.TextColor = Color.FromArgb("#6d28d9");
-                icon.TextColor = Color.FromArgb("#7c3aed");
-                del.TextColor = Color.FromArgb("#9ca3af");
-            }
-            void ExitHover()
-            {
-                row.BackgroundColor = Colors.White;
-                text.TextColor = Color.FromArgb("#374151");
-                icon.TextColor = Color.FromArgb("#9ca3af");
-                del.TextColor = Color.FromArgb("#d1d5db");
-            }
-
-            var pRow = new PointerGestureRecognizer();
-            pRow.PointerEntered += (s, e) => EnterHover();
-            pRow.PointerExited += (s, e) => ExitHover();
-            row.GestureRecognizers.Add(pRow);
-
-            // Also register on searchGrid so hover fires reliably inside that area
-            var pSearch = new PointerGestureRecognizer();
-            pSearch.PointerEntered += (s, e) => EnterHover();
-            pSearch.PointerExited += (s, e) => ExitHover();
-            searchGrid.GestureRecognizers.Add(pSearch);
-
-            row.Add(searchGrid, 0, 0);
-            row.Add(del, 1, 0);
-            HistoryItemsLayout.Children.Add(row);
-
-            // Divider between items
-            if (i < items.Count - 1)
-                HistoryItemsLayout.Children.Add(new BoxView
-                {
-                    HeightRequest = 1,
-                    BackgroundColor = Color.FromArgb("#f3f4f6"),
-                    Margin = new Thickness(10, 0)
-                });
-        }
-    }
-
-    private void UpdateHistoryHeader()
-    {
-        var hasItems = SearchHistoryService.Instance.Items.Count > 0;
-        HistoryHeaderRow.IsVisible = hasItems;
-        if (!hasItems)
-        {
-            _historyExpanded = false;
-            HistoryDropdown.IsVisible = false;
-            HistoryChevron.Text = "▾";
-        }
-    }
+    private void UpdateHistoryHeader() { }
 
     // ── Session stats ─────────────────────────────────────────────────────────
 
@@ -2106,23 +1944,67 @@ public partial class OrderSearchPage : ContentPage
         UpdateScanIndicatorUI();
     }
 
+    private IDispatcherTimer? _scanAlertRevertTimer;
+
     private void UpdateScanIndicatorUI()
     {
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            if (ScanIndicatorCard == null) return;
-            ScanIndicatorCard.IsVisible = _lastScanBarcode != null;
-            ScanIndicatorLabel.Text = _lastScanBarcode ?? "";
-            ScanIndicatorCard.BackgroundColor = _lastScanFound
-                ? Color.FromArgb("#dcfce7") : Color.FromArgb("#fee2e2");
-            ScanIndicatorCard.Stroke = _lastScanFound
-                ? Color.FromArgb("#86efac") : Color.FromArgb("#fca5a5");
-            ScanIndicatorStatus.Text = _lastScanFound
-                ? "✓ SKU matched" : "⚠ SKU not in this order";
-            ScanIndicatorStatus.TextColor = _lastScanFound
-                ? Color.FromArgb("#166534") : Color.FromArgb("#991B1B");
-            ScanIndicatorLabel.TextColor = _lastScanFound
-                ? Color.FromArgb("#166534") : Color.FromArgb("#991B1B");
+            if (_lastScanBarcode == null) return;
+
+            // Configure alert pill colors and message
+            if (_lastScanFound)
+            {
+                HeaderScanAlert.BackgroundColor = Color.FromArgb("#059669");
+                ScanAlertSkuLabel.Text = _lastScanBarcode;
+                ScanAlertMessage.Text = "✓ SKU Verified";
+            }
+            else
+            {
+                HeaderScanAlert.BackgroundColor = Color.FromArgb("#e11d48");
+                ScanAlertSkuLabel.Text = _lastScanBarcode;
+                ScanAlertMessage.Text = "⚠ Not in this order";
+            }
+
+            // Swap: hide order info, show scan alert with drop-in animation
+            _ = ShowScanAlertAsync();
+
+            // Auto-revert after 1.5s for success, 3s for error
+            _scanAlertRevertTimer?.Stop();
+            _scanAlertRevertTimer = Dispatcher.CreateTimer();
+            _scanAlertRevertTimer.Interval = TimeSpan.FromMilliseconds(_lastScanFound ? 1500 : 3000);
+            _scanAlertRevertTimer.IsRepeating = false;
+            _scanAlertRevertTimer.Tick += (_, _) => _ = HideScanAlertAsync();
+            _scanAlertRevertTimer.Start();
+        });
+    }
+
+    private async Task ShowScanAlertAsync()
+    {
+        HeaderScanAlert.IsVisible = true;
+        HeaderScanAlert.TranslationY = -10;
+        HeaderScanAlert.Opacity = 0;
+
+        await Task.WhenAll(
+            HeaderOrderInfo.FadeToAsync(0, 150, Easing.SinIn),
+            HeaderScanAlert.TranslateToAsync(0, 0, 250, Easing.SinOut),
+            HeaderScanAlert.FadeToAsync(1.0, 250, Easing.SinOut));
+
+        HeaderOrderInfo.IsVisible = false;
+    }
+
+    private async Task HideScanAlertAsync()
+    {
+        await MainThread.InvokeOnMainThreadAsync(async () =>
+        {
+            HeaderOrderInfo.IsVisible = true;
+            HeaderOrderInfo.Opacity = 0;
+
+            await Task.WhenAll(
+                HeaderScanAlert.FadeToAsync(0, 200, Easing.SinIn),
+                HeaderOrderInfo.FadeToAsync(1.0, 250, Easing.SinOut));
+
+            HeaderScanAlert.IsVisible = false;
         });
     }
 
@@ -2144,29 +2026,6 @@ public partial class OrderSearchPage : ContentPage
             ? $"Last scan {(int)elapsed.TotalSeconds}s ago"
             : $"Last scan {(int)elapsed.TotalMinutes}m ago";
         MainThread.BeginInvokeOnMainThread(() => { if (LastScanLabel != null) LastScanLabel.Text = text; });
-    }
-
-    // ── Progress tracking ────────────────────────────────────────────────────
-
-    private void UpdateProgressBar()
-    {
-        MainThread.BeginInvokeOnMainThread(() =>
-        {
-            if (ProgressLabel == null) return;
-            var allProducts = Results.SelectMany(o => o.ParsedProducts).ToList();
-            int total = allProducts.Sum(p => p.RequiredQuantity);
-            int scanned = allProducts.Sum(p => p.RequiredQuantity - p.Quantity);
-            int done = allProducts.Count(p => p.IsFullyPicked);
-            int partial = allProducts.Count(p => !p.IsFullyPicked && p.Quantity != p.OriginalQuantity);
-            int pending = allProducts.Count(p => p.Quantity == p.OriginalQuantity);
-            int withNotes = allProducts.Count(p => p.HasQcNotes);
-
-            ProgressLabel.Text = $"{scanned} of {total} scanned";
-            ProgressDone.Text = $"Done {done}";
-            ProgressPartial.Text = $"Partial {partial}";
-            ProgressPending.Text = $"Pending {pending}";
-            ProgressNotes.Text = $"Notes {withNotes}";
-        });
     }
 
     // ── Peek image overlay ───────────────────────────────────────────────────
@@ -2244,7 +2103,6 @@ public partial class OrderSearchPage : ContentPage
         item.Quantity += 1;
         item.OrderQcContext = "QC Hold";
         UpdateSearchStatus($"{item.SellerSku} — qty +1, now {item.Quantity}/{item.RequiredQuantity}");
-        UpdateProgressBar();
         _ = CheckAndSaveQcStatusAsync();
     }
 
@@ -2432,7 +2290,6 @@ public partial class OrderSearchPage : ContentPage
     {
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            ScannerStatusLabel.Text = msg;
             var state = msg.Contains("ready", StringComparison.OrdinalIgnoreCase)
                 ? ComState.Ready
                 : msg.Contains("error", StringComparison.OrdinalIgnoreCase) || msg.Contains("No scanner")
@@ -2486,8 +2343,7 @@ public partial class OrderSearchPage : ContentPage
     private void UpdateOverlayScannerStatus(string msg) =>
         MainThread.BeginInvokeOnMainThread(() => OverlayScannerStatusLabel.Text = msg);
 
-    private void UpdateSearchStatus(string msg) =>
-        MainThread.BeginInvokeOnMainThread(() => SearchStatusLabel.Text = msg);
+    private void UpdateSearchStatus(string msg) { }
 
     private static Task<List<ComPortEntry>> GetFriendlyComPortsAsync() => Task.Run(() =>
     {
