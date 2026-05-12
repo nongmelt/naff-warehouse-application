@@ -1194,13 +1194,13 @@ public partial class OrderSearchPage : ContentPage
         OverlayPickEntry.IsVisible = false;
         OverlayPickEntry.Text = "";
 
-        // Show with animation
-        ProductImageOverlay.IsVisible = true;
-        ProductImageOverlay.Opacity = 0;
-        OverlayCard.Scale = 0.85;
-        _ = Task.WhenAll(
-            ProductImageOverlay.FadeToAsync(1, 200, Easing.CubicOut),
-            OverlayCard.ScaleToAsync(1, 250, Easing.CubicOut));
+        if (!ProductImageOverlay.IsVisible)
+        {
+            ProductImageOverlay.IsVisible = true;
+            ProductImageOverlay.Opacity = 1;
+            OverlayCard.Scale = 1;
+            OverlayCard.Opacity = 1;
+        }
     }
 
     private void RefreshOverlayQuantity()
@@ -1329,17 +1329,11 @@ public partial class OrderSearchPage : ContentPage
             : Color.FromArgb("#111827");
 
         if (item.IsFullyPicked)
-            _ = AnimateOverlayAdvanceAsync(item);
+            AdvanceOverlayToNext(item);
     }
 
-    private async Task AnimateOverlayAdvanceAsync(ProductItem item)
+    private void AdvanceOverlayToNext(ProductItem item)
     {
-        // Green flash on completed item
-        OverlayCard.Stroke = Color.FromArgb("#86efac");
-        OverlayCard.StrokeThickness = 3;
-        OverlayCard.BackgroundColor = Color.FromArgb("#dcfce7");
-        await Task.Delay(450);
-
         var allProducts = Results.SelectMany(o => o.ParsedProducts).ToList();
         var currentIdx = allProducts.IndexOf(item);
         ProductItem? nextUnfinished = null;
@@ -1352,24 +1346,9 @@ public partial class OrderSearchPage : ContentPage
 
         if (nextUnfinished != null)
         {
-            OverlayCard.Stroke = Colors.Transparent;
-            OverlayCard.StrokeThickness = 0;
-            OverlayCard.BackgroundColor = Colors.White;
-
             ShowProductImageOverlay(nextUnfinished);
             SetActiveProduct(nextUnfinished);
             ScrollToProduct(nextUnfinished);
-        }
-        else
-        {
-            // All done — close overlay instantly, summary will show
-            ProductImageOverlay.IsVisible = false;
-            OverlayCard.BackgroundColor = Colors.White;
-            OverlayCard.Stroke = Colors.Transparent;
-            OverlayCard.StrokeThickness = 0;
-            OverlayCard.Scale = 1;
-            OverlayCard.Opacity = 1;
-            _overlayItem = null;
         }
     }
 
