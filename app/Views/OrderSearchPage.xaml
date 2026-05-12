@@ -153,17 +153,17 @@
                 <!-- Default: order metadata -->
                 <HorizontalStackLayout x:Name="HeaderOrderInfo"
                                        HorizontalOptions="Center"
-                                       Spacing="10" VerticalOptions="Center">
-                    <Label x:Name="HeaderOrderLabel" Text="ORDER" TextColor="#94a3b8" FontSize="12"
+                                       Spacing="12" VerticalOptions="Center">
+                    <Label x:Name="HeaderOrderLabel" Text="ORDER" TextColor="#94a3b8" FontSize="15"
                            FontAttributes="Bold" VerticalOptions="Center" IsVisible="False"/>
-                    <Label x:Name="HeaderOrderNumber" Text="" TextColor="White" FontSize="13"
+                    <Label x:Name="HeaderOrderNumber" Text="" TextColor="White" FontSize="17"
                            FontAttributes="Bold" VerticalOptions="Center" IsVisible="False"/>
                     <Border x:Name="HeaderPlatformBadge" IsVisible="False"
-                            StrokeThickness="0" StrokeShape="RoundRectangle 4" Padding="8,2">
-                        <Label x:Name="HeaderPlatformLabel" Text="" TextColor="White" FontSize="11"
+                            StrokeThickness="0" StrokeShape="RoundRectangle 4" Padding="10,3">
+                        <Label x:Name="HeaderPlatformLabel" Text="" TextColor="White" FontSize="13"
                                FontAttributes="Bold" VerticalOptions="Center"/>
                     </Border>
-                    <Label x:Name="HeaderTrackingLabel" Text="" TextColor="White" FontSize="13"
+                    <Label x:Name="HeaderTrackingLabel" Text="" TextColor="White" FontSize="17"
                            VerticalOptions="Center" IsVisible="False"/>
                 </HorizontalStackLayout>
 
@@ -604,8 +604,8 @@
                                       Padding="12,8,12,4" Margin="0,8,0,0">
                                     <Label Grid.Column="0" Text="#" FontSize="11" FontAttributes="Bold" TextColor="#9ca3af" HorizontalTextAlignment="Center"/>
                                     <Label Grid.Column="2" Text="PRODUCT" FontSize="11" FontAttributes="Bold" TextColor="#9ca3af" Padding="12,0"/>
-                                    <Label Grid.Column="3" Text="VARIATION" FontSize="11" FontAttributes="Bold" TextColor="#9ca3af" HorizontalTextAlignment="Center"/>
-                                    <Label Grid.Column="4" Text="SKU" FontSize="11" FontAttributes="Bold" TextColor="#9ca3af" HorizontalTextAlignment="Center"/>
+                                    <Label Grid.Column="3" Text="VARIATION" FontSize="11" FontAttributes="Bold" TextColor="#9ca3af" HorizontalTextAlignment="Start"/>
+                                    <Label Grid.Column="4" Text="SKU" FontSize="11" FontAttributes="Bold" TextColor="#9ca3af" HorizontalTextAlignment="Start"/>
                                     <Label Grid.Column="5" Text="NOTE" FontSize="11" FontAttributes="Bold" TextColor="#9ca3af"/>
                                     <Label Grid.Column="6" Text="QTY" FontSize="11" FontAttributes="Bold" TextColor="#9ca3af" HorizontalOptions="End" Margin="0,0,12,0"/>
                                 </Grid>
@@ -646,7 +646,7 @@
                                                                FontSize="12" FontAttributes="Bold" TextColor="#dc2626" LineBreakMode="WordWrap"/>
                                                     </VerticalStackLayout>
                                                     <!-- Col 3: Variation with color swatch -->
-                                                    <HorizontalStackLayout Grid.Column="3" Spacing="6" VerticalOptions="Center" HorizontalOptions="Center">
+                                                    <HorizontalStackLayout Grid.Column="3" Spacing="6" VerticalOptions="Center" HorizontalOptions="Start">
                                                         <BoxView IsVisible="{Binding HasSwatch}" WidthRequest="12" HeightRequest="12"
                                                                  Color="{Binding SwatchColor}" CornerRadius="6" VerticalOptions="Center"/>
                                                         <Border IsVisible="{Binding HasVariation}" BackgroundColor="#eff6ff"
@@ -658,7 +658,7 @@
                                                     </HorizontalStackLayout>
                                                     <!-- Col 4: SKU -->
                                                     <Label Grid.Column="4" Text="{Binding SellerSku}" FontSize="11" TextColor="#374151"
-                                                           FontAttributes="Bold" VerticalOptions="Center" HorizontalTextAlignment="Center"/>
+                                                           FontAttributes="Bold" VerticalOptions="Center" HorizontalTextAlignment="Start"/>
                                                     <!-- Col 5: QC Notes -->
                                                     <Label Grid.Column="5" Text="{Binding QcNotes}" IsVisible="{Binding HasQcNotes}"
                                                            FontSize="11" TextColor="#dc2626" FontAttributes="Bold" BackgroundColor="#fef2f2"
