@@ -123,16 +123,28 @@ public class ProductItem : INotifyPropertyChanged
     };
 
     [JsonIgnore] public bool IsFullyPicked => Quantity <= 0;
-    [JsonIgnore] public Color CardBgColor =>
-        IsFullyPicked ||
-        string.Equals(_orderQcContext, "QC Passed",        StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(_orderQcContext, "Packed Complete",  StringComparison.OrdinalIgnoreCase)
-            ? Color.FromArgb("#dcfce7")
-        : string.Equals(_orderQcContext, "Packed", StringComparison.OrdinalIgnoreCase)
-            ? Color.FromArgb("#ffedd5")
-        : string.IsNullOrEmpty(_orderQcContext)
-            ? Colors.White
-            : Color.FromArgb("#fef9c3");
+
+    [JsonIgnore] public Color CardBgColor
+    {
+        get
+        {
+            if (IsFullyPicked ||
+                string.Equals(_orderQcContext, "QC Passed", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(_orderQcContext, "Packed Complete", StringComparison.OrdinalIgnoreCase))
+                return Color.FromArgb("#dcfce7"); // Green
+
+            if (_isActive)
+                return Color.FromArgb("#f5f3ff"); // Purple — active card
+
+            if (string.Equals(_orderQcContext, "QC Hold", StringComparison.OrdinalIgnoreCase))
+                return Color.FromArgb("#fff7ed"); // Orange
+
+            if (string.Equals(_orderQcContext, "Packed", StringComparison.OrdinalIgnoreCase))
+                return Color.FromArgb("#ffedd5"); // Orange-ish packed
+
+            return Colors.White;
+        }
+    }
 
     private bool _isBeingPicked;
     [JsonIgnore]
@@ -143,6 +155,19 @@ public class ProductItem : INotifyPropertyChanged
         {
             _isBeingPicked = value;
             OnPropertyChanged();
+        }
+    }
+
+    private bool _isActive;
+    [JsonIgnore]
+    public bool IsActive
+    {
+        get => _isActive;
+        set
+        {
+            _isActive = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CardBgColor));
         }
     }
 

@@ -431,7 +431,7 @@ public partial class OrderSearchPage : ContentPage
         _orderLoaded = false;
         _isFirstItemScan = false;
         _completedPackingIds.Clear();
-        if (_pendingSkuProduct != null) { _pendingSkuProduct.IsBeingPicked = false; _pendingSkuProduct = null; }
+        if (_pendingSkuProduct != null) { _pendingSkuProduct.IsBeingPicked = false; SetActiveProduct(null); }
         Results.Clear();
         UpdateHeaderOrderInfo();
         NotFoundCard.IsVisible = false;
@@ -629,7 +629,7 @@ public partial class OrderSearchPage : ContentPage
         }
 
         UpdateScanIndicator(barcode, found: true);
-        _pendingSkuProduct = found;
+        SetActiveProduct(found);
 
         if (found.Quantity == 1)
         {
@@ -717,7 +717,7 @@ public partial class OrderSearchPage : ContentPage
         {
             // User entered 0 — dismiss entry without deducting
             item.IsBeingPicked = false;
-            if (item == _pendingSkuProduct) _pendingSkuProduct = null;
+            if (item == _pendingSkuProduct) SetActiveProduct(null);
             UpdateSearchStatus($"{item.SellerSku} — no deduction (0 entered)");
             return;
         }
@@ -751,7 +751,7 @@ public partial class OrderSearchPage : ContentPage
         item.IsBeingPicked = false;
         item.OrderQcContext = "QC Hold"; // highlight yellow immediately (green if IsFullyPicked takes priority)
 
-        if (item == _pendingSkuProduct) _pendingSkuProduct = null;
+        if (item == _pendingSkuProduct) SetActiveProduct(null);
 
         // Animate fully-picked item sliding to bottom
         if (item.IsFullyPicked)
@@ -958,7 +958,7 @@ public partial class OrderSearchPage : ContentPage
         if (_pendingSkuProduct != null)
             ApplySkuDeduction(_pendingSkuProduct, "1", DeductionSource.AutoPrior);
 
-        _pendingSkuProduct = item;
+        SetActiveProduct(item);
 
         if (item.Quantity == 1)
         {
@@ -1177,7 +1177,7 @@ public partial class OrderSearchPage : ContentPage
         if (_pendingSkuProduct != null && _pendingSkuProduct != _overlayItem)
             ApplySkuDeduction(_pendingSkuProduct, "1", DeductionSource.AutoPrior);
 
-        _pendingSkuProduct = _overlayItem;
+        SetActiveProduct(_overlayItem);
 
         if (_overlayItem.Quantity == 1)
         {
@@ -1256,8 +1256,8 @@ public partial class OrderSearchPage : ContentPage
         if (sender is PointerGestureRecognizer { Parent: Border card })
         {
             var item = card.BindingContext as ProductItem;
-            if (item?.IsFullyPicked != true)
-                card.BackgroundColor = Color.FromArgb("#f8fafc");
+            var baseColor = item?.CardBgColor ?? Colors.White;
+            card.BackgroundColor = DarkenColor(baseColor, 0.04f);
         }
     }
 
@@ -1266,9 +1266,23 @@ public partial class OrderSearchPage : ContentPage
         if (sender is PointerGestureRecognizer { Parent: Border card })
         {
             var item = card.BindingContext as ProductItem;
-            // Restore the color driven by CardBgColor (respects OrderQcContext)
             card.BackgroundColor = item?.CardBgColor ?? Colors.White;
         }
+    }
+
+    private static Color DarkenColor(Color c, float amount)
+    {
+        float r = Math.Max(0, c.Red - amount);
+        float g = Math.Max(0, c.Green - amount);
+        float b = Math.Max(0, c.Blue - amount);
+        return new Color(r, g, b, c.Alpha);
+    }
+
+    private void SetActiveProduct(ProductItem? item)
+    {
+        if (_pendingSkuProduct != null) _pendingSkuProduct.IsActive = false;
+        _pendingSkuProduct = item;
+        if (item != null) item.IsActive = true;
     }
 
     // ── Reset ────────────────────────────────────────────────────────────────
@@ -1293,7 +1307,7 @@ public partial class OrderSearchPage : ContentPage
         if (_pendingSkuProduct != null && order.ParsedProducts.Contains(_pendingSkuProduct))
         {
             _pendingSkuProduct.IsBeingPicked = false;
-            _pendingSkuProduct = null;
+            SetActiveProduct(null);
         }
 
         // Reset in-memory state
@@ -2095,7 +2109,7 @@ public partial class OrderSearchPage : ContentPage
         if (_pendingSkuProduct != null && _pendingSkuProduct != item)
             ApplySkuDeduction(_pendingSkuProduct, "1", DeductionSource.AutoPrior);
 
-        _pendingSkuProduct = item;
+        SetActiveProduct(item);
         ApplySkuDeduction(item, "1", DeductionSource.CardTap);
     }
 
