@@ -69,6 +69,8 @@ public class ProductItem : INotifyPropertyChanged
             OnPropertyChanged(nameof(CardBorderWidth));
             OnPropertyChanged(nameof(ButtonBgColor));
             OnPropertyChanged(nameof(ButtonTextColor));
+            OnPropertyChanged(nameof(VariationBadgeBg));
+            OnPropertyChanged(nameof(VariationBadgeTextColor));
             OnPropertyChanged(nameof(StripColor));
             OnPropertyChanged(nameof(ShowCompletedCheck));
         }
@@ -210,6 +212,28 @@ public class ProductItem : INotifyPropertyChanged
         }
     }
 
+    [JsonIgnore] public Color VariationBadgeBg
+    {
+        get
+        {
+            if (IsFullyPicked) return Color.FromArgb("#dcfce7");
+            if (IsPartiallyVerified) return Color.FromArgb("#ffedd5");
+            if (_isActive) return Color.FromArgb("#ede9fe");
+            return Color.FromArgb("#EEF2FF");
+        }
+    }
+
+    [JsonIgnore] public Color VariationBadgeTextColor
+    {
+        get
+        {
+            if (IsFullyPicked) return Color.FromArgb("#166534");
+            if (IsPartiallyVerified) return Color.FromArgb("#c2410c");
+            if (_isActive) return Color.FromArgb("#7c3aed");
+            return Color.FromArgb("#4338CA");
+        }
+    }
+
     [JsonIgnore] public Color StripColor
     {
         get
@@ -261,6 +285,8 @@ public class ProductItem : INotifyPropertyChanged
             OnPropertyChanged(nameof(CardBorderWidth));
             OnPropertyChanged(nameof(ButtonBgColor));
             OnPropertyChanged(nameof(ButtonTextColor));
+            OnPropertyChanged(nameof(VariationBadgeBg));
+            OnPropertyChanged(nameof(VariationBadgeTextColor));
             OnPropertyChanged(nameof(StripColor));
             OnPropertyChanged(nameof(ShowCompletedCheck));
         }

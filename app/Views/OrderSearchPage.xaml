@@ -913,7 +913,7 @@
                                                     <!-- Col 4: Variation badge -->
                                                     <Border Grid.Column="4"
                                                             IsVisible="{Binding HasVariation}"
-                                                            BackgroundColor="#EEF2FF"
+                                                            BackgroundColor="{Binding VariationBadgeBg}"
                                                             Stroke="Transparent"
                                                             StrokeShape="RoundRectangle 6"
                                                             Padding="10,5"
@@ -927,7 +927,7 @@
                                                                      Color="{Binding SwatchColor}"
                                                                      VerticalOptions="Center"/>
                                                             <Label Text="{Binding Variation}"
-                                                                   TextColor="#4338CA"
+                                                                   TextColor="{Binding VariationBadgeTextColor}"
                                                                    FontSize="12"
                                                                    FontAttributes="Bold"
                                                                    VerticalOptions="Center"/>
@@ -1074,7 +1074,10 @@
                 <TapGestureRecognizer Tapped="OnImageOverlayBackdropTapped"/>
             </Grid.GestureRecognizers>
 
+            <Grid ColumnDefinitions="0.15*, 0.7*, 0.15*" RowDefinitions="0.1*, 0.8*, 0.1*">
             <Border x:Name="OverlayCard"
+                    Grid.Column="1"
+                    Grid.Row="1"
                     HorizontalOptions="Fill"
                     VerticalOptions="Fill"
                     Stroke="Transparent"
@@ -1082,7 +1085,7 @@
                     StrokeShape="RoundRectangle 0"
                     BackgroundColor="White"
                     Padding="0"
-                    Margin="24"
+                    Margin="0"
                     InputTransparent="False">
                 <Border.Shadow>
                     <Shadow Brush="#50000000"
@@ -1201,7 +1204,7 @@
 
                         <!-- SCANNED label -->
                         <Label Text="SCANNED"
-                               FontSize="10"
+                               FontSize="12"
                                FontAttributes="Bold"
                                TextColor="#9ca3af"
                                FontFamily="Consolas"/>
@@ -1240,7 +1243,7 @@
 
                         <!-- Product name -->
                         <Label x:Name="OverlayProductName"
-                               FontSize="17"
+                               FontSize="22"
                                FontAttributes="Bold"
                                TextColor="#111827"
                                LineBreakMode="WordWrap"/>
@@ -1248,12 +1251,12 @@
                         <!-- SKU (monospace) -->
                         <VerticalStackLayout Spacing="4">
                             <Label Text="SKU"
-                                   FontSize="10"
+                                   FontSize="12"
                                    FontAttributes="Bold"
                                    TextColor="#9ca3af"
                                    FontFamily="Consolas"/>
                             <Label x:Name="OverlaySkuLabel"
-                                   FontSize="14"
+                                   FontSize="17"
                                    TextColor="#374151"
                                    FontFamily="Consolas"/>
                         </VerticalStackLayout>
@@ -1261,7 +1264,7 @@
                         <!-- Variation pill badge (light purple) -->
                         <VerticalStackLayout Spacing="4">
                             <Label Text="VARIATION"
-                                   FontSize="10"
+                                   FontSize="12"
                                    FontAttributes="Bold"
                                    TextColor="#9ca3af"
                                    FontFamily="Consolas"/>
@@ -1274,7 +1277,7 @@
                                     HorizontalOptions="Start"
                                     IsVisible="False">
                                 <Label x:Name="OverlayVariationLabel"
-                                       FontSize="13"
+                                       FontSize="16"
                                        FontAttributes="Bold"
                                        TextColor="#7c3aed"
                                        FontFamily="Consolas"/>
@@ -1284,7 +1287,7 @@
                         <!-- QC Notes -->
                         <VerticalStackLayout Spacing="4">
                             <Label Text="QC NOTES"
-                                   FontSize="10"
+                                   FontSize="12"
                                    FontAttributes="Bold"
                                    TextColor="#9ca3af"
                                    FontFamily="Consolas"/>
@@ -1297,7 +1300,7 @@
                                     HorizontalOptions="Fill">
                                 <Label x:Name="OverlayNotesLabel"
                                        Text="no notes"
-                                       FontSize="12"
+                                       FontSize="15"
                                        TextColor="#d1d5db"
                                        FontFamily="Consolas"/>
                             </Border>
@@ -1321,6 +1324,7 @@
                     </VerticalStackLayout>
                 </Grid>
             </Border>
+            </Grid>
         </Grid>
 
         <!-- ── Command Palette search (centered, 70% width, soft shadow) ── -->
