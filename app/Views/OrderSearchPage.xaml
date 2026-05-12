@@ -689,6 +689,28 @@
                             </Label.FormattedText>
                         </Label>
                         <Label FontSize="11"
+                               TextColor="#6b7280">
+                            <Label.FormattedText>
+                                <FormattedString>
+                                    <Span Text="Packed: "
+                                          TextColor="#9ca3af"/>
+                                    <Span Text="{Binding CurrentOrder.PackedByDisplay}"
+                                          TextColor="#374151"/>
+                                </FormattedString>
+                            </Label.FormattedText>
+                        </Label>
+                        <Label FontSize="11"
+                               TextColor="#6b7280">
+                            <Label.FormattedText>
+                                <FormattedString>
+                                    <Span Text="Checked: "
+                                          TextColor="#9ca3af"/>
+                                    <Span Text="{Binding CurrentOrder.CheckedByDisplay}"
+                                          TextColor="#374151"/>
+                                </FormattedString>
+                            </Label.FormattedText>
+                        </Label>
+                        <Label FontSize="11"
                                TextColor="#9ca3af">
                             <Label.FormattedText>
                                 <FormattedString>
@@ -732,7 +754,8 @@
                                 StrokeThickness="1"
                                 StrokeShape="RoundRectangle 4"
                                 Padding="10,5"
-                                ToolTipProperties.Text="Reset QC status and quantities">
+                                ToolTipProperties.Text="Reset QC status and quantities"
+                                Style="{StaticResource HoverButton}">
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnResetButtonTapped"/>
                             </Border.GestureRecognizers>
@@ -993,7 +1016,8 @@
                                                                 TextColor="{Binding ButtonTextColor}"
                                                                 ToolTipProperties.Text="Unverify (decrease count)"/>
                                                         <Border BackgroundColor="{Binding ButtonBgColor}"
-                                                                Stroke="Transparent"
+                                                                Stroke="{Binding CardBorderColor}"
+                                                                StrokeThickness="{Binding CardBorderWidth}"
                                                                 StrokeShape="RoundRectangle 4"
                                                                 Padding="6,4"
                                                                 VerticalOptions="Center"
@@ -1004,7 +1028,22 @@
                                                             <HorizontalStackLayout HorizontalOptions="Center"
                                                                                    Spacing="2"
                                                                                    VerticalOptions="Center">
-                                                                <Label Text="{Binding VerifiedQuantity}"
+                                                                <Entry IsVisible="{Binding IsBeingPicked}"
+                                                                       Text="{Binding PickQtyText}"
+                                                                       Keyboard="Numeric"
+                                                                       WidthRequest="36"
+                                                                       HeightRequest="28"
+                                                                       FontSize="16"
+                                                                       FontAttributes="Bold"
+                                                                       FontFamily="Consolas"
+                                                                       HorizontalTextAlignment="Center"
+                                                                       ReturnType="Done"
+                                                                       Completed="OnPickQtyEntryCompleted"
+                                                                       TextChanged="OnPickQtyTextChanged"
+                                                                       VerticalOptions="Center"
+                                                                       BackgroundColor="Transparent"/>
+                                                                <Label IsVisible="{Binding IsNotBeingPicked}"
+                                                                       Text="{Binding VerifiedQuantity}"
                                                                        FontSize="16"
                                                                        FontAttributes="Bold"
                                                                        TextColor="{Binding ButtonTextColor}"
@@ -1022,18 +1061,6 @@
                                                                        VerticalOptions="Center"/>
                                                             </HorizontalStackLayout>
                                                         </Border>
-                                                        <Entry IsVisible="{Binding IsBeingPicked}"
-                                                               Text="{Binding PickQtyText}"
-                                                               Keyboard="Numeric"
-                                                               WidthRequest="50"
-                                                               FontSize="16"
-                                                               FontAttributes="Bold"
-                                                               FontFamily="Consolas"
-                                                               HorizontalTextAlignment="Center"
-                                                               ReturnType="Done"
-                                                               Completed="OnPickQtyEntryCompleted"
-                                                               TextChanged="OnPickQtyTextChanged"
-                                                               VerticalOptions="Center"/>
                                                         <Button Text="+"
                                                                 Clicked="OnPlusClicked"
                                                                 WidthRequest="32"
@@ -1205,25 +1232,50 @@
                                    FontFamily="Consolas"/>
                         </Border>
 
-                        <!-- Scan button (bottom-right, rounded-rect, purple) -->
-                        <Border BackgroundColor="#5B31E0"
-                                Stroke="Transparent"
-                                StrokeShape="RoundRectangle 8"
-                                Padding="14,8"
-                                VerticalOptions="End"
-                                HorizontalOptions="End"
-                                Margin="0,0,16,16">
-                            <Border.Shadow>
-                                <Shadow Brush="#40000000"
-                                        Offset="0,2"
-                                        Radius="4"/>
-                            </Border.Shadow>
-                            <Label Text="click to +1 scanned"
-                                   FontSize="11"
-                                   FontAttributes="Bold"
-                                   TextColor="White"
-                                   FontFamily="Consolas"/>
-                        </Border>
+                        <!-- +/- buttons (bottom-right) -->
+                        <HorizontalStackLayout VerticalOptions="End"
+                                               HorizontalOptions="End"
+                                               Spacing="8"
+                                               Margin="0,0,16,16">
+                            <Border x:Name="OverlayMinusBtn"
+                                    BackgroundColor="#ef4444"
+                                    Stroke="Transparent"
+                                    StrokeShape="RoundRectangle 8"
+                                    Padding="16,8">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnOverlayMinusTapped"/>
+                                </Border.GestureRecognizers>
+                                <Border.Shadow>
+                                    <Shadow Brush="#40000000"
+                                            Offset="0,2"
+                                            Radius="4"/>
+                                </Border.Shadow>
+                                <Label Text="−"
+                                       FontSize="18"
+                                       FontAttributes="Bold"
+                                       TextColor="White"
+                                       FontFamily="Consolas"/>
+                            </Border>
+                            <Border x:Name="OverlayPlusBtn"
+                                    BackgroundColor="#5B31E0"
+                                    Stroke="Transparent"
+                                    StrokeShape="RoundRectangle 8"
+                                    Padding="16,8">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnOverlayPlusTapped"/>
+                                </Border.GestureRecognizers>
+                                <Border.Shadow>
+                                    <Shadow Brush="#40000000"
+                                            Offset="0,2"
+                                            Radius="4"/>
+                                </Border.Shadow>
+                                <Label Text="+"
+                                       FontSize="18"
+                                       FontAttributes="Bold"
+                                       TextColor="White"
+                                       FontFamily="Consolas"/>
+                            </Border>
+                        </HorizontalStackLayout>
                     </Grid>
 
                     <!-- ── Right column: Details (white, 32px padding) ── -->
@@ -1248,6 +1300,22 @@
                             <HorizontalStackLayout.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnOverlayQtyTapped"/>
                             </HorizontalStackLayout.GestureRecognizers>
+                            <!-- Inline edit entry (shown when picking) -->
+                            <Entry x:Name="OverlayPickEntry"
+                                   IsVisible="False"
+                                   Keyboard="Numeric"
+                                   WidthRequest="80"
+                                   HeightRequest="64"
+                                   FontSize="48"
+                                   FontAttributes="Bold"
+                                   FontFamily="Consolas"
+                                   HorizontalTextAlignment="Center"
+                                   ReturnType="Done"
+                                   Completed="OnOverlayPickEntryCompleted"
+                                   TextChanged="OnOverlayPickEntryTextChanged"
+                                   VerticalOptions="Center"
+                                   BackgroundColor="Transparent"/>
+                            <!-- Read-only verified label (hidden when picking) -->
                             <Label x:Name="OverlayVerifiedQty"
                                    Text="0"
                                    FontSize="56"
@@ -1337,20 +1405,6 @@
                             </Border>
                         </VerticalStackLayout>
 
-                        <!-- Hidden manual pick entry (shown when qty tapped) -->
-                        <Entry x:Name="OverlayPickEntry"
-                               IsVisible="False"
-                               Keyboard="Numeric"
-                               WidthRequest="100"
-                               FontSize="24"
-                               FontAttributes="Bold"
-                               FontFamily="Consolas"
-                               HorizontalTextAlignment="Center"
-                               ReturnType="Done"
-                               Completed="OnOverlayPickEntryCompleted"
-                               TextChanged="OnOverlayPickEntryTextChanged"
-                               VerticalOptions="Center"
-                               HorizontalOptions="Start"/>
 
                     </VerticalStackLayout>
                 </Grid>
@@ -1597,12 +1651,12 @@
                                 StrokeShape="RoundRectangle 3"
                                 Padding="4,2"
                                 Stroke="Transparent">
-                            <Label Text="Enter"
+                            <Label Text="0-9"
                                    FontSize="10"
                                    FontAttributes="Bold"
                                    TextColor="#374151"/>
                         </Border>
-                        <Label Text="peek"
+                        <Label Text="edit qty"
                                FontSize="10"
                                TextColor="#6b7280"
                                VerticalOptions="Center"/>
@@ -1681,6 +1735,7 @@
                        Text=""
                        FontSize="10"
                        TextColor="#9ca3af"
+                       FontAttributes="Bold"
                        VerticalOptions="Center"/>
             </Grid>
         </Border>
