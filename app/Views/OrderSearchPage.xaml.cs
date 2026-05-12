@@ -864,6 +864,13 @@ public partial class OrderSearchPage : ContentPage
                 : $"⚠ {order.TrackingNumber} — all picked but DB update failed");
             _carouselDirty = true;
         }
+
+        if (Results.Count > 0 && Results.All(o => _completedPackingIds.Contains(o.PackingId) ||
+            string.Equals(o.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase)))
+        {
+            var totalItems = Results.Sum(o => o.ParsedProducts.Count);
+            ShowCompletionSummary(totalItems);
+        }
     }
 
     /// <summary>
@@ -1355,6 +1362,22 @@ public partial class OrderSearchPage : ContentPage
         if (nextIdx >= allProducts.Count) nextIdx = 0;
 
         ShowProductImageOverlay(allProducts[nextIdx]);
+    }
+
+    // ── Completion summary overlay ───────────────────────────────────────────
+
+    private async void ShowCompletionSummary(int totalItems)
+    {
+        CompletionCountLabel.Text = totalItems.ToString();
+        CompletionSummaryOverlay.Opacity = 0;
+        CompletionSummaryOverlay.IsVisible = true;
+        await CompletionSummaryOverlay.FadeToAsync(1, 250, Easing.CubicOut);
+    }
+
+    private async void OnCompletionSummaryBackdropTapped(object sender, TappedEventArgs e)
+    {
+        await CompletionSummaryOverlay.FadeToAsync(0, 200, Easing.CubicIn);
+        CompletionSummaryOverlay.IsVisible = false;
     }
 
     // ── Product card hover ───────────────────────────────────────────────────
@@ -1871,6 +1894,13 @@ public partial class OrderSearchPage : ContentPage
         if (e.Key == VkSlash)
         {
             ActivateSearchEntry();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Windows.System.VirtualKey.Escape && CompletionSummaryOverlay.IsVisible)
+        {
+            OnCompletionSummaryBackdropTapped(this, new TappedEventArgs(null));
             e.Handled = true;
             return;
         }
