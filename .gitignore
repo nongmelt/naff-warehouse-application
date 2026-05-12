@@ -221,4 +221,9 @@ minio/
 *.exe
 # Added by code-review-graph
 .code-review-graph/
+.worktrees/
 ui-ux-pro-max/
+graphify-out/
+.graphify*
+shopee-images/
+docs/
