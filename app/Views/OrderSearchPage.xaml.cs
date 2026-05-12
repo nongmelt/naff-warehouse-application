@@ -1198,6 +1198,16 @@ public partial class OrderSearchPage : ContentPage
             OverlayCard.ScaleToAsync(1, 250, Easing.CubicOut));
     }
 
+    private void RefreshOverlayQuantity()
+    {
+        if (_overlayItem == null) return;
+        OverlayVerifiedQty.Text = _overlayItem.VerifiedQuantity.ToString();
+        OverlayReqQty.Text = _overlayItem.RequiredQuantity.ToString();
+        OverlayVerifiedQty.TextColor = _overlayItem.VerifiedQuantity >= _overlayItem.RequiredQuantity
+            ? Color.FromArgb("#10B981")
+            : Color.FromArgb("#111827");
+    }
+
     private async void OnImageOverlayBackdropTapped(object sender, TappedEventArgs e)
     {
         await DismissImageOverlayAsync();
@@ -1369,11 +1379,9 @@ public partial class OrderSearchPage : ContentPage
         }
     }
 
-    private bool _navigatingOverlay;
-
-    private async void NavigateOverlayProduct(int direction)
+    private void NavigateOverlayProduct(int direction)
     {
-        if (_overlayItem == null || _navigatingOverlay) return;
+        if (_overlayItem == null) return;
         var allProducts = Results.SelectMany(o => o.ParsedProducts).ToList();
         var currentIdx = allProducts.IndexOf(_overlayItem);
         if (currentIdx < 0) return;
@@ -1382,23 +1390,7 @@ public partial class OrderSearchPage : ContentPage
         if (nextIdx < 0) nextIdx = allProducts.Count - 1;
         if (nextIdx >= allProducts.Count) nextIdx = 0;
 
-        _navigatingOverlay = true;
-
-        // Slide out in direction, swap content, slide back in
-        var slideOut = direction > 0 ? -30.0 : 30.0;
-        await Task.WhenAll(
-            OverlayCard.FadeToAsync(0, 120, Easing.CubicIn),
-            OverlayCard.TranslateToAsync(slideOut, 0, 120, Easing.CubicIn));
-
         ShowProductImageOverlay(allProducts[nextIdx]);
-
-        OverlayCard.TranslationX = -slideOut;
-        OverlayCard.Opacity = 0;
-        await Task.WhenAll(
-            OverlayCard.FadeToAsync(1, 150, Easing.CubicOut),
-            OverlayCard.TranslateToAsync(0, 0, 150, Easing.CubicOut));
-
-        _navigatingOverlay = false;
     }
 
     // ── Completion summary overlay ───────────────────────────────────────────
@@ -1406,11 +1398,15 @@ public partial class OrderSearchPage : ContentPage
     private async void ShowCompletionSummary(int totalItems)
     {
         CompletionCountLabel.Text = totalItems.ToString();
+        CompletionProgressBar.WidthRequest = 240;
         CompletionSummaryOverlay.Opacity = 0;
         CompletionSummaryOverlay.IsVisible = true;
         await CompletionSummaryOverlay.FadeToAsync(1, 250, Easing.CubicOut);
 
-        await Task.Delay(3000);
+        var anim = new Animation(v => CompletionProgressBar.WidthRequest = v, 240, 0);
+        anim.Commit(CompletionProgressBar, "CountdownBar", length: 1500, easing: Easing.Linear);
+
+        await Task.Delay(1500);
 
         if (CompletionSummaryOverlay.IsVisible)
             await DismissCompletionSummaryAsync();
@@ -1983,15 +1979,20 @@ public partial class OrderSearchPage : ContentPage
         // +/- keys verify/unverify active product card
         const Windows.System.VirtualKey VkPlus = (Windows.System.VirtualKey)187;  // = / + key
         const Windows.System.VirtualKey VkMinus = (Windows.System.VirtualKey)189; // - / _ key
-        if ((e.Key == VkPlus || e.Key == Windows.System.VirtualKey.Add) && _pendingSkuProduct != null)
+        var plusTarget = ProductImageOverlay.IsVisible ? _overlayItem : _pendingSkuProduct;
+        if ((e.Key == VkPlus || e.Key == Windows.System.VirtualKey.Add) && plusTarget != null)
         {
-            SimulatePlusOnActiveProduct();
+            var fakeEl = new Label { BindingContext = plusTarget };
+            OnPlusClicked(fakeEl, EventArgs.Empty);
+            if (ProductImageOverlay.IsVisible) RefreshOverlayQuantity();
             e.Handled = true;
             return;
         }
-        if ((e.Key == VkMinus || e.Key == Windows.System.VirtualKey.Subtract) && _pendingSkuProduct != null)
+        if ((e.Key == VkMinus || e.Key == Windows.System.VirtualKey.Subtract) && plusTarget != null)
         {
-            SimulateMinusOnActiveProduct();
+            var fakeEl = new Label { BindingContext = plusTarget };
+            OnMinusClicked(fakeEl, EventArgs.Empty);
+            if (ProductImageOverlay.IsVisible) RefreshOverlayQuantity();
             e.Handled = true;
             return;
         }

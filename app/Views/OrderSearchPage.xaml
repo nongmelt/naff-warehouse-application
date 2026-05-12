@@ -1418,10 +1418,11 @@
                           Margin="0,8,0,0">
                         <BoxView BackgroundColor="#e5e7eb"
                                  CornerRadius="3"/>
-                        <BoxView BackgroundColor="#16a34a"
+                        <BoxView x:Name="CompletionProgressBar"
+                                 BackgroundColor="#16a34a"
                                  CornerRadius="3"
                                  HorizontalOptions="Start"
-                                 WidthRequest="168"/>
+                                 WidthRequest="240"/>
                     </Grid>
                 </VerticalStackLayout>
             </Border>
