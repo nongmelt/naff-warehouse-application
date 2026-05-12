@@ -1355,6 +1355,22 @@ public partial class OrderSearchPage : ContentPage
         if (item != null) item.IsActive = true;
     }
 
+    private void ScrollToProduct(ProductItem item)
+    {
+        var border = FindDescendant<Border>(this, b => b.BindingContext == item);
+        if (border != null)
+        {
+            var y = border.Y;
+            var parent = border.Parent as VisualElement;
+            while (parent != null && parent != ResultsScroll.Content)
+            {
+                y += parent.Y;
+                parent = parent.Parent as VisualElement;
+            }
+            _ = ResultsScroll.ScrollToAsync(0, Math.Max(0, y - 100), true);
+        }
+    }
+
     // ── Reset ────────────────────────────────────────────────────────────────
 
     private async void OnResetClicked(object sender, EventArgs e)
@@ -1835,6 +1851,26 @@ public partial class OrderSearchPage : ContentPage
         var isLeft = e.Key == Windows.System.VirtualKey.Left;
         var isRight = e.Key == Windows.System.VirtualKey.Right;
         if (!isLeft && !isRight) return;
+
+        // Product card navigation when order is loaded and overlay is closed
+        if (_orderLoaded && !ProductImageOverlay.IsVisible && Results.Count > 0)
+        {
+            var allProducts = Results.SelectMany(o => o.ParsedProducts).ToList();
+            if (allProducts.Count > 0)
+            {
+                var currentIdx = _pendingSkuProduct != null ? allProducts.IndexOf(_pendingSkuProduct) : -1;
+                int nextIdx;
+                if (isRight)
+                    nextIdx = currentIdx < allProducts.Count - 1 ? currentIdx + 1 : 0;
+                else
+                    nextIdx = currentIdx > 0 ? currentIdx - 1 : allProducts.Count - 1;
+
+                SetActiveProduct(allProducts[nextIdx]);
+                ScrollToProduct(allProducts[nextIdx]);
+                e.Handled = true;
+                return;
+            }
+        }
 
         // Session navigation — carousel is newest-left, so Left = newer (+1 index), Right = older (-1 index)
         if (_sessions.Count > 1)
