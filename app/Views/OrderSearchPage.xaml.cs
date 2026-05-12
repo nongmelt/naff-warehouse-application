@@ -1,3 +1,4 @@
+using app.Helpers;
 using app.Models;
 using app.Services;
 using app.Workflows;
@@ -16,12 +17,16 @@ namespace app.Views;
 [SupportedOSPlatform("windows")]
 public partial class OrderSearchPage : ContentPage
 {
+    private enum AppMode { QC }
+
     private record ComPortEntry(string PortName, string DisplayName);
 
     private SerialPort? _serialPort;
     private List<ComPortEntry> _comPorts = [];
     private bool _isSearching;
-    private bool _historyExpanded;
+    private AppMode _currentMode = AppMode.QC;
+    private IDispatcherTimer? _comHeartbeatTimer;
+    private long _lastSerialDataTicks;
     private int _historyNavIndex = -1;
 
     // Search-session navigation (back / forward through previous scans)
@@ -51,6 +56,19 @@ public partial class OrderSearchPage : ContentPage
 
     public string StationNameDisplay => $"Station: {StationName}";
 
+    private PackingList? _currentOrder;
+    public PackingList? CurrentOrder
+    {
+        get => _currentOrder;
+        set
+        {
+            _currentOrder = value;
+            OnPropertyChanged(nameof(CurrentOrder));
+            OnPropertyChanged(nameof(HasCurrentOrder));
+        }
+    }
+    public bool HasCurrentOrder => _currentOrder != null;
+
     // SKU picking state — set after an order loads; cleared on new search
     private bool _orderLoaded;
     private bool _isFirstItemScan;
@@ -63,6 +81,12 @@ public partial class OrderSearchPage : ContentPage
     // Increments on every QC mutation within a scan session — shipped on workflow_events
     // so analytics can answer "which SKUs get scanned first on average?"
     private int _sequenceInSession;
+
+    // Scan indicator state
+    private string? _lastScanBarcode;
+    private bool _lastScanFound;
+    private DateTime? _lastScanTime;
+    private IDispatcherTimer? _lastScanTimer;
 
     private int NextSequence() => ++_sequenceInSession;
 
@@ -107,8 +131,21 @@ public partial class OrderSearchPage : ContentPage
     {
         InitializeComponent();
         BindingContext = this;
+        ApplyMode(_currentMode);
         RefreshHistoryItems();
         UpdateHistoryHeader();
+
+#if WINDOWS
+        HeaderSearchEntry.HandlerChanged += (_, _) =>
+        {
+            if (HeaderSearchEntry.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.TextBox tb)
+            {
+                tb.VerticalContentAlignment = Microsoft.UI.Xaml.VerticalAlignment.Center;
+                tb.Padding = new Microsoft.UI.Xaml.Thickness(2, 0, 0, 0);
+                tb.BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
+            }
+        };
+#endif
     }
 
     // ── Lifecycle ────────────────────────────────────────────────────────────
@@ -179,9 +216,6 @@ public partial class OrderSearchPage : ContentPage
         _syncingPickers = false;
     }
 
-    private async void OnRefreshPorts(object sender, EventArgs e)
-        => await LoadComPortsAsync();
-
     private async void OnOverlayRefreshPorts(object sender, EventArgs e)
         => await LoadComPortsAsync();
 
@@ -212,6 +246,7 @@ public partial class OrderSearchPage : ContentPage
             CloseSerialPort();
             UpdateScannerStatus("No scanner connected");
             UpdateOverlayScannerStatus("No scanner connected");
+            MainThread.BeginInvokeOnMainThread(() => HeaderComPortLabel.Text = "");
             return;
         }
 
@@ -219,6 +254,7 @@ public partial class OrderSearchPage : ContentPage
         if (portIdx >= _comPorts.Count) return;
 
         var portName = _comPorts[portIdx].PortName;
+        MainThread.BeginInvokeOnMainThread(() => HeaderComPortLabel.Text = portName);
         CloseSerialPort();
         try
         {
@@ -230,6 +266,7 @@ public partial class OrderSearchPage : ContentPage
             };
             _serialPort.DataReceived += OnSerialDataReceived;
             _serialPort.Open();
+            StartComHeartbeatTimer();
             UpdateScannerStatus($"Scanner ready ({portName}) — waiting for scan");
             UpdateOverlayScannerStatus($"Scanner ready ({portName}) — scan your badge");
             Logger.Log($"OrderSearch: Serial port {portName} opened");
@@ -244,6 +281,7 @@ public partial class OrderSearchPage : ContentPage
 
     private void OnSerialDataReceived(object sender, SerialDataReceivedEventArgs e)
     {
+        Interlocked.Exchange(ref _lastSerialDataTicks, DateTime.UtcNow.Ticks);
         try
         {
             var line = _serialPort?.ReadLine()?.Trim();
@@ -327,6 +365,7 @@ public partial class OrderSearchPage : ContentPage
 
     private void CloseSerialPort()
     {
+        StopComHeartbeatTimer();
         if (_serialPort == null) return;
         try
         {
@@ -343,17 +382,27 @@ public partial class OrderSearchPage : ContentPage
 
     // ── Search ───────────────────────────────────────────────────────────────
 
-    private async void OnSearchClicked(object sender, EventArgs e)
-        => await ExecuteSearchAsync(SearchEntry.Text?.Trim() ?? "", trigger: "manual_search");
+    private void SetSearchLoading(bool loading)
+    {
+        _isSearching = loading;
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            PopupSearchEntry.IsEnabled = !loading;
+            PopupSearchEntry.Placeholder = loading ? "searching…" : "Tracking or order number…";
+            HeaderSearchEntry.IsEnabled = !loading;
+            HeaderSearchEntry.Placeholder = loading ? "searching…" : "search";
+            SearchPlaceholderLabel.Text = loading ? "searching…" : "search";
+        });
+    }
 
     private async void OnSearchCommitted(object sender, EventArgs e)
-        => await ExecuteSearchAsync(SearchEntry.Text?.Trim() ?? "", trigger: "manual_search");
+        => await ExecuteSearchAsync(HeaderSearchEntry.Text?.Trim() ?? "", trigger: "manual_search");
 
     private async Task ExecuteSearchAsync(string input, List<PackingList>? preloaded = null, string trigger = "tracking_scan")
     {
         if (string.IsNullOrWhiteSpace(input) || _isSearching) return;
         input = AppSettings.NormalizeTrackingNumber(input);
-        SearchEntry.Text = string.Empty;
+        HeaderSearchEntry.Text = string.Empty;
 
         if (string.IsNullOrWhiteSpace(AppSettings.ApiUrl))
         {
@@ -361,7 +410,7 @@ public partial class OrderSearchPage : ContentPage
             return;
         }
 
-        _isSearching = true;
+        SetSearchLoading(true);
         if (_currentOperator is not null)
             StartInactivityTimer();
         _historyNavIndex = -1;
@@ -384,20 +433,18 @@ public partial class OrderSearchPage : ContentPage
         _orderLoaded = false;
         _isFirstItemScan = false;
         _completedPackingIds.Clear();
-        if (_pendingSkuProduct != null) { _pendingSkuProduct.IsBeingPicked = false; _pendingSkuProduct = null; }
+        if (_pendingSkuProduct != null) { _pendingSkuProduct.IsBeingPicked = false; SetActiveProduct(null); }
         Results.Clear();
+        UpdateHeaderOrderInfo();
         NotFoundCard.IsVisible = false;
 
         Logger.Log($"OrderSearch: querying for '{input}'");
         var rows = preloaded ?? await ApiService.SearchAsync(input);
 
         foreach (var r in rows) { Results.Add(r); ActiveResults.Add(r); }
+        UpdateHeaderOrderInfo();
 
-        foreach (var pl in Results)
-        {
-            if (pl.HasProducts)
-                _ = EnrichProductItemsAsync(pl.ParsedProducts);
-        }
+        await EnrichProductItemsAsync();
 
         // Mark orders that were "To be packed" or "QC Hold" on arrival — only these count in the session card
         // (QC Passed on arrival = pre-processed, shown as grey, not counted)
@@ -456,6 +503,11 @@ public partial class OrderSearchPage : ContentPage
 
         _orderLoaded = rows.Count > 0;
         _isFirstItemScan = rows.Count > 0;
+        if (rows.Count > 0)
+        {
+            var firstProduct = rows[0].ParsedProducts.FirstOrDefault();
+            if (firstProduct != null) SetActiveProduct(firstProduct);
+        }
         ResetSessionStatCounts();
 
         // New tracking scan resets the sequence counter — analytics treats the
@@ -495,7 +547,7 @@ public partial class OrderSearchPage : ContentPage
         SearchHistoryService.Instance.Push(input);
         RefreshHistoryItems();
         UpdateHistoryHeader();
-        _isSearching = false;
+        SetSearchLoading(false);
 
         // Drain queued scans
         if (_pendingScanQueue.Count > 0)
@@ -576,13 +628,15 @@ public partial class OrderSearchPage : ContentPage
                         ["reason"] = "not-in-order",
                     });
             }
+            UpdateScanIndicator(barcode, found: false);
             UpdateSearchStatus(blockedByQcPassed
                 ? $"SKU '{barcode}' belongs to a QC Passed order — no changes allowed"
                 : $"SKU '{barcode}' not found in this order");
             return;
         }
 
-        _pendingSkuProduct = found;
+        UpdateScanIndicator(barcode, found: true);
+        SetActiveProduct(found);
 
         if (found.Quantity == 1)
         {
@@ -670,7 +724,7 @@ public partial class OrderSearchPage : ContentPage
         {
             // User entered 0 — dismiss entry without deducting
             item.IsBeingPicked = false;
-            if (item == _pendingSkuProduct) _pendingSkuProduct = null;
+            if (item == _pendingSkuProduct) SetActiveProduct(null);
             UpdateSearchStatus($"{item.SellerSku} — no deduction (0 entered)");
             return;
         }
@@ -704,16 +758,16 @@ public partial class OrderSearchPage : ContentPage
         item.IsBeingPicked = false;
         item.OrderQcContext = "QC Hold"; // highlight yellow immediately (green if IsFullyPicked takes priority)
 
-        if (item == _pendingSkuProduct) _pendingSkuProduct = null;
+        if (item == _pendingSkuProduct) SetActiveProduct(null);
 
         // Animate fully-picked item sliding to bottom
         if (item.IsFullyPicked)
             _ = AnimateAndMoveItemToBottomAsync(item);
 
-        UpdateSearchStatus(item.Quantity == 0
-            ? $"✓ {item.SellerSku} fully picked"
-            : $"{item.SellerSku} — {item.Quantity} remaining");
-        Logger.Log($"OrderSearch: deducted {qty} from '{item.SellerSku}', remaining: {item.Quantity}");
+        UpdateSearchStatus(item.IsFullyPicked
+            ? $"✓ {item.SellerSku} fully verified"
+            : $"{item.SellerSku} — {item.VerifiedQuantity}/{item.RequiredQuantity} verified");
+        Logger.Log($"OrderSearch: verified {qty} for '{item.SellerSku}', now {item.VerifiedQuantity}/{item.RequiredQuantity}");
 
         _ = CheckAndSaveQcStatusAsync();
     }
@@ -911,7 +965,7 @@ public partial class OrderSearchPage : ContentPage
         if (_pendingSkuProduct != null)
             ApplySkuDeduction(_pendingSkuProduct, "1", DeductionSource.AutoPrior);
 
-        _pendingSkuProduct = item;
+        SetActiveProduct(item);
 
         if (item.Quantity == 1)
         {
@@ -929,6 +983,44 @@ public partial class OrderSearchPage : ContentPage
 
     // ── Product enrichment ──────────────────────────────────────────────────
 
+    private async Task EnrichProductItemsAsync()
+    {
+        var allProducts = Results.SelectMany(o => o.ParsedProducts).ToList();
+        if (allProducts.Count == 0) return;
+
+        var skus = allProducts.Select(p => p.SellerSku).Distinct().ToList();
+        var enrichments = await ApiService.EnrichProductsAsync(skus);
+        if (enrichments.Count == 0) return;
+
+        foreach (var item in allProducts)
+        {
+            if (!enrichments.TryGetValue(item.SellerSku, out var e)) continue;
+            item.CategoryName = e.CategoryName;
+            item.CategoryId = e.CategoryId;
+            item.ImagePath = e.ImagePath;
+            item.QcNotes = e.QcNotes;
+            item.Brand = e.Brand;
+            item.SwatchColor = ColorSwatchHelper.ParseSwatchColor(item.Variation);
+        }
+
+        foreach (var order in Results)
+            CategoryBadgeHelper.AssignBadges(order.ParsedProducts);
+
+        var apiBase = AppSettings.ApiUrl ?? "http://localhost:8080";
+        foreach (var item in allProducts)
+        {
+            if (!item.HasImagePath) continue;
+            var captured = item;
+            _ = Task.Run(async () =>
+            {
+                var path = await ProductImageCache.EnsureAsync(captured.SellerSku, apiBase);
+                if (path != null)
+                    MainThread.BeginInvokeOnMainThread(() => captured.LocalImagePath = path);
+            });
+        }
+    }
+
+    /// <summary>Legacy per-order enrichment used during session navigation.</summary>
     private static async Task EnrichProductItemsAsync(IEnumerable<ProductItem> items)
     {
         var tasks = items.Select(async item =>
@@ -1008,7 +1100,13 @@ public partial class OrderSearchPage : ContentPage
         _overlayItem = item;
 
         // Image
-        if (item.HasImage)
+        if (item.HasLocalImage)
+        {
+            OverlayImage.Source = ImageSource.FromFile(item.LocalImagePath);
+            OverlayImage.IsVisible = true;
+            OverlayNoImage.IsVisible = false;
+        }
+        else if (item.HasImage)
         {
             OverlayImage.Source = item.ImageSource;
             OverlayImage.IsVisible = true;
@@ -1020,9 +1118,43 @@ public partial class OrderSearchPage : ContentPage
             OverlayNoImage.IsVisible = true;
         }
 
+        // Category badge
+        if (!string.IsNullOrWhiteSpace(item.CategoryBadge))
+        {
+            OverlayCategoryBadge.IsVisible = true;
+            OverlayCategoryLabel.Text = item.CategoryBadge;
+            OverlayCategoryBadge.BackgroundColor = item.CategoryBadgeBg;
+        }
+        else
+        {
+            OverlayCategoryBadge.IsVisible = false;
+        }
+
+        // Item position (e.g., "ITEM 03 of 14")
+        var order = Results.FirstOrDefault(o => o.ParsedProducts.Contains(item));
+        if (order != null)
+        {
+            var idx = order.ParsedProducts.IndexOf(item) + 1;
+            var total = order.ParsedProducts.Count;
+            OverlayItemPosition.Text = $"ITEM {idx:D2} of {total}";
+        }
+        else
+        {
+            OverlayItemPosition.Text = "";
+        }
+
+        // Counter — show verified / required, green when complete
+        OverlayVerifiedQty.Text = item.VerifiedQuantity.ToString();
+        OverlayReqQty.Text = item.RequiredQuantity.ToString();
+        OverlayVerifiedQty.TextColor = item.VerifiedQuantity >= item.RequiredQuantity
+            ? Color.FromArgb("#10B981")
+            : Color.FromArgb("#111827");
+
         // Product info
         OverlayProductName.Text = item.BaseName;
-        OverlaySkuLabel.Text = $"SKU: {item.SellerSku}";
+        OverlaySkuLabel.Text = item.SellerSku;
+
+        // Variation badge (purple)
         if (item.HasVariation)
         {
             OverlayVariationLabel.Text = item.Variation;
@@ -1033,14 +1165,22 @@ public partial class OrderSearchPage : ContentPage
             OverlayVariationBorder.IsVisible = false;
         }
 
-        // Quantities
-        OverlayReqQty.Text = item.RequiredQuantity.ToString();
-        OverlayCurrentQty.Text = item.Quantity.ToString();
+        // QC Notes (borderless style)
+        if (item.HasQcNotes)
+        {
+            OverlayNotesLabel.Text = item.QcNotes!;
+            OverlayNotesLabel.TextColor = Color.FromArgb("#dc2626");
+            OverlayNotesBorder.BackgroundColor = Color.FromArgb("#fef2f2");
+        }
+        else
+        {
+            OverlayNotesLabel.Text = "no notes";
+            OverlayNotesLabel.TextColor = Color.FromArgb("#d1d5db");
+            OverlayNotesBorder.BackgroundColor = Color.FromArgb("#fafafa");
+        }
+
         OverlayPickEntry.IsVisible = false;
         OverlayPickEntry.Text = "";
-
-        // Card background — match the card's QC context color
-        UpdateOverlayCardBg(item);
 
         // Show with animation
         ProductImageOverlay.IsVisible = true;
@@ -1049,12 +1189,6 @@ public partial class OrderSearchPage : ContentPage
         _ = Task.WhenAll(
             ProductImageOverlay.FadeToAsync(1, 200, Easing.CubicOut),
             OverlayCard.ScaleToAsync(1, 250, Easing.CubicOut));
-    }
-
-    private void UpdateOverlayCardBg(ProductItem item)
-    {
-        var bgColor = item.IsFullyPicked ? Color.FromArgb("#dcfce7") : Colors.White;
-        OverlayCard.BackgroundColor = bgColor;
     }
 
     private async void OnImageOverlayBackdropTapped(object sender, TappedEventArgs e)
@@ -1069,6 +1203,32 @@ public partial class OrderSearchPage : ContentPage
             OverlayCard.ScaleToAsync(0.85, 180, Easing.CubicIn));
         ProductImageOverlay.IsVisible = false;
         _overlayItem = null;
+    }
+
+    private void OnOverlayImageTapped(object sender, TappedEventArgs e)
+    {
+        if (_overlayItem == null || _overlayItem.Quantity <= 0) return;
+
+        PackingList? order = null;
+        foreach (var o in Results)
+            if (o.ParsedProducts.Contains(_overlayItem)) { order = o; break; }
+        if (order == null) return;
+
+        bool isQcPassed = _completedPackingIds.Contains(order.PackingId)
+            || string.Equals(order.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase);
+        if (isQcPassed) return;
+
+        if (_pendingSkuProduct != null && _pendingSkuProduct != _overlayItem)
+            ApplySkuDeduction(_pendingSkuProduct, "1", DeductionSource.AutoPrior);
+
+        SetActiveProduct(_overlayItem);
+        ApplySkuDeduction(_overlayItem, "1", DeductionSource.CardTap);
+        SyncOverlayAfterDeduction(_overlayItem);
+    }
+
+    private async void OnOverlayCloseTapped(object sender, TappedEventArgs e)
+    {
+        await DismissImageOverlayAsync();
     }
 
     private void OnOverlayQtyTapped(object sender, TappedEventArgs e)
@@ -1088,7 +1248,7 @@ public partial class OrderSearchPage : ContentPage
         if (_pendingSkuProduct != null && _pendingSkuProduct != _overlayItem)
             ApplySkuDeduction(_pendingSkuProduct, "1", DeductionSource.AutoPrior);
 
-        _pendingSkuProduct = _overlayItem;
+        SetActiveProduct(_overlayItem);
 
         if (_overlayItem.Quantity == 1)
         {
@@ -1135,8 +1295,10 @@ public partial class OrderSearchPage : ContentPage
 
     private void SyncOverlayAfterDeduction(ProductItem item)
     {
-        OverlayCurrentQty.Text = item.Quantity.ToString();
-        UpdateOverlayCardBg(item);
+        OverlayVerifiedQty.Text = item.VerifiedQuantity.ToString();
+        OverlayVerifiedQty.TextColor = item.VerifiedQuantity >= item.RequiredQuantity
+            ? Color.FromArgb("#10B981")
+            : Color.FromArgb("#111827");
 
         if (item.IsFullyPicked)
             _ = AnimateOverlayDismissGreenAsync(item);
@@ -1144,18 +1306,15 @@ public partial class OrderSearchPage : ContentPage
 
     private async Task AnimateOverlayDismissGreenAsync(ProductItem item)
     {
-        // Flash green
         OverlayCard.BackgroundColor = Color.FromArgb("#dcfce7");
-        OverlayImageBorder.BackgroundColor = Color.FromArgb("#dcfce7");
         await Task.Delay(600);
 
-        // Collapse: scale down + fade
         await Task.WhenAll(
             OverlayCard.ScaleToAsync(0.3, 350, Easing.CubicIn),
             ProductImageOverlay.FadeToAsync(0, 350, Easing.CubicIn));
 
         ProductImageOverlay.IsVisible = false;
-        OverlayImageBorder.BackgroundColor = Color.FromArgb("#f9fafb");
+        OverlayCard.BackgroundColor = Colors.White;
         OverlayCard.Scale = 1;
         _overlayItem = null;
     }
@@ -1167,8 +1326,8 @@ public partial class OrderSearchPage : ContentPage
         if (sender is PointerGestureRecognizer { Parent: Border card })
         {
             var item = card.BindingContext as ProductItem;
-            if (item?.IsFullyPicked != true)
-                card.BackgroundColor = Color.FromArgb("#f8fafc");
+            var baseColor = item?.CardBgColor ?? Colors.White;
+            card.BackgroundColor = DarkenColor(baseColor, 0.05f);
         }
     }
 
@@ -1177,9 +1336,23 @@ public partial class OrderSearchPage : ContentPage
         if (sender is PointerGestureRecognizer { Parent: Border card })
         {
             var item = card.BindingContext as ProductItem;
-            // Restore the color driven by CardBgColor (respects OrderQcContext)
             card.BackgroundColor = item?.CardBgColor ?? Colors.White;
         }
+    }
+
+    private static Color DarkenColor(Color c, float amount)
+    {
+        float r = Math.Max(0, c.Red - amount);
+        float g = Math.Max(0, c.Green - amount);
+        float b = Math.Max(0, c.Blue - amount);
+        return new Color(r, g, b, c.Alpha);
+    }
+
+    private void SetActiveProduct(ProductItem? item)
+    {
+        if (_pendingSkuProduct != null) _pendingSkuProduct.IsActive = false;
+        _pendingSkuProduct = item;
+        if (item != null) item.IsActive = true;
     }
 
     // ── Reset ────────────────────────────────────────────────────────────────
@@ -1204,7 +1377,7 @@ public partial class OrderSearchPage : ContentPage
         if (_pendingSkuProduct != null && order.ParsedProducts.Contains(_pendingSkuProduct))
         {
             _pendingSkuProduct.IsBeingPicked = false;
-            _pendingSkuProduct = null;
+            SetActiveProduct(null);
         }
 
         // Reset in-memory state
@@ -1253,7 +1426,6 @@ public partial class OrderSearchPage : ContentPage
             return;
         }
 
-        // Precompute visible window (centered on active session, max 25 cards)
         const int MaxVisibleCards = 25;
         var filteredIndices = new List<int>();
         for (int i = count - 1; i >= 0; i--)
@@ -1277,14 +1449,13 @@ public partial class OrderSearchPage : ContentPage
         if (winStart > 0)
             CarouselLayout.Children.Add(new Label
             {
-                Text = $"+{winStart} newer",
-                FontSize = 11,
+                Text = $"+{winStart}",
+                FontSize = 10,
                 TextColor = Color.FromArgb("#9ca3af"),
                 VerticalOptions = LayoutOptions.Center,
-                Margin = new Thickness(8, 0),
+                Margin = new Thickness(4, 0),
             });
 
-        // Display newest first (leftmost). Session list order is unchanged.
         VisualElement? activeCard = null;
         for (int i = count - 1; i >= 0; i--)
         {
@@ -1293,63 +1464,36 @@ public partial class OrderSearchPage : ContentPage
             var capturedIdx = i;
             var isActive = i == _sessionIndex;
             var query = _sessions[i].Query;
-
-            // ── Determine color palette (status-based for both active and inactive) ──
             var sessionStatus = ClassifySessionStatus(_sessions[i].Data);
 
-            Color bgActive, strokeActive, idxActive;
             Color bgInactive, bgHover, strokeInactive, titleInactive, idxInactive;
 
             if (sessionStatus == "preProcessed")
             {
-                bgActive = Color.FromArgb("#6b7280"); strokeActive = Color.FromArgb("#4b5563"); idxActive = Color.FromArgb("#d1d5db");
                 bgInactive = Color.FromArgb("#f9fafb"); bgHover = Color.FromArgb("#f3f4f6");
                 strokeInactive = Color.FromArgb("#e5e7eb"); titleInactive = Color.FromArgb("#6b7280"); idxInactive = Color.FromArgb("#9ca3af");
             }
             else if (sessionStatus == "completed")
             {
-                bgActive = Color.FromArgb("#16a34a"); strokeActive = Color.FromArgb("#15803d"); idxActive = Color.FromArgb("#bbf7d0");
                 bgInactive = Color.FromArgb("#f0fdf4"); bgHover = Color.FromArgb("#dcfce7");
                 strokeInactive = Color.FromArgb("#bbf7d0"); titleInactive = Color.FromArgb("#166534"); idxInactive = Color.FromArgb("#86efac");
             }
             else if (sessionStatus == "incomplete")
             {
-                bgActive = Color.FromArgb("#d97706"); strokeActive = Color.FromArgb("#b45309"); idxActive = Color.FromArgb("#fef3c7");
                 bgInactive = Color.FromArgb("#fffbeb"); bgHover = Color.FromArgb("#fef3c7");
                 strokeInactive = Color.FromArgb("#fde68a"); titleInactive = Color.FromArgb("#b45309"); idxInactive = Color.FromArgb("#fcd34d");
             }
             else
             {
-                bgActive = Color.FromArgb("#2563eb"); strokeActive = Color.FromArgb("#1d4ed8"); idxActive = Color.FromArgb("#bfdbfe");
                 bgInactive = Color.FromArgb("#eff6ff"); bgHover = Color.FromArgb("#dbeafe");
                 strokeInactive = Color.FromArgb("#bfdbfe"); titleInactive = Color.FromArgb("#1d4ed8"); idxInactive = Color.FromArgb("#93c5fd");
             }
 
-            Color bgColor = isActive ? bgActive : bgInactive;
-            Color strokeColor = isActive ? strokeActive : strokeInactive;
-            Color titleColor = isActive ? Colors.White : titleInactive;
-            Color indexColor = isActive ? idxActive : idxInactive;
+            Color bgColor = isActive ? Color.FromArgb("#f0fdf4") : bgInactive;
+            Color strokeColor = isActive ? Color.FromArgb("#2563eb") : strokeInactive;
+            Color titleColor = isActive ? Color.FromArgb("#111827") : titleInactive;
+            Color indexColor = isActive ? Color.FromArgb("#2563eb") : idxInactive;
 
-            var titleLabel = new Label
-            {
-                Text = query,
-                FontSize = 11,
-                FontAttributes = FontAttributes.Bold,
-                TextColor = titleColor,
-                LineBreakMode = LineBreakMode.NoWrap,
-                HorizontalTextAlignment = TextAlignment.Center,
-            };
-
-            var indexLabel = new Label
-            {
-                Text = $"#{i + 1}",
-                FontSize = 13,
-                FontAttributes = FontAttributes.Bold,
-                TextColor = indexColor,
-                HorizontalTextAlignment = TextAlignment.Center,
-            };
-
-            // ── Platform tag (coloured pill label) ───────────────────────────────────
             var rawPlatform = _sessions[i].Data.FirstOrDefault()?.Platform ?? "";
             string? platformName = rawPlatform.ToLower() switch
             {
@@ -1366,65 +1510,58 @@ public partial class OrderSearchPage : ContentPage
                 _ => Colors.Transparent,
             };
 
-            // ── Build platform tag border (top-right) ────────────────────────────────
-            Border? platformTagBorder = null;
+            // Single-line layout: [#Index] [Platform Badge] [Tracking Number]
+            var row = new HorizontalStackLayout { Spacing = 6, VerticalOptions = LayoutOptions.Center };
+
+            row.Children.Add(new Label
+            {
+                Text = $"#{i + 1}",
+                FontSize = 11,
+                FontAttributes = FontAttributes.Bold,
+                TextColor = indexColor,
+                VerticalOptions = LayoutOptions.Center,
+            });
+
             if (platformName != null)
-                platformTagBorder = new Border
+            {
+                row.Children.Add(new Border
                 {
                     BackgroundColor = platformTagColor,
                     StrokeThickness = 0,
-                    StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(3) },
-                    Padding = new Thickness(5, 2),
+                    StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(2) },
+                    Padding = new Thickness(4, 1),
+                    HeightRequest = 16,
                     VerticalOptions = LayoutOptions.Center,
                     Content = new Label
                     {
                         Text = platformName,
-                        FontSize = 9,
+                        FontSize = 8,
                         FontAttributes = FontAttributes.Bold,
                         TextColor = Colors.White,
                         VerticalOptions = LayoutOptions.Center,
                     },
-                };
+                });
+            }
 
-            // ── Top row: #N (left) ── spacer ── platform tag (right) ─────────────────
-            var topRow = new Grid
+            row.Children.Add(new Label
             {
-                ColumnDefinitions = new ColumnDefinitionCollection
-                {
-                    new ColumnDefinition(GridLength.Auto),  // #N
-                    new ColumnDefinition(GridLength.Star),  // spacer
-                    new ColumnDefinition(GridLength.Auto),  // platform tag
-                },
-                HorizontalOptions = LayoutOptions.Fill,
-                RowSpacing = 0,
-            };
-            topRow.Add(indexLabel, 0, 0);
-            if (platformTagBorder != null)
-                topRow.Add(platformTagBorder, 2, 0);
-
-            // Tracking number spans all columns below
-            Grid.SetColumnSpan(titleLabel, 3);
-            var cardContent = new Grid
-            {
-                RowDefinitions = new RowDefinitionCollection
-                {
-                    new RowDefinition(GridLength.Auto),
-                    new RowDefinition(GridLength.Auto),
-                },
-                RowSpacing = 4,
-                HorizontalOptions = LayoutOptions.Fill,
-            };
-            cardContent.Add(topRow, 0, 0);
-            cardContent.Add(titleLabel, 0, 1);
+                Text = query,
+                FontSize = 11,
+                FontAttributes = FontAttributes.Bold,
+                TextColor = titleColor,
+                LineBreakMode = LineBreakMode.NoWrap,
+                VerticalOptions = LayoutOptions.Center,
+            });
 
             var card = new Border
             {
-                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(8) },
+                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(4) },
                 Stroke = strokeColor,
-                StrokeThickness = 1,
+                StrokeThickness = isActive ? 2 : 1,
                 BackgroundColor = bgColor,
-                Padding = new Thickness(14, 6),
-                Content = cardContent,
+                Padding = new Thickness(8, 4),
+                VerticalOptions = LayoutOptions.Center,
+                Content = row,
             };
 
             if (!isActive)
@@ -1449,14 +1586,13 @@ public partial class OrderSearchPage : ContentPage
         if (olderOverflow > 0)
             CarouselLayout.Children.Add(new Label
             {
-                Text = $"+{olderOverflow} older",
-                FontSize = 11,
+                Text = $"+{olderOverflow}",
+                FontSize = 10,
                 TextColor = Color.FromArgb("#9ca3af"),
                 VerticalOptions = LayoutOptions.Center,
-                Margin = new Thickness(8, 0),
+                Margin = new Thickness(4, 0),
             });
 
-        // Auto-scroll so the active card is visible after layout settles
         if (activeCard is not null)
             _ = Dispatcher.DispatchAsync(async () =>
             {
@@ -1472,6 +1608,9 @@ public partial class OrderSearchPage : ContentPage
         BuildCarouselUI();
         UpdateSessionStats();
     }
+
+    private void OnCarouselPrevTapped(object? sender, TappedEventArgs e) => NavigateSession(+1);
+    private void OnCarouselNextTapped(object? sender, TappedEventArgs e) => NavigateSession(-1);
 
     // Returns "preProcessed" | "completed" | "incomplete" | "incoming"
     private string ClassifySessionStatus(List<PackingList> data)
@@ -1567,6 +1706,7 @@ public partial class OrderSearchPage : ContentPage
         Results.Clear();
         ActiveResults.Clear();
         foreach (var r in session.Data) { Results.Add(r); ActiveResults.Add(r); }
+        UpdateHeaderOrderInfo();
 
         foreach (var pl in Results)
         {
@@ -1576,11 +1716,16 @@ public partial class OrderSearchPage : ContentPage
 
         _orderLoaded = Results.Count > 0;
         _isFirstItemScan = _orderLoaded;
+        if (Results.Count > 0)
+        {
+            var firstProduct = Results[0].ParsedProducts.FirstOrDefault();
+            if (firstProduct != null) SetActiveProduct(firstProduct);
+        }
         NotFoundCard.IsVisible = Results.Count == 0;
         NotFoundLabel.Text = Results.Count == 0 ? $"{session.Query} not found" : "";
         UpdateSearchStatus(session.Query);
         BuildCarouselUI();
-        UpdateSessionStats(); // stats span all sessions — no reset needed here
+        UpdateSessionStats();
         _ = ResultsScroll.ScrollToAsync(0, 0, false);
 
         // Emit source order leaving (skip if already idle or passed — nothing to record)
@@ -1648,8 +1793,44 @@ public partial class OrderSearchPage : ContentPage
 
     private void OnWindowKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
-        // Don't intercept arrows while typing in any Entry / TextBox
-        if (e.OriginalSource is Microsoft.UI.Xaml.Controls.TextBox) return;
+        // Don't intercept while typing in any Entry / TextBox
+        if (e.OriginalSource is Microsoft.UI.Xaml.Controls.TextBox tb)
+        {
+            if (e.Key == Windows.System.VirtualKey.Escape)
+            {
+                if (PopupSearchBar.IsVisible)
+                {
+                    DismissPopupSearch();
+                    e.Handled = true;
+                }
+                else if (ReferenceEquals(tb, HeaderSearchEntry.Handler?.PlatformView))
+                {
+                    tb.IsEnabled = false; tb.IsEnabled = true;
+                    e.Handled = true;
+                }
+            }
+            return;
+        }
+
+        // "/" focuses search entry (command-palette pattern)
+        const Windows.System.VirtualKey VkSlash = (Windows.System.VirtualKey)191;
+        if (e.Key == VkSlash)
+        {
+            ActivateSearchEntry();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Windows.System.VirtualKey.Escape && ProductImageOverlay.IsVisible)
+        {
+            _ = DismissImageOverlayAsync(); e.Handled = true; return;
+        }
+        if (e.Key == Windows.System.VirtualKey.I && !ProductImageOverlay.IsVisible)
+        {
+            var target = _pendingSkuProduct
+                ?? Results.SelectMany(o => o.ParsedProducts).FirstOrDefault(p => !p.IsFullyPicked);
+            if (target != null) { ShowProductImageOverlay(target); e.Handled = true; return; }
+        }
 
         var isLeft = e.Key == Windows.System.VirtualKey.Left;
         var isRight = e.Key == Windows.System.VirtualKey.Right;
@@ -1671,7 +1852,7 @@ public partial class OrderSearchPage : ContentPage
         if (isLeft)
         {
             _historyNavIndex = Math.Min(_historyNavIndex + 1, items.Count - 1);
-            SearchEntry.Text = items[_historyNavIndex];
+            HeaderSearchEntry.Text = items[_historyNavIndex];
             e.Handled = true;
         }
         else
@@ -1679,12 +1860,12 @@ public partial class OrderSearchPage : ContentPage
             if (_historyNavIndex > 0)
             {
                 _historyNavIndex--;
-                SearchEntry.Text = items[_historyNavIndex];
+                HeaderSearchEntry.Text = items[_historyNavIndex];
             }
             else
             {
                 _historyNavIndex = -1;
-                SearchEntry.Text = string.Empty;
+                HeaderSearchEntry.Text = string.Empty;
             }
             e.Handled = true;
         }
@@ -1693,151 +1874,14 @@ public partial class OrderSearchPage : ContentPage
 
     // ── Search history ────────────────────────────────────────────────────────
 
-    private void OnHistoryToggle(object sender, TappedEventArgs e)
-    {
-        _historyExpanded = !_historyExpanded;
-        HistoryDropdown.IsVisible = _historyExpanded;
-        HistoryChevron.Text = _historyExpanded ? "▴" : "▾";
-    }
-
     private void OnHistoryClearAll(object sender, TappedEventArgs e)
     {
         SearchHistoryService.Instance.Clear();
-        RefreshHistoryItems();
-        UpdateHistoryHeader();
     }
 
-    private void RefreshHistoryItems()
-    {
-        HistoryItemsLayout.Children.Clear();
-        var items = SearchHistoryService.Instance.Items;
+    private void RefreshHistoryItems() { }
 
-        for (var i = 0; i < items.Count; i++)
-        {
-            var captured = items[i];
-
-            var icon = new Label
-            {
-                Text = "↩",
-                FontSize = 11,
-                TextColor = Color.FromArgb("#9ca3af"),
-                VerticalOptions = LayoutOptions.Center,
-                WidthRequest = 18
-            };
-
-            var text = new Label
-            {
-                Text = captured,
-                FontSize = 12,
-                TextColor = Color.FromArgb("#374151"),
-                VerticalOptions = LayoutOptions.Center,
-                LineBreakMode = LineBreakMode.TailTruncation
-            };
-
-            var del = new Label
-            {
-                Text = "×",
-                FontSize = 15,
-                TextColor = Color.FromArgb("#d1d5db"),
-                Margin = new Thickness(6, 0, 10, 0),
-                VerticalOptions = LayoutOptions.Center
-            };
-            del.GestureRecognizers.Add(new TapGestureRecognizer
-            {
-                Command = new Command(() =>
-                {
-                    SearchHistoryService.Instance.Remove(captured);
-                    RefreshHistoryItems();
-                    UpdateHistoryHeader();
-                })
-            });
-
-            // Left clickable area: icon + text
-            var searchGrid = new Grid
-            {
-                ColumnDefinitions = new ColumnDefinitionCollection
-                {
-                    new ColumnDefinition(GridLength.Auto),
-                    new ColumnDefinition(GridLength.Star)
-                },
-                ColumnSpacing = 8,
-                Padding = new Thickness(10, 9, 6, 9)
-            };
-            searchGrid.Add(icon, 0, 0);
-            searchGrid.Add(text, 1, 0);
-            searchGrid.GestureRecognizers.Add(new TapGestureRecognizer
-            {
-                Command = new Command(async () =>
-                {
-                    SearchEntry.Text = captured;
-                    await ExecuteSearchAsync(captured);
-                })
-            });
-
-            // Row container
-            var row = new Grid
-            {
-                ColumnDefinitions = new ColumnDefinitionCollection
-                {
-                    new ColumnDefinition(GridLength.Star),
-                    new ColumnDefinition(GridLength.Auto)
-                },
-                BackgroundColor = Colors.White
-            };
-
-            // Hover effects via local helpers (capture row-level variables)
-            void EnterHover()
-            {
-                row.BackgroundColor = Color.FromArgb("#f5f3ff");
-                text.TextColor = Color.FromArgb("#6d28d9");
-                icon.TextColor = Color.FromArgb("#7c3aed");
-                del.TextColor = Color.FromArgb("#9ca3af");
-            }
-            void ExitHover()
-            {
-                row.BackgroundColor = Colors.White;
-                text.TextColor = Color.FromArgb("#374151");
-                icon.TextColor = Color.FromArgb("#9ca3af");
-                del.TextColor = Color.FromArgb("#d1d5db");
-            }
-
-            var pRow = new PointerGestureRecognizer();
-            pRow.PointerEntered += (s, e) => EnterHover();
-            pRow.PointerExited += (s, e) => ExitHover();
-            row.GestureRecognizers.Add(pRow);
-
-            // Also register on searchGrid so hover fires reliably inside that area
-            var pSearch = new PointerGestureRecognizer();
-            pSearch.PointerEntered += (s, e) => EnterHover();
-            pSearch.PointerExited += (s, e) => ExitHover();
-            searchGrid.GestureRecognizers.Add(pSearch);
-
-            row.Add(searchGrid, 0, 0);
-            row.Add(del, 1, 0);
-            HistoryItemsLayout.Children.Add(row);
-
-            // Divider between items
-            if (i < items.Count - 1)
-                HistoryItemsLayout.Children.Add(new BoxView
-                {
-                    HeightRequest = 1,
-                    BackgroundColor = Color.FromArgb("#f3f4f6"),
-                    Margin = new Thickness(10, 0)
-                });
-        }
-    }
-
-    private void UpdateHistoryHeader()
-    {
-        var hasItems = SearchHistoryService.Instance.Items.Count > 0;
-        HistoryHeaderRow.IsVisible = hasItems;
-        if (!hasItems)
-        {
-            _historyExpanded = false;
-            HistoryDropdown.IsVisible = false;
-            HistoryChevron.Text = "▾";
-        }
-    }
+    private void UpdateHistoryHeader() { }
 
     // ── Session stats ─────────────────────────────────────────────────────────
 
@@ -1997,6 +2041,151 @@ public partial class OrderSearchPage : ContentPage
         }
     }
 
+    // ── Scan indicator ────────────────────────────────────────────────────────
+
+    private void UpdateScanIndicator(string barcode, bool found)
+    {
+        _lastScanBarcode = barcode;
+        _lastScanFound = found;
+        _lastScanTime = DateTime.Now;
+        StartLastScanTimer();
+        UpdateScanIndicatorUI();
+    }
+
+    private IDispatcherTimer? _scanAlertRevertTimer;
+
+    private void UpdateScanIndicatorUI()
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (_lastScanBarcode == null) return;
+
+            // Configure alert pill colors and message
+            if (_lastScanFound)
+            {
+                HeaderScanAlert.BackgroundColor = Color.FromArgb("#059669");
+                ScanAlertSkuLabel.Text = _lastScanBarcode;
+                ScanAlertMessage.Text = "✓ SKU Verified";
+            }
+            else
+            {
+                HeaderScanAlert.BackgroundColor = Color.FromArgb("#e11d48");
+                ScanAlertSkuLabel.Text = _lastScanBarcode;
+                ScanAlertMessage.Text = "⚠ Not in this order";
+            }
+
+            // Swap: hide order info, show scan alert with drop-in animation
+            _ = ShowScanAlertAsync();
+
+            // Auto-revert after 1.5s for success, 3s for error
+            _scanAlertRevertTimer?.Stop();
+            _scanAlertRevertTimer = Dispatcher.CreateTimer();
+            _scanAlertRevertTimer.Interval = TimeSpan.FromMilliseconds(_lastScanFound ? 1500 : 3000);
+            _scanAlertRevertTimer.IsRepeating = false;
+            _scanAlertRevertTimer.Tick += (_, _) => _ = HideScanAlertAsync();
+            _scanAlertRevertTimer.Start();
+        });
+    }
+
+    private async Task ShowScanAlertAsync()
+    {
+        HeaderScanAlert.IsVisible = true;
+        HeaderScanAlert.TranslationY = -10;
+        HeaderScanAlert.Opacity = 0;
+
+        await Task.WhenAll(
+            HeaderOrderInfo.FadeToAsync(0, 150, Easing.SinIn),
+            HeaderScanAlert.TranslateToAsync(0, 0, 250, Easing.SinOut),
+            HeaderScanAlert.FadeToAsync(1.0, 250, Easing.SinOut));
+
+        HeaderOrderInfo.IsVisible = false;
+    }
+
+    private async Task HideScanAlertAsync()
+    {
+        await MainThread.InvokeOnMainThreadAsync(async () =>
+        {
+            HeaderOrderInfo.IsVisible = true;
+            HeaderOrderInfo.Opacity = 0;
+
+            await Task.WhenAll(
+                HeaderScanAlert.FadeToAsync(0, 200, Easing.SinIn),
+                HeaderOrderInfo.FadeToAsync(1.0, 250, Easing.SinOut));
+
+            HeaderScanAlert.IsVisible = false;
+        });
+    }
+
+    private void StartLastScanTimer()
+    {
+        _lastScanTimer?.Stop();
+        _lastScanTimer = Dispatcher.CreateTimer();
+        _lastScanTimer.Interval = TimeSpan.FromSeconds(1);
+        _lastScanTimer.IsRepeating = true;
+        _lastScanTimer.Tick += OnLastScanTimerTick;
+        _lastScanTimer.Start();
+    }
+
+    private void OnLastScanTimerTick(object? sender, EventArgs e)
+    {
+        if (_lastScanTime is null) return;
+        var elapsed = DateTime.Now - _lastScanTime.Value;
+        var text = elapsed.TotalSeconds < 60
+            ? $"Last scan {(int)elapsed.TotalSeconds}s ago"
+            : $"Last scan {(int)elapsed.TotalMinutes}m ago";
+        MainThread.BeginInvokeOnMainThread(() => { if (LastScanLabel != null) LastScanLabel.Text = text; });
+    }
+
+    private void OnProductRowTapped(object sender, TappedEventArgs e)
+    {
+        if (sender is not VisualElement el) return;
+        if (el.BindingContext is not ProductItem item) return;
+        ShowProductImageOverlay(item);
+    }
+
+    // ── +/- button handlers ──────────────────────────────────────────────────
+
+    private void OnPlusClicked(object sender, EventArgs e)
+    {
+        if (sender is not VisualElement el || el.BindingContext is not ProductItem item) return;
+        if (item.Quantity <= 0) return; // already fully verified
+
+        PackingList? order = null;
+        foreach (var o in Results)
+            if (o.ParsedProducts.Contains(item)) { order = o; break; }
+        if (order == null) return;
+
+        bool isQcPassed = _completedPackingIds.Contains(order.PackingId)
+            || string.Equals(order.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase);
+        if (isQcPassed) { UpdateSearchStatus($"Order {order.TrackingNumber} is QC Passed — no changes allowed"); return; }
+
+        if (_pendingSkuProduct != null && _pendingSkuProduct != item)
+            ApplySkuDeduction(_pendingSkuProduct, "1", DeductionSource.AutoPrior);
+
+        SetActiveProduct(item);
+        ApplySkuDeduction(item, "1", DeductionSource.CardTap);
+    }
+
+    private void OnMinusClicked(object sender, EventArgs e)
+    {
+        if (sender is not VisualElement el || el.BindingContext is not ProductItem item) return;
+        if (item.Quantity >= item.RequiredQuantity) return; // already at 0 verified
+
+        PackingList? order = null;
+        foreach (var o in Results)
+            if (o.ParsedProducts.Contains(item)) { order = o; break; }
+        if (order == null) return;
+
+        bool isQcPassed = _completedPackingIds.Contains(order.PackingId)
+            || string.Equals(order.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase);
+        if (isQcPassed) { UpdateSearchStatus($"Order {order.TrackingNumber} is QC Passed — no changes allowed"); return; }
+
+        item.Quantity += 1;
+        item.OrderQcContext = "QC Hold";
+        UpdateSearchStatus($"{item.SellerSku} — unverified, {item.VerifiedQuantity}/{item.RequiredQuantity}");
+        _ = CheckAndSaveQcStatusAsync();
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     // ── Operator UI ──────────────────────────────────────────────────────────
@@ -2009,9 +2198,132 @@ public partial class OrderSearchPage : ContentPage
         }
         else
         {
-            NavOperatorLabel.Text = displayName;
+            HeaderComputerOperatorLabel.Text = $"{StationName} · {displayName.ToUpperInvariant()}";
             OperatorHeaderBadge.IsVisible = true;
         }
+    }
+
+    private void OnModeBadgeTapped(object sender, TappedEventArgs e)
+    {
+        ModeDropdownBackdrop.IsVisible = !ModeDropdownBackdrop.IsVisible;
+    }
+
+    private void OnModeDropdownBackdropTapped(object? sender, TappedEventArgs e)
+    {
+        ModeDropdownBackdrop.IsVisible = false;
+    }
+
+    private void OnModeSelectQC(object? sender, TappedEventArgs e)
+    {
+        ApplyMode(AppMode.QC);
+        ModeDropdownBackdrop.IsVisible = false;
+    }
+
+    private static string GetModeDisplayName(AppMode mode) => mode switch
+    {
+        AppMode.QC => "QC",
+        _ => mode.ToString(),
+    };
+
+    private void ApplyMode(AppMode mode)
+    {
+        _currentMode = mode;
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            ModeLabel.Text = GetModeDisplayName(mode);
+        });
+    }
+
+    private void OnSearchBoxTapped(object? sender, TappedEventArgs e)
+    {
+        ActivateSearchEntry();
+    }
+
+    private void ActivateSearchEntry()
+    {
+        PopupSearchBar.IsVisible = true;
+        PopupSearchBackdrop.IsVisible = true;
+        PopupSearchEntry.Text = "";
+        PopupSearchEntry.Focus();
+    }
+
+    private async void OnPopupSearchCommitted(object sender, EventArgs e)
+    {
+        var query = PopupSearchEntry.Text?.Trim() ?? "";
+        DismissPopupSearch();
+        if (!string.IsNullOrWhiteSpace(query))
+            await ExecuteSearchAsync(query, trigger: "manual_search");
+    }
+
+    private void OnPopupSearchBackdropTapped(object? sender, TappedEventArgs e)
+    {
+        DismissPopupSearch();
+    }
+
+    private void DismissPopupSearch()
+    {
+        PopupSearchBar.IsVisible = false;
+        PopupSearchBackdrop.IsVisible = false;
+        PopupSearchEntry.Unfocus();
+    }
+
+    private void OnSearchEntryFocused(object? sender, FocusEventArgs e) { }
+
+    private void OnSearchEntryUnfocused(object? sender, FocusEventArgs e) { }
+
+    private void UpdateHeaderOrderInfo()
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            var order = Results.FirstOrDefault();
+            CurrentOrder = order;
+            if (order is null)
+            {
+                HeaderOrderLabel.IsVisible = false;
+                HeaderOrderNumber.IsVisible = false;
+                HeaderPlatformBadge.IsVisible = false;
+                HeaderTrackingLabel.IsVisible = false;
+                return;
+            }
+
+            HeaderOrderLabel.IsVisible = true;
+            HeaderOrderLabel.Text = "ORDER";
+            HeaderOrderNumber.IsVisible = true;
+            HeaderOrderNumber.Text = order.OrderNumber;
+
+            if (!string.IsNullOrWhiteSpace(order.Platform))
+            {
+                HeaderPlatformBadge.IsVisible = true;
+                HeaderPlatformLabel.Text = order.Platform.ToUpperInvariant();
+                var platformLower = order.Platform.ToLowerInvariant();
+                HeaderPlatformBadge.BackgroundColor = platformLower switch
+                {
+                    var p when p.Contains("shopee") => Color.FromArgb("#ee4d2d"),
+                    var p when p.Contains("lazada") => Color.FromArgb("#0f146d"),
+                    var p when p.Contains("tiktok") => Color.FromArgb("#111827"),
+                    _ => Color.FromArgb("#6b7280"),
+                };
+            }
+            else
+            {
+                HeaderPlatformBadge.IsVisible = false;
+            }
+
+            HeaderTrackingLabel.IsVisible = true;
+            HeaderTrackingLabel.Text = order.TrackingNumber;
+
+            var isQcHold = string.Equals(order.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(order.PackingStatus, "Packed", StringComparison.OrdinalIgnoreCase);
+            ResetButton.IsVisible = isQcHold;
+        });
+    }
+
+    private void OnResetButtonTapped(object sender, TappedEventArgs e)
+    {
+        if (CurrentOrder == null) return;
+        var fakeEl = new Label { BindingContext = CurrentOrder };
+        OnResetClicked(fakeEl, EventArgs.Empty);
+        ResetButton.IsVisible = false;
     }
 
     private void ShowLoginOverlay() =>
@@ -2069,14 +2381,84 @@ public partial class OrderSearchPage : ContentPage
         Logger.Log($"OrderSearch: Operator logged out (inactivity)");
     }
 
-    private void UpdateScannerStatus(string msg) =>
-        MainThread.BeginInvokeOnMainThread(() => ScannerStatusLabel.Text = msg);
+    private enum ComState { Disconnected, Open, Ready }
+
+    private void UpdateScannerStatus(string msg)
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            var state = msg.Contains("ready", StringComparison.OrdinalIgnoreCase)
+                ? ComState.Ready
+                : msg.Contains("error", StringComparison.OrdinalIgnoreCase) || msg.Contains("No scanner")
+                    ? ComState.Disconnected
+                    : ComState.Open;
+            ApplyComStateVisuals(state);
+        });
+    }
+
+    private void ApplyComStateVisuals(ComState state)
+    {
+        var (color, label, opacity) = state switch
+        {
+            ComState.Ready => (Color.FromArgb("#4ade80"), "ready", 0.9),        // green
+            ComState.Open => (Color.FromArgb("#facc15"), "no data", 0.7),       // yellow
+            _ => (Color.FromArgb("#ef4444"), "disconnected", 0.5),              // red
+        };
+        ScannerStatusDot.TextColor = color;
+        HeaderComStatusLabel.Text = label;
+        HeaderComStatusLabel.Opacity = opacity;
+    }
+
+    private void StartComHeartbeatTimer()
+    {
+        _comHeartbeatTimer?.Stop();
+        Interlocked.Exchange(ref _lastSerialDataTicks, DateTime.UtcNow.Ticks);
+        _comHeartbeatTimer = Dispatcher.CreateTimer();
+        _comHeartbeatTimer.Interval = TimeSpan.FromSeconds(10);
+        _comHeartbeatTimer.Tick += (_, _) =>
+        {
+            if (_serialPort is not { IsOpen: true })
+            {
+                ApplyComStateVisuals(ComState.Disconnected);
+                _comHeartbeatTimer?.Stop();
+                return;
+            }
+            var lastTicks = Interlocked.Read(ref _lastSerialDataTicks);
+            var elapsed = DateTime.UtcNow - new DateTime(lastTicks, DateTimeKind.Utc);
+            if (elapsed > TimeSpan.FromSeconds(30))
+                ApplyComStateVisuals(ComState.Open);
+        };
+        _comHeartbeatTimer.Start();
+    }
+
+    private void StopComHeartbeatTimer()
+    {
+        _comHeartbeatTimer?.Stop();
+        _comHeartbeatTimer = null;
+    }
 
     private void UpdateOverlayScannerStatus(string msg) =>
         MainThread.BeginInvokeOnMainThread(() => OverlayScannerStatusLabel.Text = msg);
 
-    private void UpdateSearchStatus(string msg) =>
-        MainThread.BeginInvokeOnMainThread(() => SearchStatusLabel.Text = msg);
+    private IDispatcherTimer? _statusRevertTimer;
+    private void UpdateSearchStatus(string msg)
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            StatusLabel.Text = msg;
+            StatusLabel.Opacity = 1;
+
+            _statusRevertTimer?.Stop();
+            _statusRevertTimer = Dispatcher.CreateTimer();
+            _statusRevertTimer.Interval = TimeSpan.FromMilliseconds(4000);
+            _statusRevertTimer.IsRepeating = false;
+            _statusRevertTimer.Tick += (_, _) =>
+            {
+                _ = StatusLabel.FadeToAsync(0, 500, Easing.SinIn);
+            };
+            _statusRevertTimer.Start();
+        });
+    }
 
     private static Task<List<ComPortEntry>> GetFriendlyComPortsAsync() => Task.Run(() =>
     {

@@ -118,333 +118,640 @@
         </ResourceDictionary>
     </ContentPage.Resources>
 
-    <Grid RowDefinitions="Auto, Auto, Auto, *">
+    <Grid RowDefinitions="Auto, Auto, Auto, *, Auto">
 
         <!-- Header bar -->
         <Grid Grid.Row="0"
+              ColumnDefinitions="Auto, *, Auto"
               BackgroundColor="{StaticResource Primary}"
-              Padding="16,10">
+              Padding="12,7">
 
-            <!-- Left: Home + operator badge (visible after login) -->
-            <HorizontalStackLayout HorizontalOptions="Start"
-                                   Spacing="12"
+            <!-- Left: Home button + mode selector -->
+            <HorizontalStackLayout Grid.Column="0"
+                                   Spacing="10"
                                    VerticalOptions="Center">
                 <Button Text="⌂ Home"
                         Clicked="OnGoHome"
                         Style="{StaticResource NavOutlineButton}"/>
-                <Border x:Name="OperatorHeaderBadge"
-                        IsVisible="False"
-                        BackgroundColor="#1e3a5f"
-                        Stroke="#3b82f6"
+                <Border x:Name="ModeBadge"
+                        BackgroundColor="#1Affffff"
+                        Stroke="#30ffffff"
                         StrokeThickness="1"
                         StrokeShape="RoundRectangle 6"
-                        Padding="12,5">
-                    <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
-                        <BoxView x:Name="NavOperatorDot"
-                                 WidthRequest="8"
-                                 HeightRequest="8"
-                                 Color="#4ade80"
-                                 CornerRadius="4"
-                                 VerticalOptions="Center"/>
-                        <Label x:Name="NavOperatorLabel"
-                               Text=""
+                        Padding="12,6"
+                        VerticalOptions="Center">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnModeBadgeTapped"/>
+                    </Border.GestureRecognizers>
+                    <HorizontalStackLayout Spacing="6">
+                        <Label Text="MODE"
+                               TextColor="#94a3b8"
+                               FontSize="10"
+                               VerticalOptions="Center"/>
+                        <Label x:Name="ModeLabel"
+                               Text="QC"
                                TextColor="White"
-                               FontSize="18"
+                               FontSize="12"
                                FontAttributes="Bold"
+                               VerticalOptions="Center"/>
+                        <Label Text="▾"
+                               TextColor="#94a3b8"
+                               FontSize="10"
                                VerticalOptions="Center"/>
                     </HorizontalStackLayout>
                 </Border>
             </HorizontalStackLayout>
 
-            <Label Text="Order Search"
-                   TextColor="White"
-                   FontSize="20"
-                   FontAttributes="Bold"
-                   HorizontalOptions="Center"
-                   VerticalOptions="Center"/>
-
-            <!-- Right: station info + action buttons -->
-            <HorizontalStackLayout HorizontalOptions="End"
-                                   Spacing="12"
-                                   VerticalOptions="Center">
-                <Label Text="{Binding StationNameDisplay}"
-                       TextColor="White"
-                       FontSize="13"
-                       FontAttributes="Bold"
-                       VerticalOptions="Center"/>
-                <Button Text="Open Logs"
-                        Clicked="OnOpenLogs"
-                        Style="{StaticResource NavOutlineButton}"/>
-                <Button Text="⚙ Settings"
-                        Clicked="OnOpenSettings"
-                        Style="{StaticResource NavOutlineButton}"/>
-            </HorizontalStackLayout>
-
-        </Grid>
-
-        <!-- Fixed top bar: Scanner (1/3) + Search (2/3) -->
-        <Grid Grid.Row="1"
-              ColumnDefinitions="*, 2*"
-              ColumnSpacing="12"
-              BackgroundColor="#f3f4f6"
-              Padding="24,8,24,6">
-
-            <!-- Scanner card -->
-            <Border Grid.Column="0"
-                    Stroke="#d1d5db"
-                    StrokeThickness="1"
-                    StrokeShape="RoundRectangle 8"
-                    BackgroundColor="White"
-                    Padding="10,6">
-                <VerticalStackLayout Spacing="4">
-                    <Label Text="Barcode Scanner"
+            <!-- Center: swappable order info ↔ scan alert -->
+            <Grid Grid.Column="1"
+                  HorizontalOptions="Fill"
+                  VerticalOptions="Center">
+                <!-- Default: order metadata -->
+                <HorizontalStackLayout x:Name="HeaderOrderInfo"
+                                       HorizontalOptions="Center"
+                                       Spacing="12"
+                                       VerticalOptions="Center">
+                    <Label x:Name="HeaderOrderLabel"
+                           Text="ORDER"
+                           TextColor="#94a3b8"
+                           FontSize="15"
                            FontAttributes="Bold"
-                           FontSize="12"
-                           TextColor="#111827"/>
-                    <Grid ColumnDefinitions="*, Auto"
-                          ColumnSpacing="8">
-                        <Picker x:Name="ComPortPicker"
-                                Grid.Column="0"
-                                Title="Select COM port"
-                                SelectedIndexChanged="OnComPortSelected"
-                                FontSize="12"/>
-                        <Button Grid.Column="1"
-                                Text="Refresh"
-                                Clicked="OnRefreshPorts"
-                                Style="{StaticResource HoverButton}"
-                                WidthRequest="72"
-                                FontSize="12"
-                                Padding="0,6"/>
-                    </Grid>
-                    <Label x:Name="ScannerStatusLabel"
-                           Text="No scanner connected"
-                           FontSize="11"
-                           TextColor="#6b7280"
-                           MinimumHeightRequest="16"/>
-                </VerticalStackLayout>
-            </Border>
-
-            <!-- Search card -->
-            <Border Grid.Column="1"
-                    Stroke="#d1d5db"
-                    StrokeThickness="1"
-                    StrokeShape="RoundRectangle 8"
-                    BackgroundColor="White"
-                    Padding="10,6">
-                <VerticalStackLayout Spacing="4">
-                    <Label Text="Search"
+                           VerticalOptions="Center"
+                           IsVisible="False"/>
+                    <Label x:Name="HeaderOrderNumber"
+                           Text=""
+                           TextColor="White"
+                           FontSize="17"
                            FontAttributes="Bold"
-                           FontSize="12"
-                           TextColor="#111827"/>
-                    <Grid ColumnDefinitions="*, Auto"
-                          ColumnSpacing="8">
-                        <Entry x:Name="SearchEntry"
-                               Grid.Column="0"
-                               Placeholder="Tracking or order number…"
+                           VerticalOptions="Center"
+                           IsVisible="False"/>
+                    <Border x:Name="HeaderPlatformBadge"
+                            IsVisible="False"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 4"
+                            Padding="10,3">
+                        <Label x:Name="HeaderPlatformLabel"
+                               Text=""
+                               TextColor="White"
                                FontSize="13"
+                               FontAttributes="Bold"
+                               VerticalOptions="Center"/>
+                    </Border>
+                    <Label x:Name="HeaderTrackingLabel"
+                           Text=""
+                           TextColor="White"
+                           FontSize="17"
+                           VerticalOptions="Center"
+                           IsVisible="False"/>
+                </HorizontalStackLayout>
+
+                <!-- Scan alert pill (hidden by default, shown on scan events) -->
+                <Border x:Name="HeaderScanAlert"
+                        IsVisible="False"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 16"
+                        Padding="14,6"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center"
+                        Opacity="0">
+                    <HorizontalStackLayout Spacing="8"
+                                           VerticalOptions="Center">
+                        <Label x:Name="ScanAlertIcon"
+                               Text="SCAN"
+                               FontSize="9"
+                               FontAttributes="Bold"
+                               TextColor="White"
+                               Opacity="0.8"
+                               VerticalOptions="Center"/>
+                        <Border x:Name="ScanAlertSkuBadge"
+                                BackgroundColor="#20ffffff"
+                                StrokeThickness="0"
+                                StrokeShape="RoundRectangle 4"
+                                Padding="6,2">
+                            <Label x:Name="ScanAlertSkuLabel"
+                                   Text=""
+                                   FontSize="12"
+                                   FontAttributes="Bold"
+                                   FontFamily="Consolas"
+                                   TextColor="White"
+                                   VerticalOptions="Center"/>
+                        </Border>
+                        <Label x:Name="ScanAlertMessage"
+                               Text=""
+                               FontSize="12"
+                               FontAttributes="Bold"
+                               TextColor="White"
+                               VerticalOptions="Center"/>
+                    </HorizontalStackLayout>
+                </Border>
+            </Grid>
+
+            <!-- Right: search → COM status → operator -->
+            <HorizontalStackLayout Grid.Column="2"
+                                   Spacing="10"
+                                   VerticalOptions="Center">
+
+                <!-- Command-palette search trigger (physical-key style) -->
+                <Border x:Name="SearchBoxBorder"
+                        BackgroundColor="#33ffffff"
+                        Stroke="#4Dffffff"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 8"
+                        Padding="8,4"
+                        HeightRequest="34"
+                        VerticalOptions="Center">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnSearchBoxTapped"/>
+                    </Border.GestureRecognizers>
+                    <HorizontalStackLayout Spacing="8"
+                                           VerticalOptions="Center">
+                        <!-- "/" keycap with 3D shadow effect -->
+                        <Border x:Name="SearchSlashHint"
+                                BackgroundColor="#7c6bc4"
+                                Stroke="Transparent"
+                                StrokeThickness="0"
+                                StrokeShape="RoundRectangle 6"
+                                Padding="0"
+                                HeightRequest="24"
+                                WidthRequest="24"
+                                VerticalOptions="Center">
+                            <Border.Shadow>
+                                <Shadow Brush="#33000000"
+                                        Offset="0,2"
+                                        Radius="0"/>
+                            </Border.Shadow>
+                            <Label Text="/"
+                                   TextColor="White"
+                                   FontSize="13"
+                                   FontAttributes="Bold"
+                                   HorizontalTextAlignment="Center"
+                                   VerticalTextAlignment="Center"/>
+                        </Border>
+                        <Label x:Name="SearchPlaceholderLabel"
+                               Text="search"
+                               TextColor="White"
+                               FontSize="13"
+                               FontFamily="Segoe UI"
+                               VerticalOptions="Center"/>
+                        <!-- Hidden entry (popup handles actual input) -->
+                        <Entry x:Name="HeaderSearchEntry"
+                               IsVisible="False"
+                               TextColor="White"
+                               FontSize="13"
+                               BackgroundColor="Transparent"
+                               PlaceholderColor="#60ffffff"
                                ReturnType="Search"
                                Completed="OnSearchCommitted"
-                               VerticalOptions="Center"/>
-                        <Button Grid.Column="1"
-                                Text="Search"
-                                Clicked="OnSearchClicked"
-                                Style="{StaticResource HoverButton}"
-                                WidthRequest="80"
-                                FontSize="13"
-                                Padding="0,6"/>
-                    </Grid>
-                    <Label x:Name="SearchStatusLabel"
-                           Text=" "
-                           FontSize="11"
+                               Focused="OnSearchEntryFocused"
+                               Unfocused="OnSearchEntryUnfocused"
+                               WidthRequest="0"
+                               HeightRequest="0"/>
+                    </HorizontalStackLayout>
+                </Border>
+
+                <Label Text="|"
+                       TextColor="#40ffffff"
+                       FontSize="16"
+                       VerticalOptions="Center"/>
+
+                <!-- COM port status (read-only, selected at login) -->
+                <HorizontalStackLayout Spacing="5"
+                                       VerticalOptions="Center">
+                    <Label x:Name="ScannerStatusDot"
+                           Text="●"
+                           FontSize="10"
                            TextColor="#6b7280"
-                           MinimumHeightRequest="16"/>
+                           VerticalOptions="Center"/>
+                    <Label x:Name="HeaderComPortLabel"
+                           Text=""
+                           TextColor="White"
+                           FontSize="12"
+                           VerticalOptions="Center"/>
+                    <Label Text="·"
+                           TextColor="White"
+                           FontSize="12"
+                           VerticalOptions="Center"
+                           Opacity="0.5"/>
+                    <Label x:Name="HeaderComStatusLabel"
+                           Text="disconnected"
+                           TextColor="White"
+                           FontSize="12"
+                           VerticalOptions="Center"
+                           Opacity="0.7"/>
+                </HorizontalStackLayout>
 
-                    <!-- History header — hidden when list is empty -->
-                    <Grid x:Name="HistoryHeaderRow"
-                          ColumnDefinitions="*, Auto"
-                          IsVisible="False"
-                          Margin="0,4,0,0">
-                        <Label Grid.Column="0"
-                               Text="Recent searches"
-                               FontSize="11"
-                               TextColor="#9ca3af"
-                               VerticalOptions="Center"/>
-                        <HorizontalStackLayout Grid.Column="1"
-                                               Spacing="12"
-                                               VerticalOptions="Center">
-                            <Label Text="Clear all"
-                                   FontSize="11"
-                                   TextColor="#6b7280"
-                                   VerticalOptions="Center">
-                                <Label.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnHistoryClearAll"/>
-                                </Label.GestureRecognizers>
-                            </Label>
-                            <Label x:Name="HistoryChevron"
-                                   Text="▾"
-                                   FontSize="11"
-                                   TextColor="#6b7280"
-                                   VerticalOptions="Center">
-                                <Label.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnHistoryToggle"/>
-                                </Label.GestureRecognizers>
-                            </Label>
-                        </HorizontalStackLayout>
-                    </Grid>
+                <Label Text="|"
+                       TextColor="#40ffffff"
+                       FontSize="16"
+                       VerticalOptions="Center"/>
 
-                    <!-- History dropdown — collapsed by default, populated in code-behind -->
-                    <Border x:Name="HistoryDropdown"
-                            IsVisible="False"
-                            Stroke="#e5e7eb"
-                            StrokeThickness="1"
-                            StrokeShape="RoundRectangle 8"
-                            BackgroundColor="White"
-                            Padding="0"
-                            Margin="0,4,0,0">
-                        <ScrollView MaximumHeightRequest="220">
-                            <VerticalStackLayout x:Name="HistoryItemsLayout"
-                                                 Spacing="0"
-                                                 Padding="4,4"/>
-                        </ScrollView>
-                    </Border>
+                <!-- Computer · Operator -->
+                <Border x:Name="OperatorHeaderBadge"
+                        IsVisible="False"
+                        BackgroundColor="Transparent"
+                        Stroke="Transparent"
+                        Padding="0">
+                    <Label x:Name="HeaderComputerOperatorLabel"
+                           Text=""
+                           TextColor="White"
+                           FontSize="13"
+                           VerticalOptions="Center"/>
+                </Border>
+            </HorizontalStackLayout>
 
-                </VerticalStackLayout>
-            </Border>
+            <!-- Hidden COM port picker (managed by login overlay, referenced by code-behind) -->
+            <Picker x:Name="ComPortPicker"
+                    IsVisible="False"
+                    SelectedIndexChanged="OnComPortSelected"
+                    WidthRequest="0"
+                    HeightRequest="0"/>
 
         </Grid>
 
-        <!-- ── Session card + carousel (same row) ────── -->
-        <Grid Grid.Row="2"
-              ColumnDefinitions="Auto, *"
-              ColumnSpacing="12"
-              BackgroundColor="#f3f4f6"
-              Padding="24,0,24,6">
-
-            <!-- Left: session status card (in-memory counters) -->
-            <Border x:Name="SessionCard"
-                    Grid.Column="0"
-                    Stroke="#d1d5db"
+        <!-- Mode dropdown popover -->
+        <Grid x:Name="ModeDropdownBackdrop"
+              Grid.Row="0"
+              Grid.RowSpan="5"
+              BackgroundColor="Transparent"
+              IsVisible="False"
+              ZIndex="20"
+              InputTransparent="False">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnModeDropdownBackdropTapped"/>
+            </Grid.GestureRecognizers>
+            <Border x:Name="ModeDropdownCard"
+                    HorizontalOptions="Start"
+                    VerticalOptions="Start"
+                    Margin="80,48,0,0"
+                    Stroke="#e5e7eb"
                     StrokeThickness="1"
-                    StrokeShape="RoundRectangle 8"
+                    StrokeShape="RoundRectangle 6"
                     BackgroundColor="White"
-                    Padding="10,6">
-                <VerticalStackLayout Spacing="8">
-                    <Grid ColumnDefinitions="*, Auto">
-                        <Label Grid.Column="0"
-                               Text="Session"
-                               FontAttributes="Bold"
-                               FontSize="13"
-                               TextColor="#111827"
-                               VerticalOptions="Center"/>
-                        <HorizontalStackLayout Grid.Column="1"
-                                               Spacing="3"
-                                               VerticalOptions="Center">
-                            <Label x:Name="SessionTotalLabel"
-                                   Text="0"
-                                   FontSize="15"
+                    Padding="0"
+                    WidthRequest="220"
+                    InputTransparent="False">
+                <Border.Shadow>
+                    <Shadow Brush="#26000000"
+                            Offset="0,4"
+                            Radius="12"/>
+                </Border.Shadow>
+                <VerticalStackLayout Spacing="0"
+                                     Padding="8">
+                    <!-- QC mode (active) -->
+                    <Border BackgroundColor="#f5f5ff"
+                            Stroke="Transparent"
+                            StrokeShape="RoundRectangle 6"
+                            Padding="16">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnModeSelectQC"/>
+                        </Border.GestureRecognizers>
+                        <Grid ColumnDefinitions="*, Auto">
+                            <VerticalStackLayout Grid.Column="0"
+                                                 Spacing="4">
+                                <Label Text="QC"
+                                       TextColor="#4338ca"
+                                       FontSize="15"
+                                       FontAttributes="Bold"/>
+                                <Label Text="scan &amp; verify"
+                                       TextColor="#9ca3af"
+                                       FontSize="11"
+                                       FontFamily="Consolas"/>
+                            </VerticalStackLayout>
+                            <Label Grid.Column="1"
+                                   Text="✓"
+                                   TextColor="#4338ca"
+                                   FontSize="16"
                                    FontAttributes="Bold"
-                                   TextColor="#111827"
                                    VerticalOptions="Center"/>
-                            <Label Text="orders"
-                                   FontSize="11"
+                        </Grid>
+                    </Border>
+                    <!-- Cancel mode (disabled / coming soon) -->
+                    <Border BackgroundColor="Transparent"
+                            Stroke="Transparent"
+                            StrokeShape="RoundRectangle 6"
+                            Padding="16"
+                            Opacity="0.5"
+                            InputTransparent="True">
+                        <VerticalStackLayout Spacing="4">
+                            <Label Text="Cancel"
                                    TextColor="#6b7280"
-                                   VerticalOptions="End"
-                                   Margin="0,0,0,1"/>
-                        </HorizontalStackLayout>
-                    </Grid>
-                    <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                                   FontSize="15"/>
+                            <Label Text="coming soon"
+                                   TextColor="#cccccc"
+                                   FontSize="11"
+                                   FontFamily="Consolas"/>
+                        </VerticalStackLayout>
+                    </Border>
+                </VerticalStackLayout>
+            </Border>
+        </Grid>
 
-                        <!-- Green: Completed (QC Passed) -->
+        <!-- Row 1: collapsed (metadata removed) -->
+        <Grid Grid.Row="1"
+              HeightRequest="0"
+              IsVisible="False"/>
+
+        <!-- ── History section: stats + carousel (unified belt) ────── -->
+        <Border Grid.Row="2"
+                BackgroundColor="White"
+                Stroke="#e5e7eb"
+                StrokeThickness="1"
+                StrokeShape="RoundRectangle 0"
+                Margin="0">
+            <VerticalStackLayout Spacing="0">
+
+                <!-- History belt: stats pills + carousel -->
+                <Grid ColumnDefinitions="Auto, Auto, Auto, *, Auto, Auto"
+                      ColumnSpacing="0">
+
+                    <Label x:Name="SessionTotalLabel"
+                           IsVisible="False"
+                           Text="0"/>
+
+                    <!-- Summary stats pills -->
+                    <HorizontalStackLayout Grid.Column="0"
+                                           Spacing="4"
+                                           VerticalOptions="Center"
+                                           Padding="6,0">
+                        <!-- Green: Completed -->
                         <Border x:Name="SessionCompletedBadge"
                                 BackgroundColor="#f0fdf4"
                                 Stroke="#bbf7d0"
                                 StrokeThickness="1"
-                                StrokeShape="RoundRectangle 8"
-                                Padding="10,6">
+                                StrokeShape="RoundRectangle 4"
+                                Padding="8,4">
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnSessionCompletedBadgeTapped"/>
                             </Border.GestureRecognizers>
-                            <HorizontalStackLayout Spacing="5" VerticalOptions="Center">
-                                <BoxView WidthRequest="7" HeightRequest="7"
-                                         Color="#166534" CornerRadius="3.5" VerticalOptions="Center"/>
+                            <HorizontalStackLayout Spacing="4"
+                                                   VerticalOptions="Center">
+                                <BoxView WidthRequest="6"
+                                         HeightRequest="6"
+                                         Color="#16a34a"
+                                         CornerRadius="3"
+                                         VerticalOptions="Center"/>
                                 <Label x:Name="SessionCompletedLabel"
-                                       Text="0" FontSize="18" FontAttributes="Bold"
-                                       TextColor="#166534" VerticalOptions="Center"/>
-                                <Label Text="Completed" FontSize="10"
-                                       TextColor="#166534" VerticalOptions="End" Margin="0,0,0,1"/>
+                                       Text="0"
+                                       FontSize="12"
+                                       FontAttributes="Bold"
+                                       TextColor="#166534"
+                                       VerticalOptions="Center"/>
+                                <Label Text="Completed"
+                                       FontSize="10"
+                                       TextColor="#6b7280"
+                                       VerticalOptions="Center"/>
                             </HorizontalStackLayout>
                         </Border>
-
-                        <!-- Yellow: Incompleted (QC Hold) -->
+                        <!-- Orange: Incompleted -->
                         <Border x:Name="SessionIncompleteBadge"
                                 BackgroundColor="#fffbeb"
                                 Stroke="#fde68a"
                                 StrokeThickness="1"
-                                StrokeShape="RoundRectangle 8"
-                                Padding="10,6">
+                                StrokeShape="RoundRectangle 4"
+                                Padding="8,4">
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnSessionIncompleteBadgeTapped"/>
                             </Border.GestureRecognizers>
-                            <HorizontalStackLayout Spacing="5" VerticalOptions="Center">
-                                <BoxView WidthRequest="7" HeightRequest="7"
-                                         Color="#b45309" CornerRadius="3.5" VerticalOptions="Center"/>
+                            <HorizontalStackLayout Spacing="4"
+                                                   VerticalOptions="Center">
+                                <BoxView WidthRequest="6"
+                                         HeightRequest="6"
+                                         Color="#d97706"
+                                         CornerRadius="3"
+                                         VerticalOptions="Center"/>
                                 <Label x:Name="SessionIncompleteLabel"
-                                       Text="0" FontSize="18" FontAttributes="Bold"
-                                       TextColor="#b45309" VerticalOptions="Center"/>
-                                <Label Text="Incompleted" FontSize="10"
-                                       TextColor="#b45309" VerticalOptions="End" Margin="0,0,0,1"/>
+                                       Text="0"
+                                       FontSize="12"
+                                       FontAttributes="Bold"
+                                       TextColor="#b45309"
+                                       VerticalOptions="Center"/>
+                                <Label Text="Incompleted"
+                                       FontSize="10"
+                                       TextColor="#6b7280"
+                                       VerticalOptions="Center"/>
                             </HorizontalStackLayout>
                         </Border>
-
-                        <!-- Blue: Incoming (tracking scanned, no items picked) -->
+                        <!-- Blue: Incoming -->
                         <Border x:Name="SessionIncomingBadge"
                                 BackgroundColor="#eff6ff"
                                 Stroke="#bfdbfe"
                                 StrokeThickness="1"
-                                StrokeShape="RoundRectangle 8"
-                                Padding="10,6">
+                                StrokeShape="RoundRectangle 4"
+                                Padding="8,4">
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnSessionIncomingBadgeTapped"/>
                             </Border.GestureRecognizers>
-                            <HorizontalStackLayout Spacing="5" VerticalOptions="Center">
-                                <BoxView WidthRequest="7" HeightRequest="7"
-                                         Color="#1d4ed8" CornerRadius="3.5" VerticalOptions="Center"/>
+                            <HorizontalStackLayout Spacing="4"
+                                                   VerticalOptions="Center">
+                                <BoxView WidthRequest="6"
+                                         HeightRequest="6"
+                                         Color="#2563eb"
+                                         CornerRadius="3"
+                                         VerticalOptions="Center"/>
                                 <Label x:Name="SessionIncomingLabel"
-                                       Text="0" FontSize="18" FontAttributes="Bold"
-                                       TextColor="#1d4ed8" VerticalOptions="Center"/>
-                                <Label Text="Incoming" FontSize="10"
-                                       TextColor="#1d4ed8" VerticalOptions="End" Margin="0,0,0,1"/>
+                                       Text="0"
+                                       FontSize="12"
+                                       FontAttributes="Bold"
+                                       TextColor="#1d4ed8"
+                                       VerticalOptions="Center"/>
+                                <Label Text="Incoming"
+                                       FontSize="10"
+                                       TextColor="#6b7280"
+                                       VerticalOptions="Center"/>
                             </HorizontalStackLayout>
                         </Border>
-
                     </HorizontalStackLayout>
-                </VerticalStackLayout>
-            </Border>
 
-            <!-- Right: session carousel — fills all remaining width -->
-            <Border Grid.Column="1"
-                    Stroke="#d1d5db"
-                    StrokeThickness="1"
-                    StrokeShape="RoundRectangle 8"
-                    BackgroundColor="White"
-                    Padding="8,8">
-                <ScrollView x:Name="NavRow"
-                            Orientation="Horizontal"
-                            HorizontalScrollBarVisibility="Never"
+                    <!-- Vertical divider -->
+                    <BoxView Grid.Column="1"
+                             WidthRequest="1"
+                             BackgroundColor="#e5e7eb"
+                             VerticalOptions="Center"
+                             HeightRequest="24"
+                             Margin="4,0"/>
+
+                    <!-- Left arrow -->
+                    <Border Grid.Column="2"
+                            BackgroundColor="Transparent"
+                            StrokeThickness="0"
+                            Padding="8,4"
                             VerticalOptions="Center">
-                    <HorizontalStackLayout x:Name="CarouselLayout"
-                                           Spacing="6"
-                                           VerticalOptions="Center"/>
-                </ScrollView>
-            </Border>
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnCarouselPrevTapped"/>
+                        </Border.GestureRecognizers>
+                        <Label Text="‹"
+                               FontSize="16"
+                               FontAttributes="Bold"
+                               TextColor="#9ca3af"
+                               HorizontalTextAlignment="Center"
+                               VerticalTextAlignment="Center"/>
+                    </Border>
 
-        </Grid>
+                    <!-- Carousel -->
+                    <ScrollView x:Name="NavRow"
+                                Grid.Column="3"
+                                Orientation="Horizontal"
+                                HorizontalScrollBarVisibility="Never"
+                                VerticalOptions="Center"
+                                Padding="4,0">
+                        <HorizontalStackLayout x:Name="CarouselLayout"
+                                               Spacing="4"
+                                               VerticalOptions="Center"/>
+                    </ScrollView>
+
+                    <!-- Right arrow -->
+                    <Border Grid.Column="4"
+                            BackgroundColor="Transparent"
+                            StrokeThickness="0"
+                            Padding="8,4"
+                            VerticalOptions="Center">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnCarouselNextTapped"/>
+                        </Border.GestureRecognizers>
+                        <Label Text="›"
+                               FontSize="16"
+                               FontAttributes="Bold"
+                               TextColor="#9ca3af"
+                               HorizontalTextAlignment="Center"
+                               VerticalTextAlignment="Center"/>
+                    </Border>
+
+                    <!-- Hidden scan indicator (legacy refs, scan feedback now in header) -->
+                    <Border x:Name="ScanIndicatorCard"
+                            Grid.Column="5"
+                            IsVisible="False"
+                            HeightRequest="0"
+                            WidthRequest="0">
+                        <VerticalStackLayout>
+                            <Label x:Name="ScanIndicatorLabel"/>
+                            <Label x:Name="ScanIndicatorStatus"/>
+                        </VerticalStackLayout>
+                    </Border>
+
+                </Grid>
+
+                <!-- Divider between belt and tracking card -->
+                <BoxView HeightRequest="1"
+                         BackgroundColor="#e5e7eb"
+                         Margin="8,0"
+                         IsVisible="{Binding HasCurrentOrder}"/>
+
+                <!-- Tracking card — bound to first result -->
+                <Grid x:Name="TrackingCardSection"
+                      IsVisible="{Binding HasCurrentOrder}"
+                      ColumnDefinitions="Auto, *, Auto"
+                      ColumnSpacing="14"
+                      RowDefinitions="Auto, Auto"
+                      RowSpacing="4"
+                      Padding="16,10,24,10">
+                    <!-- Platform icon -->
+                    <Image Grid.Column="0"
+                           Grid.RowSpan="2"
+                           Source="{Binding CurrentOrder.PlatformIcon}"
+                           IsVisible="{Binding CurrentOrder.HasPlatformIcon}"
+                           WidthRequest="44"
+                           HeightRequest="44"
+                           Aspect="AspectFit"
+                           VerticalOptions="Center"/>
+                    <!-- Tracking ID -->
+                    <Label Grid.Column="1"
+                           Grid.Row="0"
+                           Text="{Binding CurrentOrder.TrackingNumber}"
+                           FontAttributes="Bold"
+                           FontSize="18"
+                           TextColor="#111827"
+                           VerticalOptions="Center"/>
+                    <!-- Metadata row -->
+                    <HorizontalStackLayout Grid.Column="1"
+                                           Grid.Row="1"
+                                           Spacing="16"
+                                           VerticalOptions="Center">
+                        <Label FontSize="11"
+                               TextColor="#6b7280">
+                            <Label.FormattedText>
+                                <FormattedString>
+                                    <Span Text="Order: "
+                                          TextColor="#9ca3af"/>
+                                    <Span Text="{Binding CurrentOrder.OrderNumber}"
+                                          TextColor="#374151"/>
+                                </FormattedString>
+                            </Label.FormattedText>
+                        </Label>
+                        <Label FontSize="11"
+                               TextColor="#6b7280">
+                            <Label.FormattedText>
+                                <FormattedString>
+                                    <Span Text="Items: "
+                                          TextColor="#9ca3af"/>
+                                    <Span Text="{Binding CurrentOrder.TotalItemsDisplay}"
+                                          TextColor="#374151"/>
+                                </FormattedString>
+                            </Label.FormattedText>
+                        </Label>
+                        <Label FontSize="11"
+                               TextColor="#9ca3af">
+                            <Label.FormattedText>
+                                <FormattedString>
+                                    <Span Text="Submitted: "/>
+                                    <Span Text="{Binding CurrentOrder.CreatedAtDisplay}"
+                                          TextColor="#6b7280"/>
+                                </FormattedString>
+                            </Label.FormattedText>
+                        </Label>
+                    </HorizontalStackLayout>
+                    <!-- Status badges -->
+                    <HorizontalStackLayout Grid.Column="2"
+                                           Grid.RowSpan="2"
+                                           Spacing="4"
+                                           VerticalOptions="Center"
+                                           HorizontalOptions="End">
+                        <Border BackgroundColor="{Binding CurrentOrder.StatusBgColor}"
+                                Stroke="Transparent"
+                                StrokeShape="RoundRectangle 4"
+                                Padding="10,5">
+                            <Label Text="{Binding CurrentOrder.StatusDisplay}"
+                                   TextColor="{Binding CurrentOrder.StatusFgColor}"
+                                   FontSize="15"
+                                   FontAttributes="Bold"/>
+                        </Border>
+                        <Border IsVisible="{Binding CurrentOrder.IsPackedComplete}"
+                                BackgroundColor="#dcfce7"
+                                Stroke="#86efac"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 4"
+                                Padding="10,5">
+                            <Label Text="✓ QC Passed"
+                                   TextColor="#166534"
+                                   FontSize="15"
+                                   FontAttributes="Bold"/>
+                        </Border>
+                        <Border x:Name="ResetButton"
+                                IsVisible="False"
+                                BackgroundColor="#fef2f2"
+                                Stroke="#fecaca"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 4"
+                                Padding="10,5"
+                                ToolTipProperties.Text="Reset QC status and quantities">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnResetButtonTapped"/>
+                            </Border.GestureRecognizers>
+                            <Label Text="↺ Reset"
+                                   TextColor="#dc2626"
+                                   FontSize="13"
+                                   FontAttributes="Bold"/>
+                        </Border>
+                    </HorizontalStackLayout>
+                </Grid>
+
+            </VerticalStackLayout>
+        </Border>
 
         <!-- Scrollable results -->
         <ScrollView x:Name="ResultsScroll"
                     Grid.Row="3"
                     BackgroundColor="#f3f4f6">
-            <VerticalStackLayout Padding="24,0,24,24"
+            <VerticalStackLayout Padding="0"
                                  Spacing="0">
 
                 <!-- Not-found card -->
@@ -469,492 +776,279 @@
                                 ItemsSource="{Binding ActiveResults}"
                                 SelectionMode="None">
 
-                        <CollectionView.ItemTemplate>
+                    <CollectionView.ItemTemplate>
                         <DataTemplate x:DataType="models:PackingList">
                             <VerticalStackLayout Spacing="6"
                                                  Margin="0,16,0,0">
 
-                                <!-- Summary card -->
-                                <Border Stroke="#d1d5db"
-                                        StrokeThickness="1"
-                                        StrokeShape="RoundRectangle 8"
-                                        BackgroundColor="White"
-                                        Padding="14,8">
-                                    <VerticalStackLayout Spacing="3">
-                                        <!-- Tracking + platform icon + status -->
-                                        <Grid ColumnDefinitions="Auto, *, Auto"
-                                              ColumnSpacing="10">
-                                            <!-- Platform icon (only when known) -->
-                                            <Image Grid.Column="0"
-                                                   Source="{Binding PlatformIcon}"
-                                                   IsVisible="{Binding HasPlatformIcon}"
-                                                   WidthRequest="48"
-                                                   HeightRequest="48"
-                                                   Aspect="AspectFit"
-                                                   VerticalOptions="Center"/>
-                                            <VerticalStackLayout Grid.Column="1"
-                                                                 Spacing="1"
-                                                                 VerticalOptions="Center">
-                                                <Label Text="{Binding TrackingNumber}"
-                                                       FontAttributes="Bold"
-                                                       FontSize="18"
-                                                       TextColor="#111827"/>
-                                                <!-- Submitted + Checked at on same line -->
-                                                <HorizontalStackLayout Spacing="14">
-                                                    <Label FontSize="11"
-                                                           TextColor="#9ca3af">
-                                                        <Label.FormattedText>
-                                                            <FormattedString>
-                                                                <Span Text="Submitted: "/>
-                                                                <Span Text="{Binding CreatedAtDisplay}"
-                                                                      TextColor="#6b7280"/>
-                                                            </FormattedString>
-                                                        </Label.FormattedText>
-                                                    </Label>
-                                                    <Label FontSize="11"
-                                                           TextColor="#9ca3af"
-                                                           IsVisible="{Binding HasBeenChecked}">
-                                                        <Label.FormattedText>
-                                                            <FormattedString>
-                                                                <Span Text="Checked at: "/>
-                                                                <Span Text="{Binding CheckedAtDisplay}"
-                                                                      TextColor="#6b7280"/>
-                                                            </FormattedString>
-                                                        </Label.FormattedText>
-                                                    </Label>
-                                                </HorizontalStackLayout>
-                                                <!-- Packed by + Checked by beside tracking -->
-                                                <HorizontalStackLayout Spacing="14">
-                                                    <Label FontSize="11"
-                                                           TextColor="#9ca3af">
-                                                        <Label.FormattedText>
-                                                            <FormattedString>
-                                                                <Span Text="Packed by: "/>
-                                                                <Span Text="{Binding PackedByDisplay}"
-                                                                      TextColor="#6b7280"/>
-                                                            </FormattedString>
-                                                        </Label.FormattedText>
-                                                    </Label>
-                                                    <Label FontSize="11"
-                                                           TextColor="#9ca3af">
-                                                        <Label.FormattedText>
-                                                            <FormattedString>
-                                                                <Span Text="Checked by: "/>
-                                                                <Span Text="{Binding CheckedByDisplay}"
-                                                                      TextColor="#6b7280"/>
-                                                            </FormattedString>
-                                                        </Label.FormattedText>
-                                                    </Label>
-                                                </HorizontalStackLayout>
-                                            </VerticalStackLayout>
-                                            <!-- Status badge(s) + Reset button -->
-                                            <VerticalStackLayout Grid.Column="2"
-                                                                 Spacing="3"
-                                                                 HorizontalOptions="End"
-                                                                 VerticalOptions="Center">
-                                                <HorizontalStackLayout Spacing="4"
-                                                                       HorizontalOptions="End">
-                                                    <Border BackgroundColor="{Binding StatusBgColor}"
-                                                            Stroke="Transparent"
-                                                            StrokeShape="RoundRectangle 4"
-                                                            Padding="10,5">
-                                                        <Label Text="{Binding StatusDisplay}"
-                                                               TextColor="{Binding StatusFgColor}"
-                                                               FontSize="15"
-                                                               FontAttributes="Bold"/>
-                                                    </Border>
-                                                    <!-- Green "✓ QC Passed" — only when Packed Complete -->
-                                                    <Border IsVisible="{Binding IsPackedComplete}"
-                                                            BackgroundColor="#dcfce7"
-                                                            Stroke="#86efac"
-                                                            StrokeThickness="1"
-                                                            StrokeShape="RoundRectangle 4"
-                                                            Padding="10,5">
-                                                        <Label Text="✓ QC Passed"
-                                                               TextColor="#166534"
-                                                               FontSize="15"
-                                                               FontAttributes="Bold"/>
-                                                    </Border>
-                                                </HorizontalStackLayout>
-                                                <!-- Reset — always reserves height so all cards stay the same size -->
-                                                <Button Text="Reset"
-                                                        Clicked="OnResetClicked"
-                                                        Opacity="{Binding ResetOpacity}"
-                                                        InputTransparent="{Binding IsNotQcHold}"
-                                                        HorizontalOptions="End"
-                                                        FontSize="11"
-                                                        Padding="8,3"
-                                                        BackgroundColor="#fef9c3"
-                                                        TextColor="#713f12"
-                                                        CornerRadius="6"
-                                                        BorderColor="#fde68a"
-                                                        BorderWidth="1"/>
-                                            </VerticalStackLayout>
-                                        </Grid>
-                                        <!-- Meta row -->
-                                        <HorizontalStackLayout Spacing="16">
-                                            <Label FontSize="11"
-                                                   TextColor="#6b7280">
-                                                <Label.FormattedText>
-                                                    <FormattedString>
-                                                        <Span Text="Order: "
-                                                              TextColor="#9ca3af"/>
-                                                        <Span Text="{Binding OrderNumber}"
-                                                              TextColor="#374151"/>
-                                                    </FormattedString>
-                                                </Label.FormattedText>
-                                            </Label>
-                                            <Label FontSize="11"
-                                                   TextColor="#6b7280">
-                                                <Label.FormattedText>
-                                                    <FormattedString>
-                                                        <Span Text="Items: "
-                                                              TextColor="#9ca3af"/>
-                                                        <Span Text="{Binding TotalItemsDisplay}"
-                                                              TextColor="#374151"/>
-                                                    </FormattedString>
-                                                </Label.FormattedText>
-                                            </Label>
-                                            <HorizontalStackLayout Spacing="3"
-                                                                   VerticalOptions="Center"
-                                                                   IsVisible="{Binding HasBeenUpdated}">
-                                                <Label Text="↻"
-                                                       TextColor="#2563eb"
-                                                       FontSize="11"
-                                                       FontAttributes="Bold"
-                                                       VerticalOptions="Center"/>
-                                                <Label FontSize="11"
-                                                       TextColor="#6b7280"
-                                                       VerticalOptions="Center">
-                                                    <Label.FormattedText>
-                                                        <FormattedString>
-                                                            <Span Text="Updated: "
-                                                                  TextColor="#9ca3af"/>
-                                                            <Span Text="{Binding UpdatedAtDisplay}"
-                                                                  TextColor="#374151"/>
-                                                        </FormattedString>
-                                                    </Label.FormattedText>
-                                                </Label>
-                                            </HorizontalStackLayout>
-                                        </HorizontalStackLayout>
-                                    </VerticalStackLayout>
-                                </Border>
+                                <!-- Table header (8-col: strip, #, img, product, variation, sku, note, qty) -->
+                                <Grid ColumnDefinitions="4, 50, 80, *, 140, 120, 110, 160"
+                                      ColumnSpacing="0"
+                                      Padding="0,8,20,4"
+                                      Margin="0,8,0,0">
+                                    <Label Grid.Column="1"
+                                           Text="#"
+                                           FontSize="11"
+                                           FontAttributes="Bold"
+                                           TextColor="#9ca3af"
+                                           FontFamily="Consolas"
+                                           HorizontalTextAlignment="Center"/>
+                                    <Label Grid.Column="3"
+                                           Text="PRODUCT"
+                                           FontSize="11"
+                                           FontAttributes="Bold"
+                                           TextColor="#9ca3af"
+                                           Padding="12,0"/>
+                                    <Label Grid.Column="4"
+                                           Text="VARIATION"
+                                           FontSize="11"
+                                           FontAttributes="Bold"
+                                           TextColor="#9ca3af"
+                                           HorizontalTextAlignment="Start"/>
+                                    <Label Grid.Column="5"
+                                           Text="SKU"
+                                           FontSize="11"
+                                           FontAttributes="Bold"
+                                           TextColor="#9ca3af"
+                                           FontFamily="Consolas"
+                                           HorizontalTextAlignment="Start"/>
+                                    <Label Grid.Column="6"
+                                           Text="NOTE"
+                                           FontSize="11"
+                                           FontAttributes="Bold"
+                                           TextColor="#9ca3af"/>
+                                    <Label Grid.Column="7"
+                                           Text="QTY"
+                                           FontSize="11"
+                                           FontAttributes="Bold"
+                                           TextColor="#9ca3af"
+                                           HorizontalOptions="End"
+                                           Margin="0,0,12,0"/>
+                                </Grid>
 
-                                <!-- Individual product cards -->
+                                <!-- Individual product rows -->
                                 <VerticalStackLayout IsVisible="{Binding HasProducts}"
                                                      BindableLayout.ItemsSource="{Binding ParsedProducts}"
-                                                     Spacing="4">
+                                                     Spacing="0">
                                     <BindableLayout.ItemTemplate>
                                         <DataTemplate x:DataType="models:ProductItem">
-                                            <VerticalStackLayout Spacing="0">
+                                            <Border BackgroundColor="{Binding CardBgColor}"
+                                                    Stroke="{Binding CardBorderColor}"
+                                                    StrokeThickness="{Binding CardBorderWidth}"
+                                                    StrokeShape="RoundRectangle 4"
+                                                    Padding="0"
+                                                    ToolTipProperties.Text="Click row to peek reference image (or press I)">
+                                                <Border.GestureRecognizers>
+                                                    <PointerGestureRecognizer PointerEntered="OnProductCardEntered"
+                                                                              PointerExited="OnProductCardExited"/>
+                                                    <TapGestureRecognizer Tapped="OnProductRowTapped"/>
+                                                </Border.GestureRecognizers>
 
-                                                <!-- ── Product card ─────────────────────────────── -->
-                                                <Border Stroke="#e5e7eb"
-                                                        StrokeThickness="1"
-                                                        StrokeShape="RoundRectangle 6"
-                                                        BackgroundColor="{Binding CardBgColor}"
-                                                        Padding="14,10">
-                                                    <Border.GestureRecognizers>
-                                                        <TapGestureRecognizer Tapped="OnProductCardTapped"/>
-                                                        <PointerGestureRecognizer
-                                                            PointerEntered="OnProductCardEntered"
-                                                            PointerExited="OnProductCardExited"/>
-                                                    </Border.GestureRecognizers>
-                                                    <!-- Columns: Image | Product | div | Variation | div | Req Qty | div | Qty | Bundle -->
-                                                    <Grid ColumnDefinitions="Auto, *, Auto, Auto, Auto, Auto, Auto, Auto, Auto"
-                                                          ColumnSpacing="12">
+                                                <Grid ColumnDefinitions="4, 50, 80, *, 140, 120, 110, 160"
+                                                      HeightRequest="70"
+                                                      Padding="0,0,16,0">
 
-                                                        <!-- Col 0 · Product image thumbnail -->
-                                                        <Border Grid.Column="0"
-                                                                WidthRequest="48"
-                                                                HeightRequest="48"
-                                                                StrokeShape="RoundRectangle 6"
-                                                                Stroke="#e5e7eb"
-                                                                StrokeThickness="1"
-                                                                BackgroundColor="#f9fafb"
-                                                                VerticalOptions="Center"
-                                                                InputTransparent="True">
-                                                            <Grid>
-                                                                <Image Source="{Binding ImageSource}"
-                                                                       IsVisible="{Binding HasImage}"
-                                                                       Aspect="AspectFill"
-                                                                       WidthRequest="48"
-                                                                       HeightRequest="48"/>
-                                                                <Label IsVisible="{Binding HasNoImage}"
-                                                                       Text="&#x1F4E6;"
-                                                                       FontSize="22"
-                                                                       HorizontalOptions="Center"
-                                                                       VerticalOptions="Center"/>
-                                                            </Grid>
-                                                        </Border>
+                                                    <!-- Col 0: Indicator bar -->
+                                                    <BoxView Grid.Column="0"
+                                                             WidthRequest="4"
+                                                             BackgroundColor="{Binding StripColor}"
+                                                             VerticalOptions="Fill"/>
 
-                                                        <!-- Col 1 · Product — name + important info + SKU tag -->
-                                                        <VerticalStackLayout Grid.Column="1"
-                                                                             Spacing="4"
-                                                                             VerticalOptions="Center"
-                                                                             InputTransparent="True">
-                                                            <Label Text="{Binding BaseName}"
+                                                    <!-- Col 1: Row number -->
+                                                    <Label Grid.Column="1"
+                                                           Text="{Binding RowNumber}"
+                                                           FontSize="13"
+                                                           FontAttributes="Bold"
+                                                           TextColor="#9ca3af"
+                                                           FontFamily="Consolas"
+                                                           VerticalOptions="Center"
+                                                           HorizontalOptions="Center"
+                                                           VerticalTextAlignment="Center"/>
+
+                                                    <!-- Col 2: Thumbnail + category badge -->
+                                                    <Grid Grid.Column="2" VerticalOptions="Center">
+                                                        <Image Source="{Binding LocalImagePath}"
+                                                               IsVisible="{Binding HasLocalImage}"
+                                                               HeightRequest="50"
+                                                               WidthRequest="50"
+                                                               Aspect="AspectFill"
+                                                               VerticalOptions="Center"
+                                                               HorizontalOptions="Center"/>
+                                                        <Border BackgroundColor="{Binding CategoryBadgeBg}"
+                                                                Stroke="Transparent"
+                                                                StrokeShape="RoundRectangle 3"
+                                                                Padding="4,1"
+                                                                VerticalOptions="End"
+                                                                HorizontalOptions="Start"
+                                                                Margin="0,0,0,-2">
+                                                            <Label Text="{Binding CategoryBadge}"
+                                                                   FontSize="8"
                                                                    FontAttributes="Bold"
-                                                                   FontSize="13"
-                                                                   TextColor="#111827"
-                                                                   LineBreakMode="WordWrap"/>
-                                                            <Label Text="{Binding ImportantInfo}"
-                                                                   IsVisible="{Binding HasImportantInfo}"
+                                                                   TextColor="{Binding CategoryBadgeFg}"
+                                                                   FontFamily="Consolas"/>
+                                                        </Border>
+                                                    </Grid>
+
+                                                    <!-- Col 3: Product name + checkmark -->
+                                                    <HorizontalStackLayout Grid.Column="3"
+                                                                           Spacing="6"
+                                                                           VerticalOptions="Center"
+                                                                           Padding="12,0">
+                                                        <Label Text="{Binding BaseName}"
+                                                               FontAttributes="Bold"
+                                                               FontSize="13"
+                                                               TextColor="{Binding CardTextColor}"
+                                                               LineBreakMode="WordWrap"
+                                                               VerticalOptions="Center"
+                                                               VerticalTextAlignment="Center"/>
+                                                        <Label Text="&#x2713;"
+                                                               IsVisible="{Binding ShowCompletedCheck}"
+                                                               FontSize="14"
+                                                               FontAttributes="Bold"
+                                                               TextColor="#16a34a"
+                                                               VerticalOptions="Center"
+                                                               VerticalTextAlignment="Center"/>
+                                                    </HorizontalStackLayout>
+
+                                                    <!-- Col 4: Variation badge -->
+                                                    <Border Grid.Column="4"
+                                                            IsVisible="{Binding HasVariation}"
+                                                            BackgroundColor="{Binding VariationBadgeBg}"
+                                                            Stroke="Transparent"
+                                                            StrokeShape="RoundRectangle 6"
+                                                            Padding="10,5"
+                                                            VerticalOptions="Center"
+                                                            HorizontalOptions="Start">
+                                                        <HorizontalStackLayout Spacing="6">
+                                                            <BoxView IsVisible="{Binding HasSwatch}"
+                                                                     WidthRequest="12"
+                                                                     HeightRequest="12"
+                                                                     CornerRadius="6"
+                                                                     Color="{Binding SwatchColor}"
+                                                                     VerticalOptions="Center"/>
+                                                            <Label Text="{Binding Variation}"
+                                                                   TextColor="{Binding VariationBadgeTextColor}"
                                                                    FontSize="12"
                                                                    FontAttributes="Bold"
-                                                                   TextColor="#dc2626"
-                                                                   LineBreakMode="WordWrap"/>
-                                                            <Border BackgroundColor="#f3f4f6"
-                                                                    Stroke="#e5e7eb"
-                                                                    StrokeThickness="1"
-                                                                    StrokeShape="RoundRectangle 4"
-                                                                    Padding="6,2"
-                                                                    HorizontalOptions="Start">
-                                                                <Label FontSize="11"
-                                                                       TextColor="#374151">
-                                                                    <Label.FormattedText>
-                                                                        <FormattedString>
-                                                                            <Span Text="SKU: " TextColor="#9ca3af"/>
-                                                                            <Span Text="{Binding SellerSku}" FontAttributes="Bold"/>
-                                                                        </FormattedString>
-                                                                    </Label.FormattedText>
-                                                                </Label>
-                                                            </Border>
-                                                        </VerticalStackLayout>
+                                                                   VerticalOptions="Center"/>
+                                                        </HorizontalStackLayout>
+                                                    </Border>
+                                                    <Label Grid.Column="4"
+                                                           IsVisible="{Binding HasNoVariation}"
+                                                           Text="&#x2014;"
+                                                           FontSize="11"
+                                                           TextColor="#d1d5db"
+                                                           VerticalOptions="Center"
+                                                           VerticalTextAlignment="Center"/>
 
-                                                        <BoxView Grid.Column="2" WidthRequest="1" BackgroundColor="#e5e7eb" VerticalOptions="Fill" InputTransparent="True"/>
+                                                    <!-- Col 5: SKU -->
+                                                    <Label Grid.Column="5"
+                                                           Text="{Binding SellerSku}"
+                                                           FontSize="11"
+                                                           FontFamily="Consolas"
+                                                           TextColor="#6b7280"
+                                                           FontAttributes="Bold"
+                                                           VerticalOptions="Center"
+                                                           VerticalTextAlignment="Center"/>
 
-                                                        <!-- Col 3 · Variation -->
-                                                        <VerticalStackLayout Grid.Column="3"
-                                                                             HorizontalOptions="Center"
-                                                                             VerticalOptions="Center"
-                                                                             Spacing="4"
-                                                                             InputTransparent="True"
-                                                                             MinimumWidthRequest="60">
-                                                            <Border IsVisible="{Binding HasVariation}"
-                                                                    BackgroundColor="#eff6ff"
-                                                                    Stroke="#bfdbfe"
-                                                                    StrokeThickness="1"
-                                                                    StrokeShape="RoundRectangle 4"
-                                                                    Padding="8,3"
-                                                                    HorizontalOptions="Center">
-                                                                <Label Text="{Binding Variation}"
-                                                                       FontSize="11"
-                                                                       FontAttributes="Bold"
-                                                                       TextColor="#1d4ed8"/>
-                                                            </Border>
-                                                            <Label IsVisible="{Binding HasNoVariation}"
-                                                                   Text="&#x2014;"
-                                                                   FontSize="11"
-                                                                   TextColor="#d1d5db"
-                                                                   HorizontalTextAlignment="Center"/>
-                                                            <Label Text="variation"
-                                                                   FontSize="10"
-                                                                   TextColor="#9ca3af"
-                                                                   HorizontalTextAlignment="Center"/>
-                                                        </VerticalStackLayout>
+                                                    <!-- Col 6: QC Note -->
+                                                    <Border Grid.Column="6"
+                                                            IsVisible="{Binding HasQcNotes}"
+                                                            BackgroundColor="#FFF7ED"
+                                                            Stroke="#fdba74"
+                                                            StrokeThickness="1"
+                                                            StrokeShape="RoundRectangle 4"
+                                                            Padding="6,3"
+                                                            HorizontalOptions="Start"
+                                                            VerticalOptions="Center">
+                                                        <Label Text="{Binding QcNotes}"
+                                                               FontSize="10"
+                                                               FontAttributes="Bold"
+                                                               TextColor="#c2410c"
+                                                               LineBreakMode="TailTruncation"
+                                                               MaximumWidthRequest="100"/>
+                                                    </Border>
+                                                    <Label Grid.Column="6"
+                                                           IsVisible="{Binding HasNoQcNotes}"
+                                                           Text="&#x2014;"
+                                                           FontSize="11"
+                                                           TextColor="#d1d5db"
+                                                           VerticalOptions="Center"
+                                                           VerticalTextAlignment="Center"/>
 
-                                                        <BoxView Grid.Column="4" WidthRequest="1" BackgroundColor="#e5e7eb" VerticalOptions="Fill" InputTransparent="True"/>
-
-                                                        <!-- Col 5 · Req Qty -->
-                                                        <VerticalStackLayout Grid.Column="5"
-                                                                             HorizontalOptions="Center"
-                                                                             VerticalOptions="Center"
-                                                                             Spacing="2"
-                                                                             InputTransparent="True">
-                                                            <Label Text="{Binding RequiredQuantity}"
-                                                                   FontSize="28"
-                                                                   FontAttributes="Bold"
-                                                                   TextColor="#6b7280"
-                                                                   HorizontalTextAlignment="Center"/>
-                                                            <Label Text="req qty"
-                                                                   FontSize="10"
-                                                                   TextColor="#9ca3af"
-                                                                   HorizontalTextAlignment="Center"/>
-                                                        </VerticalStackLayout>
-
-                                                        <BoxView Grid.Column="6" WidthRequest="1" BackgroundColor="#e5e7eb" VerticalOptions="Fill" InputTransparent="True"/>
-
-                                                        <!-- Col 7 · Qty + pick entry -->
-                                                        <VerticalStackLayout Grid.Column="7"
-                                                                             HorizontalOptions="Center"
-                                                                             VerticalOptions="Center"
-                                                                             Spacing="2">
-                                                            <VerticalStackLayout.GestureRecognizers>
-                                                                <TapGestureRecognizer Tapped="OnQuantityTapped"/>
-                                                            </VerticalStackLayout.GestureRecognizers>
-                                                            <HorizontalStackLayout HorizontalOptions="Center"
-                                                                                   Spacing="10"
-                                                                                   VerticalOptions="Center">
-                                                                <Label Text="{Binding Quantity}"
-                                                                       FontSize="28"
-                                                                       FontAttributes="Bold"
-                                                                       TextColor="#111827"
-                                                                       VerticalOptions="Center"/>
-                                                                <Entry IsVisible="{Binding IsBeingPicked}"
-                                                                       Text="{Binding PickQtyText}"
-                                                                       Keyboard="Numeric"
-                                                                       WidthRequest="64"
-                                                                       FontSize="20"
-                                                                       FontAttributes="Bold"
-                                                                       HorizontalTextAlignment="Center"
-                                                                       ReturnType="Done"
-                                                                       Completed="OnPickQtyEntryCompleted"
-                                                                       TextChanged="OnPickQtyTextChanged"
-                                                                       VerticalOptions="Center"/>
-                                                            </HorizontalStackLayout>
-                                                            <Label Text="qty"
-                                                                   FontSize="10"
-                                                                   TextColor="#9ca3af"
-                                                                   HorizontalTextAlignment="Center"
-                                                                   InputTransparent="True"/>
-                                                        </VerticalStackLayout>
-
-                                                        <!-- Col 8 · Bundle chevron (visible only for bundles) -->
-                                                        <Border Grid.Column="8"
-                                                                IsVisible="{Binding IsBundle}"
-                                                                BackgroundColor="#fff7ed"
-                                                                Stroke="#fdba74"
-                                                                StrokeThickness="1"
+                                                    <!-- Col 7: QTY stepper -->
+                                                    <HorizontalStackLayout Grid.Column="7"
+                                                                           Spacing="8"
+                                                                           VerticalOptions="Center"
+                                                                           HorizontalOptions="End">
+                                                        <Button Text="-"
+                                                                Clicked="OnMinusClicked"
+                                                                WidthRequest="32"
+                                                                HeightRequest="32"
+                                                                FontSize="16"
+                                                                FontAttributes="Bold"
+                                                                Padding="0"
+                                                                CornerRadius="4"
+                                                                BackgroundColor="{Binding ButtonBgColor}"
+                                                                TextColor="{Binding ButtonTextColor}"
+                                                                ToolTipProperties.Text="Unverify (decrease count)"/>
+                                                        <Border BackgroundColor="{Binding ButtonBgColor}"
+                                                                Stroke="Transparent"
                                                                 StrokeShape="RoundRectangle 4"
-                                                                Padding="8,4"
-                                                                VerticalOptions="Center">
+                                                                Padding="6,4"
+                                                                VerticalOptions="Center"
+                                                                MinimumWidthRequest="56">
                                                             <Border.GestureRecognizers>
-                                                                <TapGestureRecognizer Tapped="OnBundleToggleTapped"/>
+                                                                <TapGestureRecognizer Tapped="OnQuantityTapped"/>
                                                             </Border.GestureRecognizers>
-                                                            <HorizontalStackLayout Spacing="4">
-                                                                <Label Text="Bundle"
-                                                                       FontSize="11"
+                                                            <HorizontalStackLayout HorizontalOptions="Center"
+                                                                                   Spacing="2"
+                                                                                   VerticalOptions="Center">
+                                                                <Label Text="{Binding VerifiedQuantity}"
+                                                                       FontSize="16"
                                                                        FontAttributes="Bold"
-                                                                       TextColor="#ea580c"
+                                                                       TextColor="{Binding ButtonTextColor}"
+                                                                       FontFamily="Consolas"
                                                                        VerticalOptions="Center"/>
-                                                                <Label Text="&#x25BC;"
-                                                                       FontSize="9"
-                                                                       TextColor="#ea580c"
+                                                                <Label Text="/"
+                                                                       FontSize="12"
+                                                                       TextColor="#d1d5db"
+                                                                       FontFamily="Consolas"
+                                                                       VerticalOptions="Center"/>
+                                                                <Label Text="{Binding RequiredQuantity}"
+                                                                       FontSize="12"
+                                                                       TextColor="#9ca3af"
+                                                                       FontFamily="Consolas"
                                                                        VerticalOptions="Center"/>
                                                             </HorizontalStackLayout>
                                                         </Border>
+                                                        <Entry IsVisible="{Binding IsBeingPicked}"
+                                                               Text="{Binding PickQtyText}"
+                                                               Keyboard="Numeric"
+                                                               WidthRequest="50"
+                                                               FontSize="16"
+                                                               FontAttributes="Bold"
+                                                               FontFamily="Consolas"
+                                                               HorizontalTextAlignment="Center"
+                                                               ReturnType="Done"
+                                                               Completed="OnPickQtyEntryCompleted"
+                                                               TextChanged="OnPickQtyTextChanged"
+                                                               VerticalOptions="Center"/>
+                                                        <Button Text="+"
+                                                                Clicked="OnPlusClicked"
+                                                                WidthRequest="32"
+                                                                HeightRequest="32"
+                                                                FontSize="16"
+                                                                FontAttributes="Bold"
+                                                                Padding="0"
+                                                                CornerRadius="4"
+                                                                BackgroundColor="{Binding ButtonBgColor}"
+                                                                TextColor="{Binding ButtonTextColor}"
+                                                                ToolTipProperties.Text="Verify (increase count)"/>
+                                                    </HorizontalStackLayout>
 
-                                                    </Grid>
-                                                </Border>
-
-                                                <!-- ── Loading indicator ────────────────────────── -->
-                                                <ActivityIndicator IsVisible="{Binding IsLoadingComponents}"
-                                                                   IsRunning="{Binding IsLoadingComponents}"
-                                                                   HeightRequest="24"
-                                                                   WidthRequest="24"
-                                                                   Color="#ea580c"
-                                                                   HorizontalOptions="Center"
-                                                                   Margin="0,6,0,0"/>
-
-                                                <!-- ── Accordion expansion panel (bundle components) ── -->
-                                                <Border IsVisible="{Binding IsExpanded}"
-                                                        Stroke="#fdba74"
-                                                        StrokeThickness="1"
-                                                        StrokeShape="RoundRectangle 0,0,6,6"
-                                                        BackgroundColor="#fffbeb"
-                                                        Padding="0"
-                                                        Margin="12,0,0,0">
-                                                    <Grid ColumnDefinitions="4,*">
-                                                        <!-- Orange left rail -->
-                                                        <BoxView Grid.Column="0"
-                                                                 BackgroundColor="#fb923c"
-                                                                 WidthRequest="4"
-                                                                 VerticalOptions="Fill"/>
-
-                                                        <!-- Component cards list -->
-                                                        <VerticalStackLayout Grid.Column="1"
-                                                                             Padding="10,8"
-                                                                             Spacing="6"
-                                                                             BindableLayout.ItemsSource="{Binding BundleComponents}">
-                                                            <BindableLayout.ItemTemplate>
-                                                                <DataTemplate x:DataType="models:BundleComponentItem">
-                                                                    <Border Stroke="#fde68a"
-                                                                            StrokeThickness="1"
-                                                                            StrokeShape="RoundRectangle 4"
-                                                                            BackgroundColor="White"
-                                                                            Padding="10,8">
-                                                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto"
-                                                                              ColumnSpacing="10">
-                                                                            <!-- Component image -->
-                                                                            <Border Grid.Column="0"
-                                                                                    WidthRequest="36"
-                                                                                    HeightRequest="36"
-                                                                                    StrokeShape="RoundRectangle 4"
-                                                                                    Stroke="#e5e7eb"
-                                                                                    StrokeThickness="1"
-                                                                                    BackgroundColor="#f9fafb"
-                                                                                    VerticalOptions="Center">
-                                                                                <Grid>
-                                                                                    <Image Source="{Binding ImageSource}"
-                                                                                           IsVisible="{Binding HasImage}"
-                                                                                           Aspect="AspectFill"
-                                                                                           WidthRequest="36"
-                                                                                           HeightRequest="36"/>
-                                                                                    <Label IsVisible="{Binding HasNoImage}"
-                                                                                           Text="&#x1F4E6;"
-                                                                                           FontSize="16"
-                                                                                           HorizontalOptions="Center"
-                                                                                           VerticalOptions="Center"/>
-                                                                                </Grid>
-                                                                            </Border>
-
-                                                                            <!-- Component name + SKU -->
-                                                                            <VerticalStackLayout Grid.Column="1"
-                                                                                                 Spacing="2"
-                                                                                                 VerticalOptions="Center">
-                                                                                <Label Text="{Binding Name}"
-                                                                                       FontSize="12"
-                                                                                       FontAttributes="Bold"
-                                                                                       TextColor="#111827"
-                                                                                       LineBreakMode="WordWrap"/>
-                                                                                <Label FontSize="10" TextColor="#6b7280">
-                                                                                    <Label.FormattedText>
-                                                                                        <FormattedString>
-                                                                                            <Span Text="SKU: " TextColor="#9ca3af"/>
-                                                                                            <Span Text="{Binding SellerSku}"/>
-                                                                                        </FormattedString>
-                                                                                    </Label.FormattedText>
-                                                                                </Label>
-                                                                            </VerticalStackLayout>
-
-                                                                            <!-- Component variation -->
-                                                                            <Border Grid.Column="2"
-                                                                                    IsVisible="{Binding HasVariation}"
-                                                                                    BackgroundColor="#eff6ff"
-                                                                                    Stroke="#bfdbfe"
-                                                                                    StrokeThickness="1"
-                                                                                    StrokeShape="RoundRectangle 4"
-                                                                                    Padding="6,2"
-                                                                                    VerticalOptions="Center">
-                                                                                <Label Text="{Binding Variation}"
-                                                                                       FontSize="10"
-                                                                                       FontAttributes="Bold"
-                                                                                       TextColor="#1d4ed8"/>
-                                                                            </Border>
-
-                                                                            <!-- Component quantity -->
-                                                                            <Label Grid.Column="3"
-                                                                                   FontSize="14"
-                                                                                   FontAttributes="Bold"
-                                                                                   TextColor="#111827"
-                                                                                   VerticalOptions="Center">
-                                                                                <Label.FormattedText>
-                                                                                    <FormattedString>
-                                                                                        <Span Text="&#x00D7;" TextColor="#9ca3af" FontSize="12"/>
-                                                                                        <Span Text="{Binding Quantity}"/>
-                                                                                    </FormattedString>
-                                                                                </Label.FormattedText>
-                                                                            </Label>
-                                                                        </Grid>
-                                                                    </Border>
-                                                                </DataTemplate>
-                                                            </BindableLayout.ItemTemplate>
-                                                        </VerticalStackLayout>
-                                                    </Grid>
-                                                </Border>
-
-                                            </VerticalStackLayout>
+                                                </Grid>
+                                            </Border>
                                         </DataTemplate>
                                     </BindableLayout.ItemTemplate>
                                 </VerticalStackLayout>
@@ -968,10 +1062,11 @@
             </VerticalStackLayout>
         </ScrollView>
 
-        <!-- ── Product image overlay ── -->
+
+        <!-- ── Product image overlay (full-bleed split-pane modal) ── -->
         <Grid x:Name="ProductImageOverlay"
               Grid.Row="0"
-              Grid.RowSpan="4"
+              Grid.RowSpan="5"
               BackgroundColor="#99111827"
               IsVisible="False"
               ZIndex="8">
@@ -979,137 +1074,350 @@
                 <TapGestureRecognizer Tapped="OnImageOverlayBackdropTapped"/>
             </Grid.GestureRecognizers>
 
+            <Grid ColumnDefinitions="0.15*, 0.7*, 0.15*" RowDefinitions="0.1*, 0.8*, 0.1*">
             <Border x:Name="OverlayCard"
-                    HorizontalOptions="Center"
-                    VerticalOptions="Center"
-                    Stroke="#e5e7eb"
-                    StrokeThickness="1"
-                    StrokeShape="RoundRectangle 12"
+                    Grid.Column="1"
+                    Grid.Row="1"
+                    HorizontalOptions="Fill"
+                    VerticalOptions="Fill"
+                    Stroke="Transparent"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 0"
                     BackgroundColor="White"
                     Padding="0"
-                    MaximumWidthRequest="560">
+                    Margin="0"
+                    InputTransparent="False">
+                <Border.Shadow>
+                    <Shadow Brush="#50000000"
+                            Offset="0,12"
+                            Radius="40"/>
+                </Border.Shadow>
 
-                <VerticalStackLayout Spacing="0">
-                    <!-- Large product image -->
-                    <Border x:Name="OverlayImageBorder"
-                            StrokeThickness="0"
-                            StrokeShape="RoundRectangle 12,12,0,0"
-                            BackgroundColor="#f9fafb"
-                            HeightRequest="420"
-                            HorizontalOptions="Fill">
-                        <Grid>
-                            <Image x:Name="OverlayImage"
-                                   Aspect="AspectFit"
-                                   HorizontalOptions="Fill"
-                                   VerticalOptions="Fill"/>
-                            <Label x:Name="OverlayNoImage"
-                                   Text="&#x1F4E6;"
-                                   FontSize="64"
-                                   HorizontalOptions="Center"
-                                   VerticalOptions="Center"
-                                   IsVisible="False"/>
-                        </Grid>
-                    </Border>
+                <Grid RowDefinitions="Auto, *"
+                      ColumnDefinitions="*, *"
+                      ColumnSpacing="0"
+                      RowSpacing="0">
 
-                    <!-- Product info section -->
-                    <VerticalStackLayout Padding="20,16" Spacing="10">
-                        <!-- Name -->
+                    <!-- ── Top bar spanning both columns ── -->
+                    <Grid Grid.Row="0"
+                          Grid.ColumnSpan="2"
+                          ColumnDefinitions="*, Auto"
+                          BackgroundColor="#fafafa"
+                          Padding="20,10">
+                        <Label x:Name="OverlayItemPosition"
+                               Grid.Column="0"
+                               Text="ITEM 01 of 01"
+                               FontSize="11"
+                               FontAttributes="Bold"
+                               TextColor="#9ca3af"
+                               FontFamily="Consolas"
+                               VerticalOptions="Center"/>
+                        <Border Grid.Column="1"
+                                BackgroundColor="#f3f4f6"
+                                Stroke="#e5e7eb"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 4"
+                                Padding="10,5">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnOverlayCloseTapped"/>
+                            </Border.GestureRecognizers>
+                            <HorizontalStackLayout Spacing="6">
+                                <Label Text="Esc"
+                                       FontSize="10"
+                                       FontAttributes="Bold"
+                                       TextColor="#9ca3af"
+                                       FontFamily="Consolas"
+                                       VerticalOptions="Center"/>
+                                <Label Text="close"
+                                       FontSize="10"
+                                       TextColor="#d1d5db"
+                                       VerticalOptions="Center"/>
+                            </HorizontalStackLayout>
+                        </Border>
+                    </Grid>
+
+                    <!-- ── Left column: Reference image (khaki bg, full-bleed) ── -->
+                    <Grid Grid.Row="1"
+                          Grid.Column="0"
+                          BackgroundColor="#E5E4C1"
+                          Padding="0">
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnOverlayImageTapped"/>
+                        </Grid.GestureRecognizers>
+
+                        <Image x:Name="OverlayImage"
+                               Aspect="AspectFit"
+                               HorizontalOptions="Fill"
+                               VerticalOptions="Fill"/>
+                        <Label x:Name="OverlayNoImage"
+                               Text="&#x1F4E6;"
+                               FontSize="80"
+                               HorizontalOptions="Center"
+                               VerticalOptions="Center"
+                               IsVisible="False"/>
+
+                        <!-- Category reference tag (centered subtle box) -->
+                        <Border x:Name="OverlayCategoryBadge"
+                                BackgroundColor="#20000000"
+                                Stroke="#40000000"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 6"
+                                Padding="14,6"
+                                HorizontalOptions="Center"
+                                VerticalOptions="Start"
+                                Margin="0,16,0,0">
+                            <Label x:Name="OverlayCategoryLabel"
+                                   Text=""
+                                   FontSize="12"
+                                   FontAttributes="Bold"
+                                   TextColor="White"
+                                   FontFamily="Consolas"/>
+                        </Border>
+
+                        <!-- Scan button (bottom-right, rounded-rect, purple) -->
+                        <Border BackgroundColor="#5B31E0"
+                                Stroke="Transparent"
+                                StrokeShape="RoundRectangle 8"
+                                Padding="14,8"
+                                VerticalOptions="End"
+                                HorizontalOptions="End"
+                                Margin="0,0,16,16">
+                            <Border.Shadow>
+                                <Shadow Brush="#40000000"
+                                        Offset="0,2"
+                                        Radius="4"/>
+                            </Border.Shadow>
+                            <Label Text="click to +1 scanned"
+                                   FontSize="11"
+                                   FontAttributes="Bold"
+                                   TextColor="White"
+                                   FontFamily="Consolas"/>
+                        </Border>
+                    </Grid>
+
+                    <!-- ── Right column: Details (white, 32px padding) ── -->
+                    <VerticalStackLayout Grid.Row="1"
+                                         Grid.Column="1"
+                                         Spacing="20"
+                                         Padding="32"
+                                         BackgroundColor="White">
+
+                        <!-- SCANNED label -->
+                        <Label Text="SCANNED"
+                               FontSize="12"
+                               FontAttributes="Bold"
+                               TextColor="#9ca3af"
+                               FontFamily="Consolas"/>
+
+                        <!-- Large counter: verified / required (tap to enter qty manually) -->
+                        <HorizontalStackLayout HorizontalOptions="Start"
+                                               Spacing="4"
+                                               VerticalOptions="Center"
+                                               Margin="0,-12,0,0">
+                            <HorizontalStackLayout.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnOverlayQtyTapped"/>
+                            </HorizontalStackLayout.GestureRecognizers>
+                            <Label x:Name="OverlayVerifiedQty"
+                                   Text="0"
+                                   FontSize="56"
+                                   FontAttributes="Bold"
+                                   TextColor="#111827"
+                                   FontFamily="Consolas"
+                                   VerticalOptions="Center"/>
+                            <Label Text="/"
+                                   FontSize="32"
+                                   TextColor="#d1d5db"
+                                   FontFamily="Consolas"
+                                   VerticalOptions="Center"/>
+                            <Label x:Name="OverlayReqQty"
+                                   Text="1"
+                                   FontSize="32"
+                                   TextColor="#9ca3af"
+                                   FontFamily="Consolas"
+                                   VerticalOptions="Center"/>
+                        </HorizontalStackLayout>
+
+                        <!-- Divider -->
+                        <BoxView HeightRequest="1"
+                                 BackgroundColor="#f3f4f6"/>
+
+                        <!-- Product name -->
                         <Label x:Name="OverlayProductName"
-                               FontSize="18"
+                               FontSize="22"
                                FontAttributes="Bold"
                                TextColor="#111827"
                                LineBreakMode="WordWrap"/>
 
-                        <!-- SKU + Variation row -->
-                        <HorizontalStackLayout Spacing="8">
-                            <Border BackgroundColor="#f3f4f6"
-                                    Stroke="#e5e7eb"
-                                    StrokeThickness="1"
-                                    StrokeShape="RoundRectangle 4"
-                                    Padding="8,3">
-                                <Label x:Name="OverlaySkuLabel"
-                                       FontSize="12"
-                                       TextColor="#374151"/>
-                            </Border>
+                        <!-- SKU (monospace) -->
+                        <VerticalStackLayout Spacing="4">
+                            <Label Text="SKU"
+                                   FontSize="12"
+                                   FontAttributes="Bold"
+                                   TextColor="#9ca3af"
+                                   FontFamily="Consolas"/>
+                            <Label x:Name="OverlaySkuLabel"
+                                   FontSize="17"
+                                   TextColor="#374151"
+                                   FontFamily="Consolas"/>
+                        </VerticalStackLayout>
+
+                        <!-- Variation pill badge (light purple) -->
+                        <VerticalStackLayout Spacing="4">
+                            <Label Text="VARIATION"
+                                   FontSize="12"
+                                   FontAttributes="Bold"
+                                   TextColor="#9ca3af"
+                                   FontFamily="Consolas"/>
                             <Border x:Name="OverlayVariationBorder"
-                                    BackgroundColor="#eff6ff"
-                                    Stroke="#bfdbfe"
-                                    StrokeThickness="1"
-                                    StrokeShape="RoundRectangle 4"
-                                    Padding="8,3"
+                                    BackgroundColor="#F5F3FF"
+                                    Stroke="Transparent"
+                                    StrokeThickness="0"
+                                    StrokeShape="RoundRectangle 20"
+                                    Padding="14,6"
+                                    HorizontalOptions="Start"
                                     IsVisible="False">
                                 <Label x:Name="OverlayVariationLabel"
-                                       FontSize="12"
+                                       FontSize="16"
                                        FontAttributes="Bold"
-                                       TextColor="#1d4ed8"/>
+                                       TextColor="#7c3aed"
+                                       FontFamily="Consolas"/>
                             </Border>
-                        </HorizontalStackLayout>
+                        </VerticalStackLayout>
 
-                        <!-- Quantities row -->
-                        <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
-                            <Border Grid.Column="0"
-                                    BackgroundColor="#f9fafb"
-                                    Stroke="#e5e7eb"
-                                    StrokeThickness="1"
-                                    StrokeShape="RoundRectangle 8"
-                                    Padding="16,12">
-                                <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
-                                    <Label x:Name="OverlayReqQty"
-                                           FontSize="32"
-                                           FontAttributes="Bold"
-                                           TextColor="#6b7280"
-                                           HorizontalTextAlignment="Center"/>
-                                    <Label Text="req qty"
-                                           FontSize="11"
-                                           TextColor="#9ca3af"
-                                           HorizontalTextAlignment="Center"/>
-                                </VerticalStackLayout>
+                        <!-- QC Notes -->
+                        <VerticalStackLayout Spacing="4">
+                            <Label Text="QC NOTES"
+                                   FontSize="12"
+                                   FontAttributes="Bold"
+                                   TextColor="#9ca3af"
+                                   FontFamily="Consolas"/>
+                            <Border x:Name="OverlayNotesBorder"
+                                    BackgroundColor="#fafafa"
+                                    Stroke="Transparent"
+                                    StrokeThickness="0"
+                                    StrokeShape="RoundRectangle 6"
+                                    Padding="12,8"
+                                    HorizontalOptions="Fill">
+                                <Label x:Name="OverlayNotesLabel"
+                                       Text="no notes"
+                                       FontSize="15"
+                                       TextColor="#d1d5db"
+                                       FontFamily="Consolas"/>
                             </Border>
-                            <Border Grid.Column="1"
-                                    BackgroundColor="#f9fafb"
-                                    Stroke="#e5e7eb"
-                                    StrokeThickness="1"
-                                    StrokeShape="RoundRectangle 8"
-                                    Padding="16,12">
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnOverlayQtyTapped"/>
-                                </Border.GestureRecognizers>
-                                <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
-                                    <HorizontalStackLayout HorizontalOptions="Center" Spacing="8">
-                                        <Label x:Name="OverlayCurrentQty"
-                                               FontSize="32"
-                                               FontAttributes="Bold"
-                                               TextColor="#111827"
-                                               HorizontalTextAlignment="Center"
-                                               VerticalOptions="Center"/>
-                                        <Entry x:Name="OverlayPickEntry"
-                                               IsVisible="False"
-                                               Keyboard="Numeric"
-                                               WidthRequest="64"
-                                               FontSize="22"
-                                               FontAttributes="Bold"
-                                               HorizontalTextAlignment="Center"
-                                               ReturnType="Done"
-                                               Completed="OnOverlayPickEntryCompleted"
-                                               TextChanged="OnOverlayPickEntryTextChanged"
-                                               VerticalOptions="Center"/>
-                                    </HorizontalStackLayout>
-                                    <Label Text="qty"
-                                           FontSize="11"
-                                           TextColor="#9ca3af"
-                                           HorizontalTextAlignment="Center"/>
-                                </VerticalStackLayout>
-                            </Border>
-                        </Grid>
+                        </VerticalStackLayout>
+
+                        <!-- Hidden manual pick entry (shown when qty tapped) -->
+                        <Entry x:Name="OverlayPickEntry"
+                               IsVisible="False"
+                               Keyboard="Numeric"
+                               WidthRequest="100"
+                               FontSize="24"
+                               FontAttributes="Bold"
+                               FontFamily="Consolas"
+                               HorizontalTextAlignment="Center"
+                               ReturnType="Done"
+                               Completed="OnOverlayPickEntryCompleted"
+                               TextChanged="OnOverlayPickEntryTextChanged"
+                               VerticalOptions="Center"
+                               HorizontalOptions="Start"/>
+
                     </VerticalStackLayout>
-                </VerticalStackLayout>
+                </Grid>
             </Border>
+            </Grid>
+        </Grid>
+
+        <!-- ── Command Palette search (centered, 70% width, soft shadow) ── -->
+        <Border x:Name="PopupSearchBar"
+                Grid.Row="1"
+                Grid.RowSpan="3"
+                Grid.ColumnSpan="3"
+                IsVisible="False"
+                ZIndex="15"
+                HorizontalOptions="Center"
+                VerticalOptions="Start"
+                BackgroundColor="White"
+                Stroke="Transparent"
+                StrokeThickness="0"
+                StrokeShape="RoundRectangle 16"
+                Margin="0,48,0,0"
+                Padding="0"
+                WidthRequest="800"
+                InputTransparent="False">
+            <Border.Shadow>
+                <Shadow Brush="#30000000"
+                        Offset="0,8"
+                        Radius="32"/>
+            </Border.Shadow>
+            <VerticalStackLayout Spacing="0">
+                <Grid ColumnDefinitions="Auto, *, Auto"
+                      ColumnSpacing="12"
+                      Padding="16,14"
+                      VerticalOptions="Center">
+                    <!-- "/" keycap icon -->
+                    <Border Grid.Column="0"
+                            BackgroundColor="#f4f4f5"
+                            Stroke="#e5e7eb"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 4"
+                            Padding="6,4"
+                            VerticalOptions="Center">
+                        <Border.Shadow>
+                            <Shadow Brush="#33000000"
+                                    Offset="0,2"
+                                    Radius="0"/>
+                        </Border.Shadow>
+                        <Label Text="/"
+                               TextColor="#71717a"
+                               FontSize="14"
+                               FontAttributes="Bold"
+                               FontFamily="Consolas"
+                               HorizontalTextAlignment="Center"
+                               VerticalTextAlignment="Center"/>
+                    </Border>
+                    <!-- Search entry (monospace placeholder) -->
+                    <Entry x:Name="PopupSearchEntry"
+                           Grid.Column="1"
+                           Placeholder="Tracking or order number…"
+                           PlaceholderColor="#a1a1aa"
+                           TextColor="#111827"
+                           FontSize="16"
+                           FontFamily="Consolas"
+                           BackgroundColor="Transparent"
+                           ReturnType="Search"
+                           Completed="OnPopupSearchCommitted"
+                           VerticalOptions="Center"/>
+                    <!-- Hint text -->
+                    <Label Grid.Column="2"
+                           Text="Esc to close · Enter to search"
+                           TextColor="#a1a1aa"
+                           FontSize="11"
+                           VerticalOptions="Center"/>
+                </Grid>
+                <!-- Decorative accent line -->
+                <BoxView HeightRequest="1"
+                         BackgroundColor="#D8B4FE"
+                         Margin="16,0"/>
+            </VerticalStackLayout>
+        </Border>
+
+        <!-- Backdrop to catch clicks outside the popup search bar -->
+        <Grid x:Name="PopupSearchBackdrop"
+              Grid.Row="1"
+              Grid.RowSpan="4"
+              BackgroundColor="#40000000"
+              IsVisible="False"
+              ZIndex="14"
+              InputTransparent="False">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnPopupSearchBackdropTapped"/>
+            </Grid.GestureRecognizers>
         </Grid>
 
         <!-- Welcome animation banner — briefly shown after login -->
         <Border x:Name="WelcomeBanner"
                 Grid.Row="1"
-                Grid.RowSpan="3"
+                Grid.RowSpan="4"
                 IsVisible="False"
                 HorizontalOptions="Center"
                 VerticalOptions="Center"
@@ -1128,10 +1436,128 @@
                    HorizontalTextAlignment="Center"/>
         </Border>
 
+        <!-- ── Bottom keyboard shortcuts bar ── -->
+        <Border Grid.Row="4"
+                BackgroundColor="#f9fafb"
+                Stroke="#e5e7eb"
+                StrokeThickness="1"
+                Padding="16,6">
+            <Grid ColumnDefinitions="*, Auto, Auto">
+                <HorizontalStackLayout Grid.Column="0"
+                                       Spacing="20"
+                                       VerticalOptions="Center">
+                    <HorizontalStackLayout Spacing="4">
+                        <Border BackgroundColor="#e5e7eb"
+                                StrokeShape="RoundRectangle 3"
+                                Padding="4,2"
+                                Stroke="Transparent">
+                            <Label Text="&#x2190;&#x2192;"
+                                   FontSize="10"
+                                   FontAttributes="Bold"
+                                   TextColor="#374151"/>
+                        </Border>
+                        <Label Text="navigate"
+                               FontSize="10"
+                               TextColor="#6b7280"
+                               VerticalOptions="Center"/>
+                    </HorizontalStackLayout>
+                    <HorizontalStackLayout Spacing="4">
+                        <Border BackgroundColor="#e5e7eb"
+                                StrokeShape="RoundRectangle 3"
+                                Padding="4,2"
+                                Stroke="Transparent">
+                            <Label Text="Enter"
+                                   FontSize="10"
+                                   FontAttributes="Bold"
+                                   TextColor="#374151"/>
+                        </Border>
+                        <Label Text="+1 scanned"
+                               FontSize="10"
+                               TextColor="#6b7280"
+                               VerticalOptions="Center"/>
+                    </HorizontalStackLayout>
+                    <HorizontalStackLayout Spacing="4">
+                        <Border BackgroundColor="#e5e7eb"
+                                StrokeShape="RoundRectangle 3"
+                                Padding="4,2"
+                                Stroke="Transparent">
+                            <Label Text="I"
+                                   FontSize="10"
+                                   FontAttributes="Bold"
+                                   TextColor="#374151"/>
+                        </Border>
+                        <Label Text="peek image"
+                               FontSize="10"
+                               TextColor="#6b7280"
+                               VerticalOptions="Center"/>
+                    </HorizontalStackLayout>
+                    <HorizontalStackLayout Spacing="4">
+                        <Border BackgroundColor="#e5e7eb"
+                                StrokeShape="RoundRectangle 3"
+                                Padding="4,2"
+                                Stroke="Transparent">
+                            <Label Text="/"
+                                   FontSize="10"
+                                   FontAttributes="Bold"
+                                   TextColor="#374151"/>
+                        </Border>
+                        <Label Text="search"
+                               FontSize="10"
+                               TextColor="#6b7280"
+                               VerticalOptions="Center"/>
+                    </HorizontalStackLayout>
+                    <HorizontalStackLayout Spacing="4">
+                        <Border BackgroundColor="#e5e7eb"
+                                StrokeShape="RoundRectangle 3"
+                                Padding="4,2"
+                                Stroke="Transparent">
+                            <Label Text="Esc"
+                                   FontSize="10"
+                                   FontAttributes="Bold"
+                                   TextColor="#374151"/>
+                        </Border>
+                        <Label Text="close peek"
+                               FontSize="10"
+                               TextColor="#6b7280"
+                               VerticalOptions="Center"/>
+                    </HorizontalStackLayout>
+                    <HorizontalStackLayout Spacing="4">
+                        <Border BackgroundColor="#e5e7eb"
+                                StrokeShape="RoundRectangle 3"
+                                Padding="4,2"
+                                Stroke="Transparent">
+                            <Label Text="click row"
+                                   FontSize="10"
+                                   FontAttributes="Bold"
+                                   TextColor="#374151"/>
+                        </Border>
+                        <Label Text="peek"
+                               FontSize="10"
+                               TextColor="#6b7280"
+                               VerticalOptions="Center"/>
+                    </HorizontalStackLayout>
+                </HorizontalStackLayout>
+                <Label x:Name="StatusLabel"
+                       Grid.Column="1"
+                       Text=""
+                       FontSize="11"
+                       TextColor="#6b7280"
+                       FontAttributes="Bold"
+                       VerticalOptions="Center"
+                       Margin="0,0,12,0"/>
+                <Label x:Name="LastScanLabel"
+                       Grid.Column="2"
+                       Text=""
+                       FontSize="10"
+                       TextColor="#9ca3af"
+                       VerticalOptions="Center"/>
+            </Grid>
+        </Border>
+
         <!-- Login overlay — dark blur-like backdrop until operator scans badge -->
         <Grid x:Name="LoginOverlay"
               Grid.Row="1"
-              Grid.RowSpan="3"
+              Grid.RowSpan="4"
               BackgroundColor="#CC111827"
               IsVisible="True"
               ZIndex="10">
@@ -1143,7 +1569,8 @@
                     BackgroundColor="#1f2937"
                     Padding="44,36"
                     WidthRequest="400">
-                <VerticalStackLayout Spacing="16" HorizontalOptions="Fill">
+                <VerticalStackLayout Spacing="16"
+                                     HorizontalOptions="Fill">
                     <Label Text="Please scan your badge"
                            FontSize="22"
                            FontAttributes="Bold"

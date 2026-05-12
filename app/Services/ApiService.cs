@@ -446,6 +446,28 @@ public static class ApiService
         }
     }
 
+    public static async Task<Dictionary<string, ProductEnrichment>> EnrichProductsAsync(List<string> skus)
+    {
+        if (skus.Count == 0) return [];
+        try
+        {
+            var body = new { skus };
+            var resp = await Http.PostAsJsonAsync("products/enrich", body, JsonOpts);
+            if (!resp.IsSuccessStatusCode)
+            {
+                Logger.Log($"ApiService.EnrichProductsAsync: HTTP {(int)resp.StatusCode}");
+                return [];
+            }
+            var list = await resp.Content.ReadFromJsonAsync<List<ProductEnrichment>>(JsonOpts);
+            return list?.ToDictionary(e => e.SellerSku, StringComparer.OrdinalIgnoreCase) ?? [];
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.EnrichProductsAsync: {ex.Message}");
+            return [];
+        }
+    }
+
     // ── Private DTOs ──────────────────────────────────────────────────────────
 
     private record StatusRequest(

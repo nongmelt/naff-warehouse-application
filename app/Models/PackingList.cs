@@ -60,8 +60,19 @@ public class ProductItem : INotifyPropertyChanged
         {
             _quantity = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(VerifiedQuantity));
             OnPropertyChanged(nameof(IsFullyPicked));
+            OnPropertyChanged(nameof(IsPartiallyVerified));
             OnPropertyChanged(nameof(CardBgColor));
+            OnPropertyChanged(nameof(CardTextColor));
+            OnPropertyChanged(nameof(CardBorderColor));
+            OnPropertyChanged(nameof(CardBorderWidth));
+            OnPropertyChanged(nameof(ButtonBgColor));
+            OnPropertyChanged(nameof(ButtonTextColor));
+            OnPropertyChanged(nameof(VariationBadgeBg));
+            OnPropertyChanged(nameof(VariationBadgeTextColor));
+            OnPropertyChanged(nameof(StripColor));
+            OnPropertyChanged(nameof(ShowCompletedCheck));
         }
     }
 
@@ -70,6 +81,9 @@ public class ProductItem : INotifyPropertyChanged
 
     /// <summary>Original required quantity from the order (ProductLists), regardless of picking state.</summary>
     [JsonIgnore] public int RequiredQuantity { get; set; }
+
+    /// <summary>Number of items verified so far (RequiredQuantity − remaining Quantity).</summary>
+    [JsonIgnore] public int VerifiedQuantity => RequiredQuantity - Quantity;
 
     // ── Product name helpers ──────────────────────────────────────────────────
 
@@ -123,16 +137,126 @@ public class ProductItem : INotifyPropertyChanged
     };
 
     [JsonIgnore] public bool IsFullyPicked => Quantity <= 0;
-    [JsonIgnore] public Color CardBgColor =>
+
+    [JsonIgnore] public bool IsPartiallyVerified => !IsFullyPicked && VerifiedQuantity > 0;
+
+    [JsonIgnore] public Color CardBgColor
+    {
+        get
+        {
+            if (IsFullyPicked ||
+                string.Equals(_orderQcContext, "QC Passed", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(_orderQcContext, "Packed Complete", StringComparison.OrdinalIgnoreCase))
+                return Color.FromArgb("#ECFDF5");
+
+            if (IsPartiallyVerified)
+                return Color.FromArgb("#FFF7ED");
+
+            if (_isActive)
+                return Color.FromArgb("#F5F3FF");
+
+            if (string.Equals(_orderQcContext, "QC Hold", StringComparison.OrdinalIgnoreCase))
+                return Color.FromArgb("#FFF7ED");
+
+            if (string.Equals(_orderQcContext, "Packed", StringComparison.OrdinalIgnoreCase))
+                return Color.FromArgb("#ffedd5");
+
+            return Colors.White;
+        }
+    }
+
+    [JsonIgnore] public Color CardTextColor
+    {
+        get
+        {
+            if (IsFullyPicked ||
+                string.Equals(_orderQcContext, "QC Passed", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(_orderQcContext, "Packed Complete", StringComparison.OrdinalIgnoreCase))
+                return Color.FromArgb("#166534");
+            return Color.FromArgb("#111827");
+        }
+    }
+
+    [JsonIgnore] public Color CardBorderColor
+    {
+        get
+        {
+            if (!_isActive) return Colors.Transparent;
+            if (IsFullyPicked) return Color.FromArgb("#86efac");
+            if (IsPartiallyVerified) return Color.FromArgb("#fdba74");
+            return Color.FromArgb("#a78bfa");
+        }
+    }
+
+    [JsonIgnore] public int CardBorderWidth => _isActive ? 2 : 0;
+
+    [JsonIgnore] public Color ButtonBgColor
+    {
+        get
+        {
+            if (IsFullyPicked) return Color.FromArgb("#dcfce7");
+            if (IsPartiallyVerified) return Color.FromArgb("#ffedd5");
+            if (_isActive) return Color.FromArgb("#ede9fe");
+            return Color.FromArgb("#f3f4f6");
+        }
+    }
+
+    [JsonIgnore] public Color ButtonTextColor
+    {
+        get
+        {
+            if (IsFullyPicked) return Color.FromArgb("#166534");
+            if (IsPartiallyVerified) return Color.FromArgb("#c2410c");
+            if (_isActive) return Color.FromArgb("#7c3aed");
+            return Color.FromArgb("#374151");
+        }
+    }
+
+    [JsonIgnore] public Color VariationBadgeBg
+    {
+        get
+        {
+            if (IsFullyPicked) return Color.FromArgb("#dcfce7");
+            if (IsPartiallyVerified) return Color.FromArgb("#ffedd5");
+            if (_isActive) return Color.FromArgb("#ede9fe");
+            return Color.FromArgb("#EEF2FF");
+        }
+    }
+
+    [JsonIgnore] public Color VariationBadgeTextColor
+    {
+        get
+        {
+            if (IsFullyPicked) return Color.FromArgb("#166534");
+            if (IsPartiallyVerified) return Color.FromArgb("#c2410c");
+            if (_isActive) return Color.FromArgb("#7c3aed");
+            return Color.FromArgb("#4338CA");
+        }
+    }
+
+    [JsonIgnore] public Color StripColor
+    {
+        get
+        {
+            if (IsFullyPicked ||
+                string.Equals(_orderQcContext, "QC Passed", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(_orderQcContext, "Packed Complete", StringComparison.OrdinalIgnoreCase))
+                return Color.FromArgb("#86efac");
+
+            if (_isActive)
+                return Color.FromArgb("#a78bfa");
+
+            if (HasQcNotes)
+                return Color.FromArgb("#fdba74");
+
+            return CategoryBadgeBg.Alpha > 0 ? CategoryBadgeBg.WithAlpha(0.35f) : Color.FromArgb("#e5e7eb");
+        }
+    }
+
+    [JsonIgnore] public bool ShowCompletedCheck =>
         IsFullyPicked ||
-        string.Equals(_orderQcContext, "QC Passed",        StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(_orderQcContext, "Packed Complete",  StringComparison.OrdinalIgnoreCase)
-            ? Color.FromArgb("#dcfce7")
-        : string.Equals(_orderQcContext, "Packed", StringComparison.OrdinalIgnoreCase)
-            ? Color.FromArgb("#ffedd5")
-        : string.IsNullOrEmpty(_orderQcContext)
-            ? Colors.White
-            : Color.FromArgb("#fef9c3");
+        string.Equals(_orderQcContext, "QC Passed", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(_orderQcContext, "Packed Complete", StringComparison.OrdinalIgnoreCase);
 
     private bool _isBeingPicked;
     [JsonIgnore]
@@ -143,6 +267,28 @@ public class ProductItem : INotifyPropertyChanged
         {
             _isBeingPicked = value;
             OnPropertyChanged();
+        }
+    }
+
+    private bool _isActive;
+    [JsonIgnore]
+    public bool IsActive
+    {
+        get => _isActive;
+        set
+        {
+            _isActive = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(CardBgColor));
+            OnPropertyChanged(nameof(CardTextColor));
+            OnPropertyChanged(nameof(CardBorderColor));
+            OnPropertyChanged(nameof(CardBorderWidth));
+            OnPropertyChanged(nameof(ButtonBgColor));
+            OnPropertyChanged(nameof(ButtonTextColor));
+            OnPropertyChanged(nameof(VariationBadgeBg));
+            OnPropertyChanged(nameof(VariationBadgeTextColor));
+            OnPropertyChanged(nameof(StripColor));
+            OnPropertyChanged(nameof(ShowCompletedCheck));
         }
     }
 
@@ -160,7 +306,7 @@ public class ProductItem : INotifyPropertyChanged
     public string OrderQcContext
     {
         get => _orderQcContext;
-        set { _orderQcContext = value; OnPropertyChanged(nameof(CardBgColor)); OnPropertyChanged(nameof(StatusBadges)); }
+        set { _orderQcContext = value; OnPropertyChanged(nameof(CardBgColor)); OnPropertyChanged(nameof(CardTextColor)); OnPropertyChanged(nameof(StripColor)); OnPropertyChanged(nameof(ShowCompletedCheck)); OnPropertyChanged(nameof(StatusBadges)); }
     }
 
     // ── Product catalog enrichment ───────────────────────────────────────────
@@ -202,6 +348,44 @@ public class ProductItem : INotifyPropertyChanged
         get => _isLoadingComponents;
         set { _isLoadingComponents = value; OnPropertyChanged(); }
     }
+
+    // ── Enrichment (populated after search via EnrichProductsAsync) ──────────
+
+    [JsonIgnore] public string? CategoryName { get; set; }
+    [JsonIgnore] public int? CategoryId { get; set; }
+    [JsonIgnore] public string? ImagePath { get; set; }
+    [JsonIgnore] public string? QcNotes { get; set; }
+    [JsonIgnore] public string? Brand { get; set; }
+
+    [JsonIgnore] public bool HasQcNotes => !string.IsNullOrWhiteSpace(QcNotes);
+    [JsonIgnore] public bool HasNoQcNotes => string.IsNullOrWhiteSpace(QcNotes);
+    [JsonIgnore] public bool HasImagePath => !string.IsNullOrWhiteSpace(ImagePath);
+
+    /// <summary>Category badge text like "TEE-01".</summary>
+    [JsonIgnore] public string CategoryBadge { get; set; } = "";
+
+    /// <summary>Category badge background color.</summary>
+    [JsonIgnore] public Color CategoryBadgeBg { get; set; } = Colors.Transparent;
+
+    /// <summary>Category badge text color.</summary>
+    [JsonIgnore] public Color CategoryBadgeFg { get; set; } = Colors.White;
+
+    /// <summary>Color swatch parsed from variation.</summary>
+    [JsonIgnore] public Color? SwatchColor { get; set; }
+
+    [JsonIgnore] public bool HasSwatch => SwatchColor != null;
+
+    private string? _localImagePath;
+    [JsonIgnore]
+    public string? LocalImagePath
+    {
+        get => _localImagePath;
+        set { _localImagePath = value; OnPropertyChanged(); OnPropertyChanged(nameof(HasLocalImage)); }
+    }
+
+    [JsonIgnore] public bool HasLocalImage => !string.IsNullOrWhiteSpace(_localImagePath);
+
+    [JsonIgnore] public int RowNumber { get; set; }
 
     public event PropertyChangedEventHandler? PropertyChanged;
     private void OnPropertyChanged([CallerMemberName] string? name = null)
@@ -412,6 +596,10 @@ public class PackingList : INotifyPropertyChanged
                 : item.Quantity;
             item.OrderQcContext = ctx;
         }
+
+        for (int i = 0; i < list.Count; i++)
+            list[i].RowNumber = i + 1;
+
         return new ObservableCollection<ProductItem>(list);
     }
 
