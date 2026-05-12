@@ -265,8 +265,11 @@ public class ProductItem : INotifyPropertyChanged
         {
             _isBeingPicked = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(IsNotBeingPicked));
         }
     }
+
+    [JsonIgnore] public bool IsNotBeingPicked => !_isBeingPicked;
 
     private bool _isActive;
     [JsonIgnore]

@@ -22,6 +22,7 @@ public partial class OrderSearchPage : ContentPage
     private record ComPortEntry(string PortName, string DisplayName);
 
     private SerialPort? _serialPort;
+    private string? _selectedPortName;
     private List<ComPortEntry> _comPorts = [];
     private bool _isSearching;
     private AppMode _currentMode = AppMode.QC;
@@ -243,6 +244,7 @@ public partial class OrderSearchPage : ContentPage
 
         if (idx == 0)
         {
+            _selectedPortName = null;
             CloseSerialPort();
             UpdateScannerStatus("No scanner connected");
             UpdateOverlayScannerStatus("No scanner connected");
@@ -254,6 +256,7 @@ public partial class OrderSearchPage : ContentPage
         if (portIdx >= _comPorts.Count) return;
 
         var portName = _comPorts[portIdx].PortName;
+        _selectedPortName = portName;
         MainThread.BeginInvokeOnMainThread(() => HeaderComPortLabel.Text = portName);
         CloseSerialPort();
         try
@@ -376,6 +379,32 @@ public partial class OrderSearchPage : ContentPage
         catch { }
         finally
         {
+            _serialPort = null;
+        }
+    }
+
+    private void TryReconnectComPort()
+    {
+        if (_selectedPortName == null) return;
+        try
+        {
+            _serialPort?.Dispose();
+            _serialPort = new SerialPort(_selectedPortName, 9600, Parity.None, 8, StopBits.One)
+            {
+                NewLine = "\r",
+                ReadTimeout = 500,
+                DtrEnable = true
+            };
+            _serialPort.DataReceived += OnSerialDataReceived;
+            _serialPort.Open();
+            ApplyComStateVisuals(ComState.Ready);
+            UpdateScannerStatus($"Scanner reconnected ({_selectedPortName})");
+            UpdateOverlayScannerStatus($"Scanner ready ({_selectedPortName})");
+            Logger.Log($"OrderSearch: COM port {_selectedPortName} reconnected");
+        }
+        catch
+        {
+            try { _serialPort?.Dispose(); } catch { }
             _serialPort = null;
         }
     }
@@ -568,23 +597,33 @@ public partial class OrderSearchPage : ContentPage
 
     private void HandleSkuScan(string barcode)
     {
-        // Auto-deduct 1 from the previous pending item before handling the new scan
-        if (_pendingSkuProduct != null)
+        bool overlayOpen = ProductImageOverlay.IsVisible;
+
+        // Repeated scan of same SKU while already editing → increment verified target
+        if (_pendingSkuProduct != null
+            && _pendingSkuProduct.IsBeingPicked
+            && string.Equals(_pendingSkuProduct.SellerSku, barcode, StringComparison.OrdinalIgnoreCase))
         {
-            EmitQcEvent(
-                stepId: "item_scanned_auto",
-                trigger: "sku_scan",
-                trackingNumber: CurrentTrackingNumber,
-                fromState: ConsumePickingFromState(),
-                toState: "picking",
-                payload: new Dictionary<string, object?>
-                {
-                    ["sku"] = barcode,
-                    ["qtyBefore"] = _pendingSkuProduct.Quantity,
-                    ["qtyAfter"] = _pendingSkuProduct.Quantity - 1,
-                });
-            ApplySkuDeduction(_pendingSkuProduct, "1", DeductionSource.AutoPrior);
+            if (int.TryParse(_pendingSkuProduct.PickQtyText, out var cur) && cur < _pendingSkuProduct.RequiredQuantity)
+                _pendingSkuProduct.PickQtyText = (cur + 1).ToString();
+            if (overlayOpen && int.TryParse(OverlayPickEntry.Text, out var oCur) && oCur < _pendingSkuProduct.RequiredQuantity)
+                OverlayPickEntry.Text = (oCur + 1).ToString();
+            UpdateScanIndicator(barcode, found: true);
+            Logger.Log($"OrderSearch: repeated scan '{barcode}', verified target incremented to {_pendingSkuProduct.PickQtyText}");
+
+            // Auto-apply when target reaches required
+            if (int.TryParse(_pendingSkuProduct.PickQtyText, out var newQty) && newQty >= _pendingSkuProduct.RequiredQuantity)
+            {
+                var item = _pendingSkuProduct;
+                ApplyVerifiedOverride(item, item.PickQtyText, "manual_qty_entered", "qty_entered");
+                if (overlayOpen) { HideOverlayPickEntry(); SyncOverlayAfterDeduction(item); }
+            }
+
+            return;
         }
+
+        // Auto-deduct accumulated qty from previous product — operator switched focus
+        FlushPendingDeduction();
 
         ProductItem? found = null;
         PackingList? foundOrder = null;
@@ -592,19 +631,16 @@ public partial class OrderSearchPage : ContentPage
 
         foreach (var order in Results)
         {
-            // Lock: QC Passed orders (from this session or already in DB) cannot be modified
-            bool isQcPassed = _completedPackingIds.Contains(order.PackingId)
-                || string.Equals(order.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase);
-
             var match = order.ParsedProducts.FirstOrDefault(p =>
+                p.Quantity > 0 &&
                 string.Equals(p.SellerSku, barcode, StringComparison.OrdinalIgnoreCase));
 
             if (match == null) continue;
 
-            if (isQcPassed)
+            if (IsOrderQcPassed(order))
             {
                 blockedByQcPassed = true;
-                continue; // SKU exists but order is locked
+                continue;
             }
 
             found = match;
@@ -638,59 +674,79 @@ public partial class OrderSearchPage : ContentPage
         UpdateScanIndicator(barcode, found: true);
         SetActiveProduct(found);
 
-        if (found.Quantity == 1)
+        EmitQcEvent(
+            stepId: "item_scanned_await_qty",
+            trigger: "sku_scan",
+            trackingNumber: foundOrder?.TrackingNumber,
+            fromState: ConsumePickingFromState(),
+            toState: "picking",
+            payload: new Dictionary<string, object?>
+            {
+                ["sku"] = barcode,
+                ["qtyRemaining"] = found.Quantity,
+            });
+
+        var targetVerified = (found.VerifiedQuantity + 1).ToString();
+        found.PickQtyText = targetVerified;
+        found.IsBeingPicked = true;
+
+        var label = found.Name + (found.HasVariation ? $" · {found.Variation}" : "");
+
+        if (overlayOpen)
         {
-            // Only one left — deduct immediately, no input needed
-            EmitQcEvent(
-                stepId: "item_scanned_auto",
-                trigger: "sku_scan",
-                trackingNumber: foundOrder?.TrackingNumber,
-                fromState: ConsumePickingFromState(),
-                toState: "picking",
-                payload: new Dictionary<string, object?>
-                {
-                    ["sku"] = barcode,
-                    ["qtyBefore"] = found.Quantity,
-                    ["qtyAfter"] = 0,
-                });
-            ApplySkuDeduction(found, "1", DeductionSource.ScanAuto);
+            ShowProductImageOverlay(found);
+            ShowOverlayPickEntry(targetVerified);
         }
         else
         {
-            EmitQcEvent(
-                stepId: "item_scanned_await_qty",
-                trigger: "sku_scan",
-                trackingNumber: foundOrder?.TrackingNumber,
-                fromState: ConsumePickingFromState(),
-                toState: "picking",
-                payload: new Dictionary<string, object?>
-                {
-                    ["sku"] = barcode,
-                    ["qtyRemaining"] = found.Quantity,
-                });
-            found.PickQtyText = "1";
-            found.IsBeingPicked = true;
             FocusItemEntry(found);
-            var label = found.Name + (found.HasVariation ? $" · {found.Variation}" : "");
-            UpdateSearchStatus($"Matched: {label} — enter qty and press Enter");
-            Logger.Log($"OrderSearch: SKU matched '{barcode}'");
+        }
+
+        ScrollToProduct(found);
+        UpdateSearchStatus($"Matched: {label} — enter qty and confirm");
+        Logger.Log($"OrderSearch: SKU matched '{barcode}', qty remaining: {found.Quantity}");
+    }
+
+    /// <summary>
+    /// Auto-deducts accumulated qty from the pending product when switching away.
+    /// Called before setting up a new active product.
+    /// </summary>
+    private void FlushPendingDeduction()
+    {
+        if (_pendingSkuProduct == null) return;
+        var item = _pendingSkuProduct;
+        if (item.IsBeingPicked && int.TryParse(item.PickQtyText, out var qty) && qty > 0)
+        {
+            ApplyVerifiedOverride(item, item.PickQtyText, "auto_deducted", "focus_changed");
+            if (ProductImageOverlay.IsVisible) { HideOverlayPickEntry(); SyncOverlayAfterDeduction(item); }
+        }
+        else
+        {
+            item.IsBeingPicked = false;
+            SetActiveProduct(null);
         }
     }
 
-    // Differentiates which user action triggered a deduction — so ApplySkuDeduction
-    // emits the right workflow_event (manual qty entry vs card tap vs a prior auto-complete).
+    private PackingList? FindOrderForItem(ProductItem item) =>
+        Results.FirstOrDefault(o => o.ParsedProducts.Contains(item));
+
+    private bool IsOrderQcPassed(PackingList order) =>
+        _completedPackingIds.Contains(order.PackingId)
+        || string.Equals(order.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase);
+
     private enum DeductionSource
     {
-        AutoPrior,   // pending item auto-deducted because user moved on to the next scan/tap
-        ScanAuto,    // scan matched a qty=1 row — immediate deduct; event already emitted in HandleSkuScan
-        ManualQty,   // user typed a number in the qty entry
-        CardTap,     // user tapped the qty area on a card
+        AutoPrior,     // pending item auto-deducted because user moved on to the next scan/tap
+        ScanAuto,      // scan matched a qty=1 row — immediate deduct; event already emitted in HandleSkuScan
+        ManualQty,     // user typed a number in the qty entry
+        CardTap,       // user tapped the qty area on a card
+        KeyboardPlus,  // user pressed + key on keyboard
     }
 
     private void OnPickQtyEntryCompleted(object sender, EventArgs e)
     {
-        if (sender is Entry entry && entry.BindingContext is ProductItem item)
-            ApplySkuDeduction(item, entry.Text, DeductionSource.ManualQty);
+        if (sender is not Entry entry || entry.BindingContext is not ProductItem item) return;
+        ApplyVerifiedOverride(item, entry.Text);
     }
 
     private void OnPickQtyTextChanged(object sender, TextChangedEventArgs e)
@@ -704,47 +760,50 @@ public partial class OrderSearchPage : ContentPage
         if (digits.Length > 1 && digits[0] == '0') { entry.Text = digits.TrimStart('0'); return; }
 
         if (string.IsNullOrEmpty(digits)) return;
-        if (int.TryParse(digits, out var qty) && qty > item.Quantity)
-        {
-            // Overflow: use only the last typed digit if it fits, otherwise cap
-            var lastDigit = digits[^1..];
-            if (int.TryParse(lastDigit, out var single) && single <= item.Quantity)
-                entry.Text = lastDigit;
-            else
-                entry.Text = item.Quantity.ToString();
-        }
+        if (int.TryParse(digits, out var qty) && qty > item.RequiredQuantity)
+            entry.Text = item.RequiredQuantity.ToString();
     }
 
     private void ApplySkuDeduction(ProductItem item, string? qtyText, DeductionSource source)
     {
-        if (!int.TryParse(qtyText?.Trim(), out var qty)) qty = 1; // invalid input → default 1
-        qty = Math.Max(0, Math.Min(qty, item.Quantity));           // clamp [0, remaining]
+        if (!int.TryParse(qtyText?.Trim(), out var qty)) qty = 1;
+        qty = Math.Max(0, Math.Min(qty, item.Quantity));
 
         if (qty == 0)
         {
-            // User entered 0 — dismiss entry without deducting
             item.IsBeingPicked = false;
             if (item == _pendingSkuProduct) SetActiveProduct(null);
             UpdateSearchStatus($"{item.SellerSku} — no deduction (0 entered)");
             return;
         }
 
-        // Emit the action-origin event BEFORE mutating, so qtyBefore/qtyAfter reflect the change.
-        // ScanAuto is already reported in HandleSkuScan (as item_scanned_auto); skip here.
-        // AutoPrior is a housekeeping side-effect (not a user action on this item) → no event.
-        if (source is DeductionSource.ManualQty or DeductionSource.CardTap)
+        var owner = FindOrderForItem(item);
+
+        // ScanAuto already reported in HandleSkuScan; skip here.
+        if (source is DeductionSource.AutoPrior or DeductionSource.ManualQty or DeductionSource.CardTap or DeductionSource.KeyboardPlus)
         {
-            var owner = Results.FirstOrDefault(o => o.ParsedProducts.Contains(item));
-            var stepId = source == DeductionSource.ManualQty ? "manual_qty_entered" : "card_clicked";
-            var trigger = source == DeductionSource.ManualQty ? "qty_entered" : "card_tap";
+            var stepId = source switch
+            {
+                DeductionSource.AutoPrior => "auto_deducted",
+                DeductionSource.ManualQty => "manual_qty_entered",
+                DeductionSource.KeyboardPlus => "manual_card_clicked",
+                _ => "manual_card_clicked",
+            };
+            var trigger = source switch
+            {
+                DeductionSource.AutoPrior => "focus_changed",
+                DeductionSource.ManualQty => "qty_entered",
+                DeductionSource.KeyboardPlus => "keyboard_plus",
+                _ => "card_tap_plus",
+            };
             var payload = new Dictionary<string, object?>
             {
                 ["sku"] = item.SellerSku,
                 ["qtyBefore"] = item.Quantity,
                 ["qtyAfter"] = item.Quantity - qty,
+                ["qtyDeducted"] = qty,
             };
             if (source == DeductionSource.ManualQty) payload["qtyEntered"] = qty;
-            else payload["qtyDeducted"] = qty;
             EmitQcEvent(
                 stepId: stepId,
                 trigger: trigger,
@@ -756,9 +815,15 @@ public partial class OrderSearchPage : ContentPage
 
         item.Quantity -= qty;
         item.IsBeingPicked = false;
-        item.OrderQcContext = item.VerifiedQuantity > 0 ? "QC Hold" : ""; // reset to white when no items verified
+        item.OrderQcContext = item.VerifiedQuantity > 0 ? "QC Hold" : "";
 
-        if (item == _pendingSkuProduct) SetActiveProduct(null);
+        if (owner != null && string.IsNullOrWhiteSpace(owner.CheckedBy))
+        {
+            owner.CheckedBy = EffectiveOperator;
+            UpdateHeaderOrderInfo();
+        }
+
+        if (item == _pendingSkuProduct && item.IsFullyPicked) SetActiveProduct(null);
 
         // Animate fully-picked item sliding to bottom
         if (item.IsFullyPicked)
@@ -768,6 +833,57 @@ public partial class OrderSearchPage : ContentPage
             ? $"✓ {item.SellerSku} fully verified"
             : $"{item.SellerSku} — {item.VerifiedQuantity}/{item.RequiredQuantity} verified");
         Logger.Log($"OrderSearch: verified {qty} for '{item.SellerSku}', now {item.VerifiedQuantity}/{item.RequiredQuantity}");
+
+        _ = CheckAndSaveQcStatusAsync();
+    }
+
+    private void ApplyVerifiedOverride(ProductItem item, string? text,
+        string stepId = "manual_qty_entered", string trigger = "qty_entered")
+    {
+        if (!int.TryParse(text?.Trim(), out var verified)) { item.IsBeingPicked = false; return; }
+        verified = Math.Clamp(verified, 0, item.RequiredQuantity);
+
+        var newRemaining = item.RequiredQuantity - verified;
+        if (newRemaining == item.Quantity) { item.IsBeingPicked = false; return; }
+
+        var owner = FindOrderForItem(item);
+        var deducted = item.Quantity - newRemaining;
+
+        EmitQcEvent(
+            stepId: stepId,
+            trigger: trigger,
+            trackingNumber: owner?.TrackingNumber,
+            fromState: ConsumePickingFromState(),
+            toState: "picking",
+            payload: new Dictionary<string, object?>
+            {
+                ["sku"] = item.SellerSku,
+                ["qtyBefore"] = item.Quantity,
+                ["qtyAfter"] = newRemaining,
+                ["qtyEntered"] = verified,
+                ["qtyDeducted"] = deducted,
+            });
+
+        item.Quantity = newRemaining;
+        item.IsBeingPicked = false;
+        item.OrderQcContext = item.VerifiedQuantity > 0 ? "QC Hold" : "";
+
+        if (owner != null && string.IsNullOrWhiteSpace(owner.CheckedBy))
+        {
+            owner.CheckedBy = EffectiveOperator;
+            UpdateHeaderOrderInfo();
+        }
+
+        if (item.IsFullyPicked)
+        {
+            SetActiveProduct(null);
+            _ = AnimateAndMoveItemToBottomAsync(item);
+        }
+
+        UpdateSearchStatus(item.IsFullyPicked
+            ? $"✓ {item.SellerSku} fully verified"
+            : $"{item.SellerSku} — {item.VerifiedQuantity}/{item.RequiredQuantity} verified");
+        Logger.Log($"OrderSearch: override verified={verified} for '{item.SellerSku}', now {item.VerifiedQuantity}/{item.RequiredQuantity}");
 
         _ = CheckAndSaveQcStatusAsync();
     }
@@ -856,7 +972,7 @@ public partial class OrderSearchPage : ContentPage
                     payload: new Dictionary<string, object?>
                     {
                         ["checkedBy"] = EffectiveOperator,
-                        ["itemsPicked"] = order.ParsedProducts.Count,
+                        ["itemsPicked"] = order.ParsedProducts.Sum(p => p.RequiredQuantity),
                     });
             }
             UpdateSearchStatus(ok
@@ -873,7 +989,7 @@ public partial class OrderSearchPage : ContentPage
                 ProductImageOverlay.IsVisible = false;
                 _overlayItem = null;
             }
-            var totalItems = Results.Sum(o => o.ParsedProducts.Count);
+            var totalItems = Results.Sum(o => o.ParsedProducts.Sum(p => p.RequiredQuantity));
             ShowCompletionSummary(totalItems);
         }
     }
@@ -964,18 +1080,14 @@ public partial class OrderSearchPage : ContentPage
         if (sender is not VerticalStackLayout layout) return;
         if (layout.BindingContext is not ProductItem item) return;
 
-        PackingList? order = null;
-        foreach (var o in Results)
-            if (o.ParsedProducts.Contains(item)) { order = o; break; }
+        var order = FindOrderForItem(item);
         if (order == null) return;
 
-        bool isQcPassed = _completedPackingIds.Contains(order.PackingId)
-            || string.Equals(order.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase);
-        if (isQcPassed) { UpdateSearchStatus($"Order {order.TrackingNumber} is QC Passed — no changes allowed"); return; }
+        if (IsOrderQcPassed(order)) { UpdateSearchStatus($"Order {order.TrackingNumber} is QC Passed — no changes allowed"); return; }
         if (item.Quantity <= 0) { UpdateSearchStatus($"{item.SellerSku} — already fully picked"); return; }
 
-        if (_pendingSkuProduct != null)
-            ApplySkuDeduction(_pendingSkuProduct, "1", DeductionSource.AutoPrior);
+        if (_pendingSkuProduct != null && _pendingSkuProduct != item)
+            FlushPendingDeduction();
 
         SetActiveProduct(item);
 
@@ -1104,10 +1216,10 @@ public partial class OrderSearchPage : ContentPage
             item = ve.BindingContext as ProductItem;
         if (item == null) return;
 
-        ShowProductImageOverlay(item);
+        ShowProductImageOverlay(item, "card_click");
     }
 
-    private void ShowProductImageOverlay(ProductItem item)
+    private void ShowProductImageOverlay(ProductItem item, string? openTrigger = null)
     {
         _overlayItem = item;
 
@@ -1143,7 +1255,7 @@ public partial class OrderSearchPage : ContentPage
         }
 
         // Item position (e.g., "ITEM 03 of 14")
-        var order = Results.FirstOrDefault(o => o.ParsedProducts.Contains(item));
+        var order = FindOrderForItem(item);
         if (order != null)
         {
             var idx = order.ParsedProducts.IndexOf(item) + 1;
@@ -1193,6 +1305,7 @@ public partial class OrderSearchPage : ContentPage
 
         OverlayPickEntry.IsVisible = false;
         OverlayPickEntry.Text = "";
+        OverlayVerifiedQty.IsVisible = true;
 
         if (!ProductImageOverlay.IsVisible)
         {
@@ -1200,6 +1313,22 @@ public partial class OrderSearchPage : ContentPage
             ProductImageOverlay.Opacity = 1;
             OverlayCard.Scale = 1;
             OverlayCard.Opacity = 1;
+        }
+
+        if (openTrigger != null)
+        {
+            var owner = FindOrderForItem(item);
+            var currentState = _isFirstItemScan ? "order-loaded" : "picking";
+            EmitQcEvent(
+                stepId: "image_peek",
+                trigger: openTrigger,
+                trackingNumber: owner?.TrackingNumber,
+                fromState: currentState,
+                toState: currentState,
+                payload: new Dictionary<string, object?>
+                {
+                    ["sku"] = item.SellerSku,
+                });
         }
     }
 
@@ -1218,34 +1347,120 @@ public partial class OrderSearchPage : ContentPage
         await DismissImageOverlayAsync();
     }
 
-    private async Task DismissImageOverlayAsync()
+    private async Task DismissImageOverlayAsync(string closeTrigger = "close_tap")
     {
+        var closingItem = _overlayItem;
+
         await Task.WhenAll(
             ProductImageOverlay.FadeToAsync(0, 180, Easing.CubicIn),
             OverlayCard.ScaleToAsync(0.85, 180, Easing.CubicIn));
         ProductImageOverlay.IsVisible = false;
+        HideOverlayPickEntry();
         _overlayItem = null;
+
+        if (closingItem != null)
+        {
+            var owner = FindOrderForItem(closingItem);
+            var currentState = _isFirstItemScan ? "order-loaded" : "picking";
+            EmitQcEvent(
+                stepId: "image_collapse",
+                trigger: closeTrigger,
+                trackingNumber: owner?.TrackingNumber,
+                fromState: currentState,
+                toState: currentState,
+                payload: new Dictionary<string, object?>
+                {
+                    ["sku"] = closingItem.SellerSku,
+                });
+        }
     }
 
-    private void OnOverlayImageTapped(object sender, TappedEventArgs e)
+    private async void OnOverlayImageTapped(object sender, TappedEventArgs e)
+    {
+        _ = AnimateScanButtonAsync();
+        DoOverlayPlus(DeductionSource.CardTap);
+    }
+
+    private async void OnOverlayPlusTapped(object sender, TappedEventArgs e)
+    {
+        _ = AnimateOverlayBtnAsync(OverlayPlusBtn, "#7C5CF0", "#5B31E0");
+        DoOverlayPlus(DeductionSource.CardTap);
+    }
+
+    private async void OnOverlayMinusTapped(object sender, TappedEventArgs e)
+    {
+        _ = AnimateOverlayBtnAsync(OverlayMinusBtn, "#fca5a5", "#ef4444");
+        DoOverlayMinus("card_tap_minus");
+    }
+
+    private void DoOverlayPlus(DeductionSource source)
     {
         if (_overlayItem == null || _overlayItem.Quantity <= 0) return;
 
-        PackingList? order = null;
-        foreach (var o in Results)
-            if (o.ParsedProducts.Contains(_overlayItem)) { order = o; break; }
-        if (order == null) return;
-
-        bool isQcPassed = _completedPackingIds.Contains(order.PackingId)
-            || string.Equals(order.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase);
-        if (isQcPassed) return;
+        var order = FindOrderForItem(_overlayItem);
+        if (order == null || IsOrderQcPassed(order)) return;
 
         if (_pendingSkuProduct != null && _pendingSkuProduct != _overlayItem)
-            ApplySkuDeduction(_pendingSkuProduct, "1", DeductionSource.AutoPrior);
+            FlushPendingDeduction();
 
         SetActiveProduct(_overlayItem);
-        ApplySkuDeduction(_overlayItem, "1", DeductionSource.CardTap);
+        ApplySkuDeduction(_overlayItem, "1", source);
         SyncOverlayAfterDeduction(_overlayItem);
+    }
+
+    private void DoOverlayMinus(string trigger)
+    {
+        if (_overlayItem == null || _overlayItem.Quantity >= _overlayItem.RequiredQuantity) return;
+
+        var order = FindOrderForItem(_overlayItem);
+        if (order == null || IsOrderQcPassed(order)) return;
+
+        if (_pendingSkuProduct != null && _pendingSkuProduct != _overlayItem)
+            FlushPendingDeduction();
+
+        SetActiveProduct(_overlayItem);
+
+        EmitQcEvent(
+            stepId: "manual_card_unclicked",
+            trigger: trigger,
+            trackingNumber: order.TrackingNumber,
+            fromState: ConsumePickingFromState(),
+            toState: "picking",
+            payload: new Dictionary<string, object?>
+            {
+                ["sku"] = _overlayItem.SellerSku,
+                ["qtyBefore"] = _overlayItem.Quantity,
+                ["qtyAfter"] = _overlayItem.Quantity + 1,
+            });
+
+        _overlayItem.Quantity += 1;
+        _overlayItem.OrderQcContext = _overlayItem.VerifiedQuantity > 0 ? "QC Hold" : "";
+        SyncOverlayAfterDeduction(_overlayItem);
+        _ = CheckAndSaveQcStatusAsync();
+    }
+
+    private async Task AnimateOverlayBtnAsync(Border btn, string flashColor, string restColor)
+    {
+        btn.BackgroundColor = Color.FromArgb(flashColor);
+        await btn.ScaleToAsync(0.90, 80, Easing.CubicIn);
+        await btn.ScaleToAsync(1.0, 120, Easing.CubicOut);
+        btn.BackgroundColor = Color.FromArgb(restColor);
+    }
+
+    private async Task AnimateScanButtonAsync()
+    {
+        await AnimateOverlayBtnAsync(OverlayPlusBtn, "#7C5CF0", "#5B31E0");
+    }
+
+    private async Task AnimateCardButtonAsync(ProductItem item, string buttonText)
+    {
+        var btn = FindDescendant<Button>(this, b => b.BindingContext == item && b.Text == buttonText);
+        if (btn == null) return;
+        var flash = buttonText == "+" ? Color.FromArgb("#7C5CF0") : Color.FromArgb("#fca5a5");
+        btn.BackgroundColor = flash;
+        await btn.ScaleToAsync(0.85, 80, Easing.CubicIn);
+        await btn.ScaleToAsync(1.0, 120, Easing.CubicOut);
+        btn.BackgroundColor = item.ButtonBgColor;
     }
 
     private async void OnOverlayCloseTapped(object sender, TappedEventArgs e)
@@ -1259,47 +1474,13 @@ public partial class OrderSearchPage : ContentPage
     private void OnOverlayNextTapped(object sender, TappedEventArgs e)
         => NavigateOverlayProduct(1);
 
-    private void OnOverlayQtyTapped(object sender, TappedEventArgs e)
-    {
-        if (_overlayItem == null) return;
-
-        PackingList? order = null;
-        foreach (var o in Results)
-            if (o.ParsedProducts.Contains(_overlayItem)) { order = o; break; }
-        if (order == null) return;
-
-        bool isQcPassed = _completedPackingIds.Contains(order.PackingId)
-            || string.Equals(order.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase);
-        if (isQcPassed) { UpdateSearchStatus($"Order {order.TrackingNumber} is QC Passed — no changes allowed"); return; }
-        if (_overlayItem.Quantity <= 0) { UpdateSearchStatus($"{_overlayItem.SellerSku} — already fully picked"); return; }
-
-        if (_pendingSkuProduct != null && _pendingSkuProduct != _overlayItem)
-            ApplySkuDeduction(_pendingSkuProduct, "1", DeductionSource.AutoPrior);
-
-        SetActiveProduct(_overlayItem);
-
-        if (_overlayItem.Quantity == 1)
-        {
-            ApplySkuDeduction(_overlayItem, "1", DeductionSource.CardTap);
-            SyncOverlayAfterDeduction(_overlayItem);
-        }
-        else
-        {
-            OverlayPickEntry.Text = "0";
-            OverlayPickEntry.IsVisible = true;
-            _ = Dispatcher.DispatchAsync(async () =>
-            {
-                await Task.Delay(80);
-                OverlayPickEntry.Focus();
-            });
-        }
-    }
+    private void OnOverlayQtyTapped(object sender, TappedEventArgs e) { }
 
     private void OnOverlayPickEntryCompleted(object sender, EventArgs e)
     {
         if (_overlayItem == null) return;
-        ApplySkuDeduction(_overlayItem, OverlayPickEntry.Text, DeductionSource.ManualQty);
-        OverlayPickEntry.IsVisible = false;
+        ApplyVerifiedOverride(_overlayItem, OverlayPickEntry.Text);
+        HideOverlayPickEntry();
         SyncOverlayAfterDeduction(_overlayItem);
     }
 
@@ -1311,14 +1492,8 @@ public partial class OrderSearchPage : ContentPage
         if (digits != raw) { OverlayPickEntry.Text = digits; return; }
         if (digits.Length > 1 && digits[0] == '0') { OverlayPickEntry.Text = digits.TrimStart('0'); return; }
         if (string.IsNullOrEmpty(digits)) return;
-        if (int.TryParse(digits, out var qty) && qty > _overlayItem.Quantity)
-        {
-            var lastDigit = digits[^1..];
-            if (int.TryParse(lastDigit, out var single) && single <= _overlayItem.Quantity)
-                OverlayPickEntry.Text = lastDigit;
-            else
-                OverlayPickEntry.Text = _overlayItem.Quantity.ToString();
-        }
+        if (int.TryParse(digits, out var qty) && qty > _overlayItem.RequiredQuantity)
+            OverlayPickEntry.Text = _overlayItem.RequiredQuantity.ToString();
     }
 
     private void SyncOverlayAfterDeduction(ProductItem item)
@@ -1330,6 +1505,24 @@ public partial class OrderSearchPage : ContentPage
 
         if (item.IsFullyPicked)
             AdvanceOverlayToNext(item);
+    }
+
+    private void ShowOverlayPickEntry(string initialValue)
+    {
+        OverlayVerifiedQty.IsVisible = false;
+        OverlayPickEntry.Text = initialValue;
+        OverlayPickEntry.IsVisible = true;
+        _ = Dispatcher.DispatchAsync(async () =>
+        {
+            await Task.Delay(80);
+            OverlayPickEntry.Focus();
+        });
+    }
+
+    private void HideOverlayPickEntry()
+    {
+        OverlayPickEntry.IsVisible = false;
+        OverlayVerifiedQty.IsVisible = true;
     }
 
     private void AdvanceOverlayToNext(ProductItem item)
@@ -1493,6 +1686,7 @@ public partial class OrderSearchPage : ContentPage
 
         UpdateSearchStatus($"↺ {order.TrackingNumber} — reset to original");
         Logger.Log($"OrderSearch: {order.TrackingNumber} → reset QC Hold");
+        UpdateHeaderOrderInfo();
         BuildCarouselUI();
         UpdateSessionStats();
     }
@@ -1899,6 +2093,17 @@ public partial class OrderSearchPage : ContentPage
                     tb.IsEnabled = false; tb.IsEnabled = true;
                     e.Handled = true;
                 }
+                else if (OverlayPickEntry.IsVisible && ReferenceEquals(tb, OverlayPickEntry.Handler?.PlatformView))
+                {
+                    HideOverlayPickEntry();
+                    e.Handled = true;
+                }
+                else if (_pendingSkuProduct != null && _pendingSkuProduct.IsBeingPicked)
+                {
+                    _pendingSkuProduct.IsBeingPicked = false;
+                    tb.IsEnabled = false; tb.IsEnabled = true;
+                    e.Handled = true;
+                }
             }
             return;
         }
@@ -1919,18 +2124,58 @@ public partial class OrderSearchPage : ContentPage
             return;
         }
 
+        // Enter → apply pending qty (entry always shows target verified count)
         if (e.Key == Windows.System.VirtualKey.Enter)
         {
-            if (ProductImageOverlay.IsVisible)
-                _ = DismissImageOverlayAsync();
-            else
+            if (ProductImageOverlay.IsVisible && OverlayPickEntry.IsVisible && _overlayItem != null)
             {
-                var target = _pendingSkuProduct
-                    ?? Results.SelectMany(o => o.ParsedProducts).FirstOrDefault(p => !p.IsFullyPicked);
-                if (target != null) ShowProductImageOverlay(target);
+                ApplyVerifiedOverride(_overlayItem, OverlayPickEntry.Text);
+                HideOverlayPickEntry();
+                SyncOverlayAfterDeduction(_overlayItem);
+                e.Handled = true;
+                return;
             }
-            e.Handled = true;
-            return;
+            if (_pendingSkuProduct != null && _pendingSkuProduct.IsBeingPicked)
+            {
+                ApplyVerifiedOverride(_pendingSkuProduct, _pendingSkuProduct.PickQtyText);
+                e.Handled = true;
+                return;
+            }
+        }
+
+        // Number keys → activate qty field on active product
+        if (e.Key >= Windows.System.VirtualKey.Number0 && e.Key <= Windows.System.VirtualKey.Number9
+            || e.Key >= Windows.System.VirtualKey.NumberPad0 && e.Key <= Windows.System.VirtualKey.NumberPad9)
+        {
+            var target = ProductImageOverlay.IsVisible ? _overlayItem : _pendingSkuProduct;
+            if (target != null && target.Quantity > 0)
+            {
+                int digit = e.Key >= Windows.System.VirtualKey.NumberPad0
+                    ? (int)e.Key - (int)Windows.System.VirtualKey.NumberPad0
+                    : (int)e.Key - (int)Windows.System.VirtualKey.Number0;
+
+                if (ProductImageOverlay.IsVisible)
+                {
+                    ShowOverlayPickEntry(digit.ToString());
+                }
+                else
+                {
+                    target.PickQtyText = digit.ToString();
+                    target.IsBeingPicked = true;
+                    SetActiveProduct(target);
+                    // Focus the entry after layout
+                    _ = Dispatcher.DispatchAsync(async () =>
+                    {
+                        await Task.Delay(80);
+                        var entry = FindDescendant<Entry>(this, en =>
+                            en.IsVisible && en.BindingContext == target
+                            && en.ReturnType == ReturnType.Done);
+                        entry?.Focus();
+                    });
+                }
+                e.Handled = true;
+                return;
+            }
         }
 
         if (ProductImageOverlay.IsVisible && _overlayItem != null)
@@ -1947,13 +2192,13 @@ public partial class OrderSearchPage : ContentPage
 
         if (e.Key == Windows.System.VirtualKey.Escape && ProductImageOverlay.IsVisible)
         {
-            _ = DismissImageOverlayAsync(); e.Handled = true; return;
+            _ = DismissImageOverlayAsync("keyboard_escape"); e.Handled = true; return;
         }
         if (e.Key == Windows.System.VirtualKey.I && !ProductImageOverlay.IsVisible)
         {
             var target = _pendingSkuProduct
                 ?? Results.SelectMany(o => o.ParsedProducts).FirstOrDefault(p => !p.IsFullyPicked);
-            if (target != null) { ShowProductImageOverlay(target); e.Handled = true; return; }
+            if (target != null) { ShowProductImageOverlay(target, "keyboard_i"); e.Handled = true; return; }
         }
 
         // +/- keys verify/unverify active product card
@@ -1962,17 +2207,31 @@ public partial class OrderSearchPage : ContentPage
         var plusTarget = ProductImageOverlay.IsVisible ? _overlayItem : _pendingSkuProduct;
         if ((e.Key == VkPlus || e.Key == Windows.System.VirtualKey.Add) && plusTarget != null)
         {
-            var fakeEl = new Label { BindingContext = plusTarget };
-            OnPlusClicked(fakeEl, EventArgs.Empty);
-            if (ProductImageOverlay.IsVisible) RefreshOverlayQuantity();
+            if (ProductImageOverlay.IsVisible)
+            {
+                _ = AnimateOverlayBtnAsync(OverlayPlusBtn, "#7C5CF0", "#5B31E0");
+                DoOverlayPlus(DeductionSource.KeyboardPlus);
+            }
+            else
+            {
+                _ = AnimateCardButtonAsync(plusTarget, "+");
+                DoCardPlus(plusTarget, DeductionSource.KeyboardPlus);
+            }
             e.Handled = true;
             return;
         }
         if ((e.Key == VkMinus || e.Key == Windows.System.VirtualKey.Subtract) && plusTarget != null)
         {
-            var fakeEl = new Label { BindingContext = plusTarget };
-            OnMinusClicked(fakeEl, EventArgs.Empty);
-            if (ProductImageOverlay.IsVisible) RefreshOverlayQuantity();
+            if (ProductImageOverlay.IsVisible)
+            {
+                _ = AnimateOverlayBtnAsync(OverlayMinusBtn, "#fca5a5", "#ef4444");
+                DoOverlayMinus("keyboard_minus");
+            }
+            else
+            {
+                _ = AnimateCardButtonAsync(plusTarget, "-");
+                DoCardMinus(plusTarget, "keyboard_minus");
+            }
             e.Handled = true;
             return;
         }
@@ -2307,7 +2566,7 @@ public partial class OrderSearchPage : ContentPage
     {
         if (sender is not VisualElement el) return;
         if (el.BindingContext is not ProductItem item) return;
-        ShowProductImageOverlay(item);
+        ShowProductImageOverlay(item, "card_click");
     }
 
     // ── +/- button handlers ──────────────────────────────────────────────────
@@ -2315,37 +2574,56 @@ public partial class OrderSearchPage : ContentPage
     private void OnPlusClicked(object sender, EventArgs e)
     {
         if (sender is not VisualElement el || el.BindingContext is not ProductItem item) return;
-        if (item.Quantity <= 0) return; // already fully verified
-
-        PackingList? order = null;
-        foreach (var o in Results)
-            if (o.ParsedProducts.Contains(item)) { order = o; break; }
-        if (order == null) return;
-
-        bool isQcPassed = _completedPackingIds.Contains(order.PackingId)
-            || string.Equals(order.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase);
-        if (isQcPassed) { UpdateSearchStatus($"Order {order.TrackingNumber} is QC Passed — no changes allowed"); return; }
-
-        if (_pendingSkuProduct != null && _pendingSkuProduct != item)
-            ApplySkuDeduction(_pendingSkuProduct, "1", DeductionSource.AutoPrior);
-
-        SetActiveProduct(item);
-        ApplySkuDeduction(item, "1", DeductionSource.CardTap);
+        _ = AnimateCardButtonAsync(item, "+");
+        DoCardPlus(item, DeductionSource.CardTap);
     }
 
     private void OnMinusClicked(object sender, EventArgs e)
     {
         if (sender is not VisualElement el || el.BindingContext is not ProductItem item) return;
-        if (item.Quantity >= item.RequiredQuantity) return; // already at 0 verified
+        _ = AnimateCardButtonAsync(item, "-");
+        DoCardMinus(item, "card_tap_minus");
+    }
 
-        PackingList? order = null;
-        foreach (var o in Results)
-            if (o.ParsedProducts.Contains(item)) { order = o; break; }
+    private void DoCardPlus(ProductItem item, DeductionSource source)
+    {
+        if (item.Quantity <= 0) return;
+
+        var order = FindOrderForItem(item);
         if (order == null) return;
+        if (IsOrderQcPassed(order)) { UpdateSearchStatus($"Order {order.TrackingNumber} is QC Passed — no changes allowed"); return; }
 
-        bool isQcPassed = _completedPackingIds.Contains(order.PackingId)
-            || string.Equals(order.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase);
-        if (isQcPassed) { UpdateSearchStatus($"Order {order.TrackingNumber} is QC Passed — no changes allowed"); return; }
+        if (_pendingSkuProduct != null && _pendingSkuProduct != item)
+            FlushPendingDeduction();
+
+        SetActiveProduct(item);
+        ApplySkuDeduction(item, "1", source);
+    }
+
+    private void DoCardMinus(ProductItem item, string trigger)
+    {
+        if (item.Quantity >= item.RequiredQuantity) return;
+
+        var order = FindOrderForItem(item);
+        if (order == null) return;
+        if (IsOrderQcPassed(order)) { UpdateSearchStatus($"Order {order.TrackingNumber} is QC Passed — no changes allowed"); return; }
+
+        if (_pendingSkuProduct != null && _pendingSkuProduct != item)
+            FlushPendingDeduction();
+        SetActiveProduct(item);
+
+        EmitQcEvent(
+            stepId: "manual_card_unclicked",
+            trigger: trigger,
+            trackingNumber: order.TrackingNumber,
+            fromState: ConsumePickingFromState(),
+            toState: "picking",
+            payload: new Dictionary<string, object?>
+            {
+                ["sku"] = item.SellerSku,
+                ["qtyBefore"] = item.Quantity,
+                ["qtyAfter"] = item.Quantity + 1,
+            });
 
         item.Quantity += 1;
         item.OrderQcContext = item.VerifiedQuantity > 0 ? "QC Hold" : "";
@@ -2356,15 +2634,13 @@ public partial class OrderSearchPage : ContentPage
     private void SimulatePlusOnActiveProduct()
     {
         if (_pendingSkuProduct == null) return;
-        var fakeEl = new Label { BindingContext = _pendingSkuProduct };
-        OnPlusClicked(fakeEl, EventArgs.Empty);
+        DoCardPlus(_pendingSkuProduct, DeductionSource.CardTap);
     }
 
     private void SimulateMinusOnActiveProduct()
     {
         if (_pendingSkuProduct == null) return;
-        var fakeEl = new Label { BindingContext = _pendingSkuProduct };
-        OnMinusClicked(fakeEl, EventArgs.Empty);
+        DoCardMinus(_pendingSkuProduct, "card_tap_minus");
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -2493,7 +2769,10 @@ public partial class OrderSearchPage : ContentPage
             HeaderTrackingLabel.IsVisible = true;
             HeaderTrackingLabel.Text = order.TrackingNumber;
 
-            ResetButton.IsVisible = string.Equals(order.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase);
+            var hasVerified = Results.Any(o => o.HasProducts && o.ParsedProducts.Any(p => p.Quantity != p.OriginalQuantity));
+            var isHoldOrPassed = string.Equals(order.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(order.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase);
+            ResetButton.IsVisible = hasVerified || isHoldOrPassed;
         });
     }
 
@@ -2502,7 +2781,6 @@ public partial class OrderSearchPage : ContentPage
         if (CurrentOrder == null) return;
         var fakeEl = new Label { BindingContext = CurrentOrder };
         OnResetClicked(fakeEl, EventArgs.Empty);
-        ResetButton.IsVisible = false;
     }
 
     private void ShowLoginOverlay() =>
@@ -2599,7 +2877,8 @@ public partial class OrderSearchPage : ContentPage
             if (_serialPort is not { IsOpen: true })
             {
                 ApplyComStateVisuals(ComState.Disconnected);
-                _comHeartbeatTimer?.Stop();
+                if (_selectedPortName != null && _currentOperator != null)
+                    TryReconnectComPort();
                 return;
             }
             var lastTicks = Interlocked.Read(ref _lastSerialDataTicks);
