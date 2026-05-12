@@ -1319,10 +1319,11 @@ public partial class OrderSearchPage : ContentPage
 
     private async Task AnimateOverlayAdvanceAsync(ProductItem item)
     {
+        // Green flash on completed item
         OverlayCard.Stroke = Color.FromArgb("#86efac");
         OverlayCard.StrokeThickness = 3;
         OverlayCard.BackgroundColor = Color.FromArgb("#dcfce7");
-        await Task.Delay(500);
+        await Task.Delay(450);
 
         var allProducts = Results.SelectMany(o => o.ParsedProducts).ToList();
         var currentIdx = allProducts.IndexOf(item);
@@ -1334,25 +1335,45 @@ public partial class OrderSearchPage : ContentPage
             if (!candidate.IsFullyPicked) { nextUnfinished = candidate; break; }
         }
 
-        OverlayCard.Stroke = Colors.Transparent;
-        OverlayCard.StrokeThickness = 0;
-        OverlayCard.BackgroundColor = Colors.White;
-
         if (nextUnfinished != null)
         {
+            // Crossfade: fade out card, swap content, fade back in
+            await OverlayCard.FadeToAsync(0, 150, Easing.CubicIn);
+
+            OverlayCard.Stroke = Colors.Transparent;
+            OverlayCard.StrokeThickness = 0;
+            OverlayCard.BackgroundColor = Colors.White;
+
             ShowProductImageOverlay(nextUnfinished);
             SetActiveProduct(nextUnfinished);
             ScrollToProduct(nextUnfinished);
+
+            OverlayCard.Opacity = 0;
+            await OverlayCard.FadeToAsync(1, 200, Easing.CubicOut);
         }
         else
         {
-            await DismissImageOverlayAsync();
+            // All done — smooth scale-down dismiss
+            await Task.WhenAll(
+                OverlayCard.FadeToAsync(0, 300, Easing.CubicIn),
+                OverlayCard.ScaleToAsync(0.9, 300, Easing.CubicIn),
+                ProductImageOverlay.FadeToAsync(0, 300, Easing.CubicIn));
+
+            ProductImageOverlay.IsVisible = false;
+            OverlayCard.BackgroundColor = Colors.White;
+            OverlayCard.Stroke = Colors.Transparent;
+            OverlayCard.StrokeThickness = 0;
+            OverlayCard.Scale = 1;
+            OverlayCard.Opacity = 1;
+            _overlayItem = null;
         }
     }
 
-    private void NavigateOverlayProduct(int direction)
+    private bool _navigatingOverlay;
+
+    private async void NavigateOverlayProduct(int direction)
     {
-        if (_overlayItem == null) return;
+        if (_overlayItem == null || _navigatingOverlay) return;
         var allProducts = Results.SelectMany(o => o.ParsedProducts).ToList();
         var currentIdx = allProducts.IndexOf(_overlayItem);
         if (currentIdx < 0) return;
@@ -1361,7 +1382,23 @@ public partial class OrderSearchPage : ContentPage
         if (nextIdx < 0) nextIdx = allProducts.Count - 1;
         if (nextIdx >= allProducts.Count) nextIdx = 0;
 
+        _navigatingOverlay = true;
+
+        // Slide out in direction, swap content, slide back in
+        var slideOut = direction > 0 ? -30.0 : 30.0;
+        await Task.WhenAll(
+            OverlayCard.FadeToAsync(0, 120, Easing.CubicIn),
+            OverlayCard.TranslateToAsync(slideOut, 0, 120, Easing.CubicIn));
+
         ShowProductImageOverlay(allProducts[nextIdx]);
+
+        OverlayCard.TranslationX = -slideOut;
+        OverlayCard.Opacity = 0;
+        await Task.WhenAll(
+            OverlayCard.FadeToAsync(1, 150, Easing.CubicOut),
+            OverlayCard.TranslateToAsync(0, 0, 150, Easing.CubicOut));
+
+        _navigatingOverlay = false;
     }
 
     // ── Completion summary overlay ───────────────────────────────────────────
@@ -1372,11 +1409,19 @@ public partial class OrderSearchPage : ContentPage
         CompletionSummaryOverlay.Opacity = 0;
         CompletionSummaryOverlay.IsVisible = true;
         await CompletionSummaryOverlay.FadeToAsync(1, 250, Easing.CubicOut);
+
+        await Task.Delay(3000);
+
+        if (CompletionSummaryOverlay.IsVisible)
+            await DismissCompletionSummaryAsync();
     }
 
     private async void OnCompletionSummaryBackdropTapped(object sender, TappedEventArgs e)
+        => await DismissCompletionSummaryAsync();
+
+    private async Task DismissCompletionSummaryAsync()
     {
-        await CompletionSummaryOverlay.FadeToAsync(0, 200, Easing.CubicIn);
+        await CompletionSummaryOverlay.FadeToAsync(0, 300, Easing.CubicIn);
         CompletionSummaryOverlay.IsVisible = false;
     }
 
@@ -1900,7 +1945,7 @@ public partial class OrderSearchPage : ContentPage
 
         if (e.Key == Windows.System.VirtualKey.Escape && CompletionSummaryOverlay.IsVisible)
         {
-            OnCompletionSummaryBackdropTapped(this, new TappedEventArgs(null));
+            _ = DismissCompletionSummaryAsync();
             e.Handled = true;
             return;
         }
