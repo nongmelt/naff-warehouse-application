@@ -144,6 +144,9 @@ public class ProductItem : INotifyPropertyChanged
     {
         get
         {
+            if (_isActive)
+                return Color.FromArgb("#F5F3FF");
+
             if (IsFullyPicked ||
                 string.Equals(_orderQcContext, "QC Passed", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(_orderQcContext, "Packed Complete", StringComparison.OrdinalIgnoreCase))
@@ -151,9 +154,6 @@ public class ProductItem : INotifyPropertyChanged
 
             if (IsPartiallyVerified)
                 return Color.FromArgb("#FFF7ED");
-
-            if (_isActive)
-                return Color.FromArgb("#F5F3FF");
 
             if (string.Equals(_orderQcContext, "QC Hold", StringComparison.OrdinalIgnoreCase))
                 return Color.FromArgb("#FFF7ED");
@@ -182,8 +182,6 @@ public class ProductItem : INotifyPropertyChanged
         get
         {
             if (!_isActive) return Colors.Transparent;
-            if (IsFullyPicked) return Color.FromArgb("#86efac");
-            if (IsPartiallyVerified) return Color.FromArgb("#fdba74");
             return Color.FromArgb("#a78bfa");
         }
     }
