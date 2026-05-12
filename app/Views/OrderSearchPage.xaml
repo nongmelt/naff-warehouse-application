@@ -895,6 +895,72 @@
             </Border>
         </Grid>
 
+        <!-- ── Pop-up search bar (shown when / pressed or search clicked) ── -->
+        <Border x:Name="PopupSearchBar"
+                Grid.Row="1"
+                Grid.ColumnSpan="3"
+                IsVisible="False"
+                ZIndex="15"
+                HorizontalOptions="Fill"
+                VerticalOptions="Start"
+                BackgroundColor="White"
+                Stroke="#e5e7eb"
+                StrokeThickness="1"
+                StrokeShape="RoundRectangle 12"
+                Margin="24,8,24,0"
+                Padding="16,10">
+            <Border.Shadow>
+                <Shadow Brush="#20000000" Offset="0,4" Radius="16"/>
+            </Border.Shadow>
+            <Grid ColumnDefinitions="Auto, *, Auto" ColumnSpacing="12" VerticalOptions="Center">
+                <!-- / icon -->
+                <Border Grid.Column="0"
+                        BackgroundColor="#f3f4f6"
+                        Stroke="#e5e7eb"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 4"
+                        Padding="6,3"
+                        VerticalOptions="Center">
+                    <Label Text="/"
+                           TextColor="#9ca3af"
+                           FontSize="14"
+                           FontAttributes="Bold"
+                           HorizontalTextAlignment="Center"
+                           VerticalTextAlignment="Center"/>
+                </Border>
+                <!-- Search entry -->
+                <Entry x:Name="PopupSearchEntry"
+                       Grid.Column="1"
+                       Placeholder="Tracking or order number…"
+                       PlaceholderColor="#9ca3af"
+                       TextColor="#111827"
+                       FontSize="16"
+                       BackgroundColor="Transparent"
+                       ReturnType="Search"
+                       Completed="OnPopupSearchCommitted"
+                       VerticalOptions="Center"/>
+                <!-- Hint text -->
+                <Label Grid.Column="2"
+                       Text="Esc to close · Enter to search"
+                       TextColor="#d1d5db"
+                       FontSize="12"
+                       VerticalOptions="Center"/>
+            </Grid>
+        </Border>
+
+        <!-- Backdrop to catch clicks outside the popup search bar -->
+        <Grid x:Name="PopupSearchBackdrop"
+              Grid.Row="1"
+              Grid.RowSpan="4"
+              BackgroundColor="#40000000"
+              IsVisible="False"
+              ZIndex="14"
+              InputTransparent="False">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnPopupSearchBackdropTapped"/>
+            </Grid.GestureRecognizers>
+        </Grid>
+
         <!-- Welcome animation banner — briefly shown after login -->
         <Border x:Name="WelcomeBanner"
                 Grid.Row="1"

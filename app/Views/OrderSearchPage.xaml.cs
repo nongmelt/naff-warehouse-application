@@ -387,6 +387,8 @@ public partial class OrderSearchPage : ContentPage
         _isSearching = loading;
         MainThread.BeginInvokeOnMainThread(() =>
         {
+            PopupSearchEntry.IsEnabled = !loading;
+            PopupSearchEntry.Placeholder = loading ? "searching…" : "Tracking or order number…";
             HeaderSearchEntry.IsEnabled = !loading;
             HeaderSearchEntry.Placeholder = loading ? "searching…" : "search";
             SearchPlaceholderLabel.Text = loading ? "searching…" : "search";
@@ -1721,12 +1723,18 @@ public partial class OrderSearchPage : ContentPage
         // Don't intercept while typing in any Entry / TextBox
         if (e.OriginalSource is Microsoft.UI.Xaml.Controls.TextBox tb)
         {
-            // Escape blurs only the header search entry
-            if (e.Key == Windows.System.VirtualKey.Escape &&
-                ReferenceEquals(tb, HeaderSearchEntry.Handler?.PlatformView))
+            if (e.Key == Windows.System.VirtualKey.Escape)
             {
-                tb.IsEnabled = false; tb.IsEnabled = true;
-                e.Handled = true;
+                if (PopupSearchBar.IsVisible)
+                {
+                    DismissPopupSearch();
+                    e.Handled = true;
+                }
+                else if (ReferenceEquals(tb, HeaderSearchEntry.Handler?.PlatformView))
+                {
+                    tb.IsEnabled = false; tb.IsEnabled = true;
+                    e.Handled = true;
+                }
             }
             return;
         }
@@ -2188,31 +2196,35 @@ public partial class OrderSearchPage : ContentPage
 
     private void ActivateSearchEntry()
     {
-        SearchSlashHint.IsVisible = false;
-        SearchPlaceholderLabel.IsVisible = false;
-        HeaderSearchEntry.IsVisible = true;
-        SearchBoxBorder.Stroke = Color.FromArgb("#ccffffff");
-        SearchBoxBorder.BackgroundColor = Color.FromArgb("#22ffffff");
-        HeaderSearchEntry.Focus();
+        PopupSearchBar.IsVisible = true;
+        PopupSearchBackdrop.IsVisible = true;
+        PopupSearchEntry.Text = "";
+        PopupSearchEntry.Focus();
     }
 
-    private void OnSearchEntryFocused(object? sender, FocusEventArgs e)
+    private async void OnPopupSearchCommitted(object sender, EventArgs e)
     {
-        SearchBoxBorder.Stroke = Color.FromArgb("#ccffffff");
-        SearchBoxBorder.BackgroundColor = Color.FromArgb("#22ffffff");
+        var query = PopupSearchEntry.Text?.Trim() ?? "";
+        DismissPopupSearch();
+        if (!string.IsNullOrWhiteSpace(query))
+            await ExecuteSearchAsync(query, trigger: "manual_search");
     }
 
-    private void OnSearchEntryUnfocused(object? sender, FocusEventArgs e)
+    private void OnPopupSearchBackdropTapped(object? sender, TappedEventArgs e)
     {
-        SearchBoxBorder.Stroke = Color.FromArgb("#30ffffff");
-        SearchBoxBorder.BackgroundColor = Color.FromArgb("#12ffffff");
-        if (string.IsNullOrWhiteSpace(HeaderSearchEntry.Text))
-        {
-            HeaderSearchEntry.IsVisible = false;
-            SearchSlashHint.IsVisible = true;
-            SearchPlaceholderLabel.IsVisible = true;
-        }
+        DismissPopupSearch();
     }
+
+    private void DismissPopupSearch()
+    {
+        PopupSearchBar.IsVisible = false;
+        PopupSearchBackdrop.IsVisible = false;
+        PopupSearchEntry.Unfocus();
+    }
+
+    private void OnSearchEntryFocused(object? sender, FocusEventArgs e) { }
+
+    private void OnSearchEntryUnfocused(object? sender, FocusEventArgs e) { }
 
     private void UpdateHeaderOrderInfo()
     {
