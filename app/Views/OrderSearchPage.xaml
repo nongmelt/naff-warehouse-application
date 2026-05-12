@@ -617,7 +617,8 @@
                                     <BindableLayout.ItemTemplate>
                                         <DataTemplate x:DataType="models:ProductItem">
                                             <Border Stroke="#e5e7eb" StrokeThickness="1" StrokeShape="RoundRectangle 6"
-                                                    BackgroundColor="{Binding CardBgColor}" Padding="0" Margin="0,2">
+                                                    BackgroundColor="{Binding CardBgColor}" Padding="0" Margin="0,2"
+                                                    ToolTipProperties.Text="Click row to peek reference image (or press I)">
                                                 <Border.GestureRecognizers>
                                                     <PointerGestureRecognizer PointerEntered="OnProductCardEntered" PointerExited="OnProductCardExited"/>
                                                     <TapGestureRecognizer Tapped="OnProductRowTapped"/>
@@ -667,7 +668,8 @@
                                                     <HorizontalStackLayout Grid.Column="6" Spacing="8" VerticalOptions="Center" HorizontalOptions="End">
                                                         <Button Text="-" Clicked="OnMinusClicked" WidthRequest="32" HeightRequest="32"
                                                                 FontSize="16" FontAttributes="Bold" Padding="0" CornerRadius="4"
-                                                                BackgroundColor="#f3f4f6" TextColor="#374151" VerticalOptions="Center"/>
+                                                                BackgroundColor="#f3f4f6" TextColor="#374151" VerticalOptions="Center"
+                                                                ToolTipProperties.Text="Unverify (decrease count)"/>
                                                         <VerticalStackLayout VerticalOptions="Center" Spacing="0">
                                                             <VerticalStackLayout.GestureRecognizers>
                                                                 <TapGestureRecognizer Tapped="OnQuantityTapped"/>
@@ -687,7 +689,8 @@
                                                         </VerticalStackLayout>
                                                         <Button Text="+" Clicked="OnPlusClicked" WidthRequest="32" HeightRequest="32"
                                                                 FontSize="16" FontAttributes="Bold" Padding="0" CornerRadius="4"
-                                                                BackgroundColor="#f3f4f6" TextColor="#374151" VerticalOptions="Center"/>
+                                                                BackgroundColor="#f3f4f6" TextColor="#374151" VerticalOptions="Center"
+                                                                ToolTipProperties.Text="Verify (increase count)"/>
                                                     </HorizontalStackLayout>
                                                 </Grid>
                                             </Border>
