@@ -56,6 +56,19 @@ public partial class OrderSearchPage : ContentPage
 
     public string StationNameDisplay => $"Station: {StationName}";
 
+    private PackingList? _currentOrder;
+    public PackingList? CurrentOrder
+    {
+        get => _currentOrder;
+        set
+        {
+            _currentOrder = value;
+            OnPropertyChanged(nameof(CurrentOrder));
+            OnPropertyChanged(nameof(HasCurrentOrder));
+        }
+    }
+    public bool HasCurrentOrder => _currentOrder != null;
+
     // SKU picking state — set after an order loads; cleared on new search
     private bool _orderLoaded;
     private bool _isFirstItemScan;
@@ -2192,6 +2205,7 @@ public partial class OrderSearchPage : ContentPage
         MainThread.BeginInvokeOnMainThread(() =>
         {
             var order = Results.FirstOrDefault();
+            CurrentOrder = order;
             if (order is null)
             {
                 HeaderOrderLabel.IsVisible = false;

@@ -361,132 +361,208 @@
                 StrokeThickness="1"
                 StrokeShape="RoundRectangle 4"
                 Margin="24,4,24,0">
-            <Grid ColumnDefinitions="Auto, Auto, Auto, *, Auto, Auto"
-                  ColumnSpacing="0">
+            <VerticalStackLayout Spacing="0">
 
-                <Label x:Name="SessionTotalLabel" IsVisible="False" Text="0"/>
+                <!-- History belt: stats pills + carousel -->
+                <Grid ColumnDefinitions="Auto, Auto, Auto, *, Auto, Auto"
+                      ColumnSpacing="0">
 
-                <!-- Summary stats pills -->
-                <HorizontalStackLayout Grid.Column="0" Spacing="4" VerticalOptions="Center"
-                                       Padding="6,0">
-                    <!-- Green: Completed -->
-                    <Border x:Name="SessionCompletedBadge"
-                            BackgroundColor="#f0fdf4"
-                            Stroke="#bbf7d0"
-                            StrokeThickness="1"
-                            StrokeShape="RoundRectangle 4"
-                            Padding="8,4">
+                    <Label x:Name="SessionTotalLabel" IsVisible="False" Text="0"/>
+
+                    <!-- Summary stats pills -->
+                    <HorizontalStackLayout Grid.Column="0" Spacing="4" VerticalOptions="Center"
+                                           Padding="6,0">
+                        <!-- Green: Completed -->
+                        <Border x:Name="SessionCompletedBadge"
+                                BackgroundColor="#f0fdf4"
+                                Stroke="#bbf7d0"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 4"
+                                Padding="8,4">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnSessionCompletedBadgeTapped"/>
+                            </Border.GestureRecognizers>
+                            <HorizontalStackLayout Spacing="4" VerticalOptions="Center">
+                                <BoxView WidthRequest="6" HeightRequest="6"
+                                         Color="#16a34a" CornerRadius="3" VerticalOptions="Center"/>
+                                <Label x:Name="SessionCompletedLabel"
+                                       Text="0" FontSize="12" FontAttributes="Bold"
+                                       TextColor="#166534" VerticalOptions="Center"/>
+                                <Label Text="Completed" FontSize="10"
+                                       TextColor="#6b7280" VerticalOptions="Center"/>
+                            </HorizontalStackLayout>
+                        </Border>
+                        <!-- Orange: Incompleted -->
+                        <Border x:Name="SessionIncompleteBadge"
+                                BackgroundColor="#fffbeb"
+                                Stroke="#fde68a"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 4"
+                                Padding="8,4">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnSessionIncompleteBadgeTapped"/>
+                            </Border.GestureRecognizers>
+                            <HorizontalStackLayout Spacing="4" VerticalOptions="Center">
+                                <BoxView WidthRequest="6" HeightRequest="6"
+                                         Color="#d97706" CornerRadius="3" VerticalOptions="Center"/>
+                                <Label x:Name="SessionIncompleteLabel"
+                                       Text="0" FontSize="12" FontAttributes="Bold"
+                                       TextColor="#b45309" VerticalOptions="Center"/>
+                                <Label Text="Incompleted" FontSize="10"
+                                       TextColor="#6b7280" VerticalOptions="Center"/>
+                            </HorizontalStackLayout>
+                        </Border>
+                        <!-- Blue: Incoming -->
+                        <Border x:Name="SessionIncomingBadge"
+                                BackgroundColor="#eff6ff"
+                                Stroke="#bfdbfe"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 4"
+                                Padding="8,4">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnSessionIncomingBadgeTapped"/>
+                            </Border.GestureRecognizers>
+                            <HorizontalStackLayout Spacing="4" VerticalOptions="Center">
+                                <BoxView WidthRequest="6" HeightRequest="6"
+                                         Color="#2563eb" CornerRadius="3" VerticalOptions="Center"/>
+                                <Label x:Name="SessionIncomingLabel"
+                                       Text="0" FontSize="12" FontAttributes="Bold"
+                                       TextColor="#1d4ed8" VerticalOptions="Center"/>
+                                <Label Text="Incoming" FontSize="10"
+                                       TextColor="#6b7280" VerticalOptions="Center"/>
+                            </HorizontalStackLayout>
+                        </Border>
+                    </HorizontalStackLayout>
+
+                    <!-- Vertical divider -->
+                    <BoxView Grid.Column="1"
+                             WidthRequest="1"
+                             BackgroundColor="#e5e7eb"
+                             VerticalOptions="Center"
+                             HeightRequest="24"
+                             Margin="4,0"/>
+
+                    <!-- Left arrow -->
+                    <Border Grid.Column="2"
+                            BackgroundColor="Transparent"
+                            StrokeThickness="0"
+                            Padding="8,4"
+                            VerticalOptions="Center">
                         <Border.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnSessionCompletedBadgeTapped"/>
+                            <TapGestureRecognizer Tapped="OnCarouselPrevTapped"/>
                         </Border.GestureRecognizers>
-                        <HorizontalStackLayout Spacing="4" VerticalOptions="Center">
-                            <BoxView WidthRequest="6" HeightRequest="6"
-                                     Color="#16a34a" CornerRadius="3" VerticalOptions="Center"/>
-                            <Label x:Name="SessionCompletedLabel"
-                                   Text="0" FontSize="12" FontAttributes="Bold"
-                                   TextColor="#166534" VerticalOptions="Center"/>
-                            <Label Text="Completed" FontSize="10"
-                                   TextColor="#6b7280" VerticalOptions="Center"/>
-                        </HorizontalStackLayout>
+                        <Label Text="‹" FontSize="16" FontAttributes="Bold" TextColor="#9ca3af"
+                               HorizontalTextAlignment="Center" VerticalTextAlignment="Center"/>
                     </Border>
-                    <!-- Orange: Incompleted -->
-                    <Border x:Name="SessionIncompleteBadge"
-                            BackgroundColor="#fffbeb"
-                            Stroke="#fde68a"
-                            StrokeThickness="1"
-                            StrokeShape="RoundRectangle 4"
-                            Padding="8,4">
+
+                    <!-- Carousel -->
+                    <ScrollView x:Name="NavRow"
+                                Grid.Column="3"
+                                Orientation="Horizontal"
+                                HorizontalScrollBarVisibility="Never"
+                                VerticalOptions="Center"
+                                Padding="4,0">
+                        <HorizontalStackLayout x:Name="CarouselLayout"
+                                               Spacing="4"
+                                               VerticalOptions="Center"/>
+                    </ScrollView>
+
+                    <!-- Right arrow -->
+                    <Border Grid.Column="4"
+                            BackgroundColor="Transparent"
+                            StrokeThickness="0"
+                            Padding="8,4"
+                            VerticalOptions="Center">
                         <Border.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnSessionIncompleteBadgeTapped"/>
+                            <TapGestureRecognizer Tapped="OnCarouselNextTapped"/>
                         </Border.GestureRecognizers>
-                        <HorizontalStackLayout Spacing="4" VerticalOptions="Center">
-                            <BoxView WidthRequest="6" HeightRequest="6"
-                                     Color="#d97706" CornerRadius="3" VerticalOptions="Center"/>
-                            <Label x:Name="SessionIncompleteLabel"
-                                   Text="0" FontSize="12" FontAttributes="Bold"
-                                   TextColor="#b45309" VerticalOptions="Center"/>
-                            <Label Text="Incompleted" FontSize="10"
-                                   TextColor="#6b7280" VerticalOptions="Center"/>
-                        </HorizontalStackLayout>
+                        <Label Text="›" FontSize="16" FontAttributes="Bold" TextColor="#9ca3af"
+                               HorizontalTextAlignment="Center" VerticalTextAlignment="Center"/>
                     </Border>
-                    <!-- Blue: Incoming -->
-                    <Border x:Name="SessionIncomingBadge"
-                            BackgroundColor="#eff6ff"
-                            Stroke="#bfdbfe"
-                            StrokeThickness="1"
-                            StrokeShape="RoundRectangle 4"
-                            Padding="8,4">
-                        <Border.GestureRecognizers>
-                            <TapGestureRecognizer Tapped="OnSessionIncomingBadgeTapped"/>
-                        </Border.GestureRecognizers>
-                        <HorizontalStackLayout Spacing="4" VerticalOptions="Center">
-                            <BoxView WidthRequest="6" HeightRequest="6"
-                                     Color="#2563eb" CornerRadius="3" VerticalOptions="Center"/>
-                            <Label x:Name="SessionIncomingLabel"
-                                   Text="0" FontSize="12" FontAttributes="Bold"
-                                   TextColor="#1d4ed8" VerticalOptions="Center"/>
-                            <Label Text="Incoming" FontSize="10"
-                                   TextColor="#6b7280" VerticalOptions="Center"/>
-                        </HorizontalStackLayout>
+
+                    <!-- Hidden scan indicator (legacy refs, scan feedback now in header) -->
+                    <Border x:Name="ScanIndicatorCard" Grid.Column="5" IsVisible="False"
+                            HeightRequest="0" WidthRequest="0">
+                        <VerticalStackLayout>
+                            <Label x:Name="ScanIndicatorLabel"/>
+                            <Label x:Name="ScanIndicatorStatus"/>
+                        </VerticalStackLayout>
                     </Border>
-                </HorizontalStackLayout>
 
-                <!-- Vertical divider -->
-                <BoxView Grid.Column="1"
-                         WidthRequest="1"
-                         BackgroundColor="#e5e7eb"
-                         VerticalOptions="Center"
-                         HeightRequest="24"
-                         Margin="4,0"/>
+                </Grid>
 
-                <!-- Left arrow -->
-                <Border Grid.Column="2"
-                        BackgroundColor="Transparent"
-                        StrokeThickness="0"
-                        Padding="8,4"
-                        VerticalOptions="Center">
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnCarouselPrevTapped"/>
-                    </Border.GestureRecognizers>
-                    <Label Text="‹" FontSize="16" FontAttributes="Bold" TextColor="#9ca3af"
-                           HorizontalTextAlignment="Center" VerticalTextAlignment="Center"/>
-                </Border>
+                <!-- Divider between belt and tracking card -->
+                <BoxView HeightRequest="1" BackgroundColor="#e5e7eb" Margin="8,0"
+                         IsVisible="{Binding HasCurrentOrder}"/>
 
-                <!-- Carousel -->
-                <ScrollView x:Name="NavRow"
-                            Grid.Column="3"
-                            Orientation="Horizontal"
-                            HorizontalScrollBarVisibility="Never"
-                            VerticalOptions="Center"
-                            Padding="4,0">
-                    <HorizontalStackLayout x:Name="CarouselLayout"
-                                           Spacing="4"
-                                           VerticalOptions="Center"/>
-                </ScrollView>
+                <!-- Tracking card — bound to first result -->
+                <Grid x:Name="TrackingCardSection"
+                      IsVisible="{Binding HasCurrentOrder}"
+                      ColumnDefinitions="Auto, *, Auto"
+                      ColumnSpacing="14"
+                      RowDefinitions="Auto, Auto"
+                      RowSpacing="4"
+                      Padding="16,10,24,10">
+                    <!-- Platform icon -->
+                    <Image Grid.Column="0" Grid.RowSpan="2"
+                           Source="{Binding CurrentOrder.PlatformIcon}"
+                           IsVisible="{Binding CurrentOrder.HasPlatformIcon}"
+                           WidthRequest="44" HeightRequest="44"
+                           Aspect="AspectFit" VerticalOptions="Center"/>
+                    <!-- Tracking ID -->
+                    <Label Grid.Column="1" Grid.Row="0"
+                           Text="{Binding CurrentOrder.TrackingNumber}"
+                           FontAttributes="Bold" FontSize="18"
+                           TextColor="#111827" VerticalOptions="Center"/>
+                    <!-- Metadata row -->
+                    <HorizontalStackLayout Grid.Column="1" Grid.Row="1" Spacing="16" VerticalOptions="Center">
+                        <Label FontSize="11" TextColor="#6b7280">
+                            <Label.FormattedText>
+                                <FormattedString>
+                                    <Span Text="Order: " TextColor="#9ca3af"/>
+                                    <Span Text="{Binding CurrentOrder.OrderNumber}" TextColor="#374151"/>
+                                </FormattedString>
+                            </Label.FormattedText>
+                        </Label>
+                        <Label FontSize="11" TextColor="#6b7280">
+                            <Label.FormattedText>
+                                <FormattedString>
+                                    <Span Text="Items: " TextColor="#9ca3af"/>
+                                    <Span Text="{Binding CurrentOrder.TotalItemsDisplay}" TextColor="#374151"/>
+                                </FormattedString>
+                            </Label.FormattedText>
+                        </Label>
+                        <Label FontSize="11" TextColor="#9ca3af">
+                            <Label.FormattedText>
+                                <FormattedString>
+                                    <Span Text="Submitted: "/>
+                                    <Span Text="{Binding CurrentOrder.CreatedAtDisplay}" TextColor="#6b7280"/>
+                                </FormattedString>
+                            </Label.FormattedText>
+                        </Label>
+                    </HorizontalStackLayout>
+                    <!-- Status badges -->
+                    <HorizontalStackLayout Grid.Column="2" Grid.RowSpan="2" Spacing="4"
+                                           VerticalOptions="Center" HorizontalOptions="End">
+                        <Border BackgroundColor="{Binding CurrentOrder.StatusBgColor}"
+                                Stroke="Transparent"
+                                StrokeShape="RoundRectangle 4"
+                                Padding="10,5">
+                            <Label Text="{Binding CurrentOrder.StatusDisplay}"
+                                   TextColor="{Binding CurrentOrder.StatusFgColor}"
+                                   FontSize="15" FontAttributes="Bold"/>
+                        </Border>
+                        <Border IsVisible="{Binding CurrentOrder.IsPackedComplete}"
+                                BackgroundColor="#dcfce7"
+                                Stroke="#86efac" StrokeThickness="1"
+                                StrokeShape="RoundRectangle 4"
+                                Padding="10,5">
+                            <Label Text="✓ QC Passed" TextColor="#166534" FontSize="15" FontAttributes="Bold"/>
+                        </Border>
+                    </HorizontalStackLayout>
+                </Grid>
 
-                <!-- Right arrow -->
-                <Border Grid.Column="4"
-                        BackgroundColor="Transparent"
-                        StrokeThickness="0"
-                        Padding="8,4"
-                        VerticalOptions="Center">
-                    <Border.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnCarouselNextTapped"/>
-                    </Border.GestureRecognizers>
-                    <Label Text="›" FontSize="16" FontAttributes="Bold" TextColor="#9ca3af"
-                           HorizontalTextAlignment="Center" VerticalTextAlignment="Center"/>
-                </Border>
-
-                <!-- Hidden scan indicator (legacy refs, scan feedback now in header) -->
-                <Border x:Name="ScanIndicatorCard" Grid.Column="5" IsVisible="False"
-                        HeightRequest="0" WidthRequest="0">
-                    <VerticalStackLayout>
-                        <Label x:Name="ScanIndicatorLabel"/>
-                        <Label x:Name="ScanIndicatorStatus"/>
-                    </VerticalStackLayout>
-                </Border>
-
-            </Grid>
+            </VerticalStackLayout>
         </Border>
 
         <!-- Scrollable results -->
@@ -522,81 +598,6 @@
                         <DataTemplate x:DataType="models:PackingList">
                             <VerticalStackLayout Spacing="6"
                                                  Margin="0,16,0,0">
-
-                                <!-- Summary card -->
-                                <Border Stroke="#e5e7eb"
-                                        StrokeThickness="1"
-                                        StrokeShape="RoundRectangle 6"
-                                        BackgroundColor="White"
-                                        Padding="16,10,24,10">
-                                    <Grid ColumnDefinitions="Auto, *, Auto"
-                                          ColumnSpacing="14"
-                                          RowDefinitions="Auto, Auto"
-                                          RowSpacing="4">
-                                        <!-- Platform icon -->
-                                        <Image Grid.Column="0" Grid.RowSpan="2"
-                                               Source="{Binding PlatformIcon}"
-                                               IsVisible="{Binding HasPlatformIcon}"
-                                               WidthRequest="44" HeightRequest="44"
-                                               Aspect="AspectFit"
-                                               VerticalOptions="Center"/>
-                                        <!-- Tracking ID -->
-                                        <Label Grid.Column="1" Grid.Row="0"
-                                               Text="{Binding TrackingNumber}"
-                                               FontAttributes="Bold" FontSize="18"
-                                               TextColor="#111827" VerticalOptions="Center"/>
-                                        <!-- Metadata row -->
-                                        <HorizontalStackLayout Grid.Column="1" Grid.Row="1"
-                                                               Spacing="16" VerticalOptions="Center">
-                                            <Label FontSize="11" TextColor="#6b7280">
-                                                <Label.FormattedText>
-                                                    <FormattedString>
-                                                        <Span Text="Order: " TextColor="#9ca3af"/>
-                                                        <Span Text="{Binding OrderNumber}" TextColor="#374151"/>
-                                                    </FormattedString>
-                                                </Label.FormattedText>
-                                            </Label>
-                                            <Label FontSize="11" TextColor="#6b7280">
-                                                <Label.FormattedText>
-                                                    <FormattedString>
-                                                        <Span Text="Items: " TextColor="#9ca3af"/>
-                                                        <Span Text="{Binding TotalItemsDisplay}" TextColor="#374151"/>
-                                                    </FormattedString>
-                                                </Label.FormattedText>
-                                            </Label>
-                                            <Label FontSize="11" TextColor="#9ca3af">
-                                                <Label.FormattedText>
-                                                    <FormattedString>
-                                                        <Span Text="Submitted: "/>
-                                                        <Span Text="{Binding CreatedAtDisplay}" TextColor="#6b7280"/>
-                                                    </FormattedString>
-                                                </Label.FormattedText>
-                                            </Label>
-                                        </HorizontalStackLayout>
-                                        <!-- Status badges (right) -->
-                                        <HorizontalStackLayout Grid.Column="2" Grid.RowSpan="2"
-                                                               Spacing="4" VerticalOptions="Center"
-                                                               HorizontalOptions="End">
-                                            <Border BackgroundColor="{Binding StatusBgColor}"
-                                                    Stroke="Transparent"
-                                                    StrokeShape="RoundRectangle 4"
-                                                    Padding="10,5">
-                                                <Label Text="{Binding StatusDisplay}"
-                                                       TextColor="{Binding StatusFgColor}"
-                                                       FontSize="15" FontAttributes="Bold"/>
-                                            </Border>
-                                            <Border IsVisible="{Binding IsPackedComplete}"
-                                                    BackgroundColor="#dcfce7"
-                                                    Stroke="#86efac" StrokeThickness="1"
-                                                    StrokeShape="RoundRectangle 4"
-                                                    Padding="10,5">
-                                                <Label Text="✓ QC Passed"
-                                                       TextColor="#166534"
-                                                       FontSize="15" FontAttributes="Bold"/>
-                                            </Border>
-                                        </HorizontalStackLayout>
-                                    </Grid>
-                                </Border>
 
                                 <!-- Table header -->
                                 <Grid ColumnDefinitions="40, 64, *, 140, 120, *, Auto" ColumnSpacing="0"
