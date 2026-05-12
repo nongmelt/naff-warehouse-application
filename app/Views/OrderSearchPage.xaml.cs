@@ -756,7 +756,7 @@ public partial class OrderSearchPage : ContentPage
 
         item.Quantity -= qty;
         item.IsBeingPicked = false;
-        item.OrderQcContext = "QC Hold"; // highlight yellow immediately (green if IsFullyPicked takes priority)
+        item.OrderQcContext = item.VerifiedQuantity > 0 ? "QC Hold" : ""; // reset to white when no items verified
 
         if (item == _pendingSkuProduct) SetActiveProduct(null);
 
@@ -2181,7 +2181,7 @@ public partial class OrderSearchPage : ContentPage
         if (isQcPassed) { UpdateSearchStatus($"Order {order.TrackingNumber} is QC Passed — no changes allowed"); return; }
 
         item.Quantity += 1;
-        item.OrderQcContext = "QC Hold";
+        item.OrderQcContext = item.VerifiedQuantity > 0 ? "QC Hold" : "";
         UpdateSearchStatus($"{item.SellerSku} — unverified, {item.VerifiedQuantity}/{item.RequiredQuantity}");
         _ = CheckAndSaveQcStatusAsync();
     }
