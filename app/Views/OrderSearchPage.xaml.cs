@@ -1231,6 +1231,12 @@ public partial class OrderSearchPage : ContentPage
         await DismissImageOverlayAsync();
     }
 
+    private void OnOverlayPrevTapped(object sender, TappedEventArgs e)
+        => NavigateOverlayProduct(-1);
+
+    private void OnOverlayNextTapped(object sender, TappedEventArgs e)
+        => NavigateOverlayProduct(1);
+
     private void OnOverlayQtyTapped(object sender, TappedEventArgs e)
     {
         if (_overlayItem == null) return;
@@ -1301,22 +1307,54 @@ public partial class OrderSearchPage : ContentPage
             : Color.FromArgb("#111827");
 
         if (item.IsFullyPicked)
-            _ = AnimateOverlayDismissGreenAsync(item);
+            _ = AnimateOverlayAdvanceAsync(item);
     }
 
-    private async Task AnimateOverlayDismissGreenAsync(ProductItem item)
+    private async Task AnimateOverlayAdvanceAsync(ProductItem item)
     {
+        OverlayCard.Stroke = Color.FromArgb("#86efac");
+        OverlayCard.StrokeThickness = 3;
         OverlayCard.BackgroundColor = Color.FromArgb("#dcfce7");
-        await Task.Delay(600);
+        await Task.Delay(500);
 
-        await Task.WhenAll(
-            OverlayCard.ScaleToAsync(0.3, 350, Easing.CubicIn),
-            ProductImageOverlay.FadeToAsync(0, 350, Easing.CubicIn));
+        var allProducts = Results.SelectMany(o => o.ParsedProducts).ToList();
+        var currentIdx = allProducts.IndexOf(item);
+        ProductItem? nextUnfinished = null;
 
-        ProductImageOverlay.IsVisible = false;
+        for (int i = 1; i <= allProducts.Count; i++)
+        {
+            var candidate = allProducts[(currentIdx + i) % allProducts.Count];
+            if (!candidate.IsFullyPicked) { nextUnfinished = candidate; break; }
+        }
+
+        OverlayCard.Stroke = Colors.Transparent;
+        OverlayCard.StrokeThickness = 0;
         OverlayCard.BackgroundColor = Colors.White;
-        OverlayCard.Scale = 1;
-        _overlayItem = null;
+
+        if (nextUnfinished != null)
+        {
+            ShowProductImageOverlay(nextUnfinished);
+            SetActiveProduct(nextUnfinished);
+            ScrollToProduct(nextUnfinished);
+        }
+        else
+        {
+            await DismissImageOverlayAsync();
+        }
+    }
+
+    private void NavigateOverlayProduct(int direction)
+    {
+        if (_overlayItem == null) return;
+        var allProducts = Results.SelectMany(o => o.ParsedProducts).ToList();
+        var currentIdx = allProducts.IndexOf(_overlayItem);
+        if (currentIdx < 0) return;
+
+        int nextIdx = currentIdx + direction;
+        if (nextIdx < 0) nextIdx = allProducts.Count - 1;
+        if (nextIdx >= allProducts.Count) nextIdx = 0;
+
+        ShowProductImageOverlay(allProducts[nextIdx]);
     }
 
     // ── Product card hover ───────────────────────────────────────────────────
@@ -1835,6 +1873,18 @@ public partial class OrderSearchPage : ContentPage
             ActivateSearchEntry();
             e.Handled = true;
             return;
+        }
+
+        if (ProductImageOverlay.IsVisible && _overlayItem != null)
+        {
+            var overlayLeft = e.Key == Windows.System.VirtualKey.Left;
+            var overlayRight = e.Key == Windows.System.VirtualKey.Right;
+            if (overlayLeft || overlayRight)
+            {
+                NavigateOverlayProduct(overlayRight ? 1 : -1);
+                e.Handled = true;
+                return;
+            }
         }
 
         if (e.Key == Windows.System.VirtualKey.Escape && ProductImageOverlay.IsVisible)

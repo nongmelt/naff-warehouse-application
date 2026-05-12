@@ -1101,18 +1101,49 @@
                     <!-- ── Top bar spanning both columns ── -->
                     <Grid Grid.Row="0"
                           Grid.ColumnSpan="2"
-                          ColumnDefinitions="*, Auto"
+                          ColumnDefinitions="Auto, *, Auto"
                           BackgroundColor="#fafafa"
                           Padding="20,10">
+                        <HorizontalStackLayout Grid.Column="0"
+                                               Spacing="4"
+                                               VerticalOptions="Center">
+                            <Border BackgroundColor="#f3f4f6"
+                                    Stroke="#e5e7eb"
+                                    StrokeThickness="1"
+                                    StrokeShape="RoundRectangle 4"
+                                    Padding="8,5">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnOverlayPrevTapped"/>
+                                </Border.GestureRecognizers>
+                                <Label Text="&#x2190;"
+                                       FontSize="12"
+                                       FontAttributes="Bold"
+                                       TextColor="#6b7280"/>
+                            </Border>
+                            <Border BackgroundColor="#f3f4f6"
+                                    Stroke="#e5e7eb"
+                                    StrokeThickness="1"
+                                    StrokeShape="RoundRectangle 4"
+                                    Padding="8,5">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnOverlayNextTapped"/>
+                                </Border.GestureRecognizers>
+                                <Label Text="&#x2192;"
+                                       FontSize="12"
+                                       FontAttributes="Bold"
+                                       TextColor="#6b7280"/>
+                            </Border>
+                        </HorizontalStackLayout>
                         <Label x:Name="OverlayItemPosition"
-                               Grid.Column="0"
+                               Grid.Column="1"
                                Text="ITEM 01 of 01"
                                FontSize="11"
                                FontAttributes="Bold"
                                TextColor="#9ca3af"
                                FontFamily="Consolas"
-                               VerticalOptions="Center"/>
-                        <Border Grid.Column="1"
+                               VerticalOptions="Center"
+                               HorizontalOptions="Center"/>
+                        <Border Grid.Column="2"
                                 BackgroundColor="#f3f4f6"
                                 Stroke="#e5e7eb"
                                 StrokeThickness="1"
