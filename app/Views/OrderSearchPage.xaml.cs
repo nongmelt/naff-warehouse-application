@@ -1919,9 +1919,16 @@ public partial class OrderSearchPage : ContentPage
             return;
         }
 
-        // Block Enter from propagating (prevents navigation to home)
         if (e.Key == Windows.System.VirtualKey.Enter)
         {
+            if (ProductImageOverlay.IsVisible)
+                _ = DismissImageOverlayAsync();
+            else
+            {
+                var target = _pendingSkuProduct
+                    ?? Results.SelectMany(o => o.ParsedProducts).FirstOrDefault(p => !p.IsFullyPicked);
+                if (target != null) ShowProductImageOverlay(target);
+            }
             e.Handled = true;
             return;
         }

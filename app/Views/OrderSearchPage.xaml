@@ -1597,6 +1597,21 @@
                                 StrokeShape="RoundRectangle 3"
                                 Padding="4,2"
                                 Stroke="Transparent">
+                            <Label Text="Enter"
+                                   FontSize="10"
+                                   FontAttributes="Bold"
+                                   TextColor="#374151"/>
+                        </Border>
+                        <Label Text="peek"
+                               FontSize="10"
+                               TextColor="#6b7280"
+                               VerticalOptions="Center"/>
+                    </HorizontalStackLayout>
+                    <HorizontalStackLayout Spacing="4">
+                        <Border BackgroundColor="#e5e7eb"
+                                StrokeShape="RoundRectangle 3"
+                                Padding="4,2"
+                                Stroke="Transparent">
                             <Label Text="I"
                                    FontSize="10"
                                    FontAttributes="Bold"
