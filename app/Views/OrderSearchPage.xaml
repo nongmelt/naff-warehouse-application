@@ -1410,7 +1410,7 @@
                            FontSize="14"
                            FontAttributes="Bold"
                            TextColor="#6b7280"
-                           LetterSpacing="2"
+                           CharacterSpacing="4"
                            HorizontalTextAlignment="Center"/>
                     <Grid HeightRequest="6"
                           WidthRequest="240"
