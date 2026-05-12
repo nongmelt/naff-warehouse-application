@@ -503,6 +503,11 @@ public partial class OrderSearchPage : ContentPage
 
         _orderLoaded = rows.Count > 0;
         _isFirstItemScan = rows.Count > 0;
+        if (rows.Count > 0)
+        {
+            var firstProduct = rows[0].ParsedProducts.FirstOrDefault();
+            if (firstProduct != null) SetActiveProduct(firstProduct);
+        }
         ResetSessionStatCounts();
 
         // New tracking scan resets the sequence counter — analytics treats the
@@ -1138,9 +1143,12 @@ public partial class OrderSearchPage : ContentPage
             OverlayItemPosition.Text = "";
         }
 
-        // Counter — show verified / required
+        // Counter — show verified / required, green when complete
         OverlayVerifiedQty.Text = item.VerifiedQuantity.ToString();
         OverlayReqQty.Text = item.RequiredQuantity.ToString();
+        OverlayVerifiedQty.TextColor = item.VerifiedQuantity >= item.RequiredQuantity
+            ? Color.FromArgb("#10B981")
+            : Color.FromArgb("#111827");
 
         // Product info
         OverlayProductName.Text = item.BaseName;
@@ -1157,20 +1165,18 @@ public partial class OrderSearchPage : ContentPage
             OverlayVariationBorder.IsVisible = false;
         }
 
-        // QC Notes
+        // QC Notes (borderless style)
         if (item.HasQcNotes)
         {
             OverlayNotesLabel.Text = item.QcNotes!;
             OverlayNotesLabel.TextColor = Color.FromArgb("#dc2626");
             OverlayNotesBorder.BackgroundColor = Color.FromArgb("#fef2f2");
-            OverlayNotesBorder.Stroke = Color.FromArgb("#fecaca");
         }
         else
         {
             OverlayNotesLabel.Text = "no notes";
             OverlayNotesLabel.TextColor = Color.FromArgb("#d1d5db");
-            OverlayNotesBorder.BackgroundColor = Color.FromArgb("#f9fafb");
-            OverlayNotesBorder.Stroke = Color.FromArgb("#e5e7eb");
+            OverlayNotesBorder.BackgroundColor = Color.FromArgb("#fafafa");
         }
 
         OverlayPickEntry.IsVisible = false;
@@ -1290,6 +1296,9 @@ public partial class OrderSearchPage : ContentPage
     private void SyncOverlayAfterDeduction(ProductItem item)
     {
         OverlayVerifiedQty.Text = item.VerifiedQuantity.ToString();
+        OverlayVerifiedQty.TextColor = item.VerifiedQuantity >= item.RequiredQuantity
+            ? Color.FromArgb("#10B981")
+            : Color.FromArgb("#111827");
 
         if (item.IsFullyPicked)
             _ = AnimateOverlayDismissGreenAsync(item);
@@ -1318,7 +1327,7 @@ public partial class OrderSearchPage : ContentPage
         {
             var item = card.BindingContext as ProductItem;
             var baseColor = item?.CardBgColor ?? Colors.White;
-            card.BackgroundColor = DarkenColor(baseColor, 0.04f);
+            card.BackgroundColor = DarkenColor(baseColor, 0.05f);
         }
     }
 
@@ -1707,6 +1716,11 @@ public partial class OrderSearchPage : ContentPage
 
         _orderLoaded = Results.Count > 0;
         _isFirstItemScan = _orderLoaded;
+        if (Results.Count > 0)
+        {
+            var firstProduct = Results[0].ParsedProducts.FirstOrDefault();
+            if (firstProduct != null) SetActiveProduct(firstProduct);
+        }
         NotFoundCard.IsVisible = Results.Count == 0;
         NotFoundLabel.Text = Results.Count == 0 ? $"{session.Query} not found" : "";
         UpdateSearchStatus(session.Query);
