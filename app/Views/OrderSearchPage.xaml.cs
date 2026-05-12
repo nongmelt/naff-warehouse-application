@@ -1905,6 +1905,13 @@ public partial class OrderSearchPage : ContentPage
             return;
         }
 
+        // Block Enter from propagating (prevents navigation to home)
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (ProductImageOverlay.IsVisible && _overlayItem != null)
         {
             var overlayLeft = e.Key == Windows.System.VirtualKey.Left;
@@ -1928,19 +1935,33 @@ public partial class OrderSearchPage : ContentPage
             if (target != null) { ShowProductImageOverlay(target); e.Handled = true; return; }
         }
 
-        var isLeft = e.Key == Windows.System.VirtualKey.Left;
-        var isRight = e.Key == Windows.System.VirtualKey.Right;
-        if (!isLeft && !isRight) return;
+        // +/- keys verify/unverify active product card
+        const Windows.System.VirtualKey VkPlus = (Windows.System.VirtualKey)187;  // = / + key
+        const Windows.System.VirtualKey VkMinus = (Windows.System.VirtualKey)189; // - / _ key
+        if ((e.Key == VkPlus || e.Key == Windows.System.VirtualKey.Add) && _pendingSkuProduct != null)
+        {
+            SimulatePlusOnActiveProduct();
+            e.Handled = true;
+            return;
+        }
+        if ((e.Key == VkMinus || e.Key == Windows.System.VirtualKey.Subtract) && _pendingSkuProduct != null)
+        {
+            SimulateMinusOnActiveProduct();
+            e.Handled = true;
+            return;
+        }
 
-        // Product card navigation when order is loaded and overlay is closed
-        if (_orderLoaded && !ProductImageOverlay.IsVisible && Results.Count > 0)
+        // Up/Down: navigate product cards when order loaded and overlay closed
+        var isUp = e.Key == Windows.System.VirtualKey.Up;
+        var isDown = e.Key == Windows.System.VirtualKey.Down;
+        if ((isUp || isDown) && _orderLoaded && !ProductImageOverlay.IsVisible && Results.Count > 0)
         {
             var allProducts = Results.SelectMany(o => o.ParsedProducts).ToList();
             if (allProducts.Count > 0)
             {
                 var currentIdx = _pendingSkuProduct != null ? allProducts.IndexOf(_pendingSkuProduct) : -1;
                 int nextIdx;
-                if (isRight)
+                if (isDown)
                     nextIdx = currentIdx < allProducts.Count - 1 ? currentIdx + 1 : 0;
                 else
                     nextIdx = currentIdx > 0 ? currentIdx - 1 : allProducts.Count - 1;
@@ -1952,7 +1973,11 @@ public partial class OrderSearchPage : ContentPage
             }
         }
 
-        // Session navigation — carousel is newest-left, so Left = newer (+1 index), Right = older (-1 index)
+        // Left/Right: session navigation (carousel)
+        var isLeft = e.Key == Windows.System.VirtualKey.Left;
+        var isRight = e.Key == Windows.System.VirtualKey.Right;
+        if (!isLeft && !isRight) return;
+
         if (_sessions.Count > 1)
         {
             if (isLeft) NavigateSession(+1);
@@ -2300,6 +2325,20 @@ public partial class OrderSearchPage : ContentPage
         item.OrderQcContext = item.VerifiedQuantity > 0 ? "QC Hold" : "";
         UpdateSearchStatus($"{item.SellerSku} — unverified, {item.VerifiedQuantity}/{item.RequiredQuantity}");
         _ = CheckAndSaveQcStatusAsync();
+    }
+
+    private void SimulatePlusOnActiveProduct()
+    {
+        if (_pendingSkuProduct == null) return;
+        var fakeEl = new Label { BindingContext = _pendingSkuProduct };
+        OnPlusClicked(fakeEl, EventArgs.Empty);
+    }
+
+    private void SimulateMinusOnActiveProduct()
+    {
+        if (_pendingSkuProduct == null) return;
+        var fakeEl = new Label { BindingContext = _pendingSkuProduct };
+        OnMinusClicked(fakeEl, EventArgs.Empty);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
