@@ -756,7 +756,7 @@ public partial class OrderSearchPage : ContentPage
 
         item.Quantity -= qty;
         item.IsBeingPicked = false;
-        item.OrderQcContext = "QC Hold"; // highlight yellow immediately (green if IsFullyPicked takes priority)
+        item.OrderQcContext = item.VerifiedQuantity > 0 ? "QC Hold" : ""; // reset to white when no items verified
 
         if (item == _pendingSkuProduct) SetActiveProduct(null);
 
@@ -863,6 +863,18 @@ public partial class OrderSearchPage : ContentPage
                 ? $"✓ {order.TrackingNumber} — QC Passed · {EffectiveOperator}"
                 : $"⚠ {order.TrackingNumber} — all picked but DB update failed");
             _carouselDirty = true;
+        }
+
+        if (Results.Count > 0 && Results.All(o => _completedPackingIds.Contains(o.PackingId) ||
+            string.Equals(o.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase)))
+        {
+            if (ProductImageOverlay.IsVisible)
+            {
+                ProductImageOverlay.IsVisible = false;
+                _overlayItem = null;
+            }
+            var totalItems = Results.Sum(o => o.ParsedProducts.Count);
+            ShowCompletionSummary(totalItems);
         }
     }
 
@@ -1182,13 +1194,23 @@ public partial class OrderSearchPage : ContentPage
         OverlayPickEntry.IsVisible = false;
         OverlayPickEntry.Text = "";
 
-        // Show with animation
-        ProductImageOverlay.IsVisible = true;
-        ProductImageOverlay.Opacity = 0;
-        OverlayCard.Scale = 0.85;
-        _ = Task.WhenAll(
-            ProductImageOverlay.FadeToAsync(1, 200, Easing.CubicOut),
-            OverlayCard.ScaleToAsync(1, 250, Easing.CubicOut));
+        if (!ProductImageOverlay.IsVisible)
+        {
+            ProductImageOverlay.IsVisible = true;
+            ProductImageOverlay.Opacity = 1;
+            OverlayCard.Scale = 1;
+            OverlayCard.Opacity = 1;
+        }
+    }
+
+    private void RefreshOverlayQuantity()
+    {
+        if (_overlayItem == null) return;
+        OverlayVerifiedQty.Text = _overlayItem.VerifiedQuantity.ToString();
+        OverlayReqQty.Text = _overlayItem.RequiredQuantity.ToString();
+        OverlayVerifiedQty.TextColor = _overlayItem.VerifiedQuantity >= _overlayItem.RequiredQuantity
+            ? Color.FromArgb("#10B981")
+            : Color.FromArgb("#111827");
     }
 
     private async void OnImageOverlayBackdropTapped(object sender, TappedEventArgs e)
@@ -1230,6 +1252,12 @@ public partial class OrderSearchPage : ContentPage
     {
         await DismissImageOverlayAsync();
     }
+
+    private void OnOverlayPrevTapped(object sender, TappedEventArgs e)
+        => NavigateOverlayProduct(-1);
+
+    private void OnOverlayNextTapped(object sender, TappedEventArgs e)
+        => NavigateOverlayProduct(1);
 
     private void OnOverlayQtyTapped(object sender, TappedEventArgs e)
     {
@@ -1301,22 +1329,69 @@ public partial class OrderSearchPage : ContentPage
             : Color.FromArgb("#111827");
 
         if (item.IsFullyPicked)
-            _ = AnimateOverlayDismissGreenAsync(item);
+            AdvanceOverlayToNext(item);
     }
 
-    private async Task AnimateOverlayDismissGreenAsync(ProductItem item)
+    private void AdvanceOverlayToNext(ProductItem item)
     {
-        OverlayCard.BackgroundColor = Color.FromArgb("#dcfce7");
-        await Task.Delay(600);
+        var allProducts = Results.SelectMany(o => o.ParsedProducts).ToList();
+        var currentIdx = allProducts.IndexOf(item);
+        ProductItem? nextUnfinished = null;
 
-        await Task.WhenAll(
-            OverlayCard.ScaleToAsync(0.3, 350, Easing.CubicIn),
-            ProductImageOverlay.FadeToAsync(0, 350, Easing.CubicIn));
+        for (int i = 1; i <= allProducts.Count; i++)
+        {
+            var candidate = allProducts[(currentIdx + i) % allProducts.Count];
+            if (!candidate.IsFullyPicked) { nextUnfinished = candidate; break; }
+        }
 
-        ProductImageOverlay.IsVisible = false;
-        OverlayCard.BackgroundColor = Colors.White;
-        OverlayCard.Scale = 1;
-        _overlayItem = null;
+        if (nextUnfinished != null)
+        {
+            ShowProductImageOverlay(nextUnfinished);
+            SetActiveProduct(nextUnfinished);
+            ScrollToProduct(nextUnfinished);
+        }
+    }
+
+    private void NavigateOverlayProduct(int direction)
+    {
+        if (_overlayItem == null) return;
+        var allProducts = Results.SelectMany(o => o.ParsedProducts).ToList();
+        var currentIdx = allProducts.IndexOf(_overlayItem);
+        if (currentIdx < 0) return;
+
+        int nextIdx = currentIdx + direction;
+        if (nextIdx < 0) nextIdx = allProducts.Count - 1;
+        if (nextIdx >= allProducts.Count) nextIdx = 0;
+
+        ShowProductImageOverlay(allProducts[nextIdx]);
+    }
+
+    // ── Completion summary overlay ───────────────────────────────────────────
+
+    private async void ShowCompletionSummary(int totalItems)
+    {
+        CompletionCountLabel.Text = totalItems.ToString();
+        CompletionProgressBar.WidthRequest = 240;
+        CompletionSummaryOverlay.Opacity = 0;
+        CompletionSummaryOverlay.IsVisible = true;
+        await CompletionSummaryOverlay.FadeToAsync(1, 250, Easing.CubicOut);
+
+        var anim = new Animation(v => CompletionProgressBar.WidthRequest = v, 240, 0);
+        anim.Commit(CompletionProgressBar, "CountdownBar", length: 1500, easing: Easing.Linear);
+
+        await Task.Delay(1500);
+
+        if (CompletionSummaryOverlay.IsVisible)
+            await DismissCompletionSummaryAsync();
+    }
+
+    private async void OnCompletionSummaryBackdropTapped(object sender, TappedEventArgs e)
+        => await DismissCompletionSummaryAsync();
+
+    private async Task DismissCompletionSummaryAsync()
+    {
+        await CompletionSummaryOverlay.FadeToAsync(0, 300, Easing.CubicIn);
+        CompletionSummaryOverlay.IsVisible = false;
     }
 
     // ── Product card hover ───────────────────────────────────────────────────
@@ -1353,6 +1428,22 @@ public partial class OrderSearchPage : ContentPage
         if (_pendingSkuProduct != null) _pendingSkuProduct.IsActive = false;
         _pendingSkuProduct = item;
         if (item != null) item.IsActive = true;
+    }
+
+    private void ScrollToProduct(ProductItem item)
+    {
+        var border = FindDescendant<Border>(this, b => b.BindingContext == item);
+        if (border != null)
+        {
+            var y = border.Y;
+            var parent = border.Parent as VisualElement;
+            while (parent != null && parent != ResultsScroll.Content)
+            {
+                y += parent.Y;
+                parent = parent.Parent as VisualElement;
+            }
+            _ = ResultsScroll.ScrollToAsync(0, Math.Max(0, y - 100), true);
+        }
     }
 
     // ── Reset ────────────────────────────────────────────────────────────────
@@ -1821,6 +1912,39 @@ public partial class OrderSearchPage : ContentPage
             return;
         }
 
+        if (e.Key == Windows.System.VirtualKey.Escape && CompletionSummaryOverlay.IsVisible)
+        {
+            _ = DismissCompletionSummaryAsync();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            if (ProductImageOverlay.IsVisible)
+                _ = DismissImageOverlayAsync();
+            else
+            {
+                var target = _pendingSkuProduct
+                    ?? Results.SelectMany(o => o.ParsedProducts).FirstOrDefault(p => !p.IsFullyPicked);
+                if (target != null) ShowProductImageOverlay(target);
+            }
+            e.Handled = true;
+            return;
+        }
+
+        if (ProductImageOverlay.IsVisible && _overlayItem != null)
+        {
+            var overlayLeft = e.Key == Windows.System.VirtualKey.Left;
+            var overlayRight = e.Key == Windows.System.VirtualKey.Right;
+            if (overlayLeft || overlayRight)
+            {
+                NavigateOverlayProduct(overlayRight ? 1 : -1);
+                e.Handled = true;
+                return;
+            }
+        }
+
         if (e.Key == Windows.System.VirtualKey.Escape && ProductImageOverlay.IsVisible)
         {
             _ = DismissImageOverlayAsync(); e.Handled = true; return;
@@ -1832,11 +1956,54 @@ public partial class OrderSearchPage : ContentPage
             if (target != null) { ShowProductImageOverlay(target); e.Handled = true; return; }
         }
 
+        // +/- keys verify/unverify active product card
+        const Windows.System.VirtualKey VkPlus = (Windows.System.VirtualKey)187;  // = / + key
+        const Windows.System.VirtualKey VkMinus = (Windows.System.VirtualKey)189; // - / _ key
+        var plusTarget = ProductImageOverlay.IsVisible ? _overlayItem : _pendingSkuProduct;
+        if ((e.Key == VkPlus || e.Key == Windows.System.VirtualKey.Add) && plusTarget != null)
+        {
+            var fakeEl = new Label { BindingContext = plusTarget };
+            OnPlusClicked(fakeEl, EventArgs.Empty);
+            if (ProductImageOverlay.IsVisible) RefreshOverlayQuantity();
+            e.Handled = true;
+            return;
+        }
+        if ((e.Key == VkMinus || e.Key == Windows.System.VirtualKey.Subtract) && plusTarget != null)
+        {
+            var fakeEl = new Label { BindingContext = plusTarget };
+            OnMinusClicked(fakeEl, EventArgs.Empty);
+            if (ProductImageOverlay.IsVisible) RefreshOverlayQuantity();
+            e.Handled = true;
+            return;
+        }
+
+        // Up/Down: navigate product cards when order loaded and overlay closed
+        var isUp = e.Key == Windows.System.VirtualKey.Up;
+        var isDown = e.Key == Windows.System.VirtualKey.Down;
+        if ((isUp || isDown) && _orderLoaded && !ProductImageOverlay.IsVisible && Results.Count > 0)
+        {
+            var allProducts = Results.SelectMany(o => o.ParsedProducts).ToList();
+            if (allProducts.Count > 0)
+            {
+                var currentIdx = _pendingSkuProduct != null ? allProducts.IndexOf(_pendingSkuProduct) : -1;
+                int nextIdx;
+                if (isDown)
+                    nextIdx = currentIdx < allProducts.Count - 1 ? currentIdx + 1 : 0;
+                else
+                    nextIdx = currentIdx > 0 ? currentIdx - 1 : allProducts.Count - 1;
+
+                SetActiveProduct(allProducts[nextIdx]);
+                ScrollToProduct(allProducts[nextIdx]);
+                e.Handled = true;
+                return;
+            }
+        }
+
+        // Left/Right: session navigation (carousel)
         var isLeft = e.Key == Windows.System.VirtualKey.Left;
         var isRight = e.Key == Windows.System.VirtualKey.Right;
         if (!isLeft && !isRight) return;
 
-        // Session navigation — carousel is newest-left, so Left = newer (+1 index), Right = older (-1 index)
         if (_sessions.Count > 1)
         {
             if (isLeft) NavigateSession(+1);
@@ -2181,9 +2348,23 @@ public partial class OrderSearchPage : ContentPage
         if (isQcPassed) { UpdateSearchStatus($"Order {order.TrackingNumber} is QC Passed — no changes allowed"); return; }
 
         item.Quantity += 1;
-        item.OrderQcContext = "QC Hold";
+        item.OrderQcContext = item.VerifiedQuantity > 0 ? "QC Hold" : "";
         UpdateSearchStatus($"{item.SellerSku} — unverified, {item.VerifiedQuantity}/{item.RequiredQuantity}");
         _ = CheckAndSaveQcStatusAsync();
+    }
+
+    private void SimulatePlusOnActiveProduct()
+    {
+        if (_pendingSkuProduct == null) return;
+        var fakeEl = new Label { BindingContext = _pendingSkuProduct };
+        OnPlusClicked(fakeEl, EventArgs.Empty);
+    }
+
+    private void SimulateMinusOnActiveProduct()
+    {
+        if (_pendingSkuProduct == null) return;
+        var fakeEl = new Label { BindingContext = _pendingSkuProduct };
+        OnMinusClicked(fakeEl, EventArgs.Empty);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -2312,9 +2493,7 @@ public partial class OrderSearchPage : ContentPage
             HeaderTrackingLabel.IsVisible = true;
             HeaderTrackingLabel.Text = order.TrackingNumber;
 
-            var isQcHold = string.Equals(order.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(order.PackingStatus, "Packed", StringComparison.OrdinalIgnoreCase);
-            ResetButton.IsVisible = isQcHold;
+            ResetButton.IsVisible = string.Equals(order.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase);
         });
     }
 

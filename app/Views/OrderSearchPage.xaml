@@ -1101,18 +1101,49 @@
                     <!-- ── Top bar spanning both columns ── -->
                     <Grid Grid.Row="0"
                           Grid.ColumnSpan="2"
-                          ColumnDefinitions="*, Auto"
+                          ColumnDefinitions="Auto, *, Auto"
                           BackgroundColor="#fafafa"
                           Padding="20,10">
+                        <HorizontalStackLayout Grid.Column="0"
+                                               Spacing="4"
+                                               VerticalOptions="Center">
+                            <Border BackgroundColor="#f3f4f6"
+                                    Stroke="#e5e7eb"
+                                    StrokeThickness="1"
+                                    StrokeShape="RoundRectangle 4"
+                                    Padding="8,5">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnOverlayPrevTapped"/>
+                                </Border.GestureRecognizers>
+                                <Label Text="&#x2190;"
+                                       FontSize="12"
+                                       FontAttributes="Bold"
+                                       TextColor="#6b7280"/>
+                            </Border>
+                            <Border BackgroundColor="#f3f4f6"
+                                    Stroke="#e5e7eb"
+                                    StrokeThickness="1"
+                                    StrokeShape="RoundRectangle 4"
+                                    Padding="8,5">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnOverlayNextTapped"/>
+                                </Border.GestureRecognizers>
+                                <Label Text="&#x2192;"
+                                       FontSize="12"
+                                       FontAttributes="Bold"
+                                       TextColor="#6b7280"/>
+                            </Border>
+                        </HorizontalStackLayout>
                         <Label x:Name="OverlayItemPosition"
-                               Grid.Column="0"
+                               Grid.Column="1"
                                Text="ITEM 01 of 01"
                                FontSize="11"
                                FontAttributes="Bold"
                                TextColor="#9ca3af"
                                FontFamily="Consolas"
-                               VerticalOptions="Center"/>
-                        <Border Grid.Column="1"
+                               VerticalOptions="Center"
+                               HorizontalOptions="Center"/>
+                        <Border Grid.Column="2"
                                 BackgroundColor="#f3f4f6"
                                 Stroke="#e5e7eb"
                                 StrokeThickness="1"
@@ -1327,6 +1358,76 @@
             </Grid>
         </Grid>
 
+        <!-- ── QC Completion Summary popup ── -->
+        <Grid x:Name="CompletionSummaryOverlay"
+              Grid.Row="0"
+              Grid.RowSpan="5"
+              BackgroundColor="#99111827"
+              IsVisible="False"
+              ZIndex="9">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnCompletionSummaryBackdropTapped"/>
+            </Grid.GestureRecognizers>
+            <Border HorizontalOptions="Center"
+                    VerticalOptions="Center"
+                    Stroke="Transparent"
+                    StrokeShape="RoundRectangle 16"
+                    BackgroundColor="White"
+                    Padding="48,40"
+                    WidthRequest="360"
+                    InputTransparent="False">
+                <Border.Shadow>
+                    <Shadow Brush="#30000000"
+                            Offset="0,12"
+                            Radius="32"/>
+                </Border.Shadow>
+                <VerticalStackLayout Spacing="12"
+                                     HorizontalOptions="Center">
+                    <Border BackgroundColor="#dcfce7"
+                            Stroke="#86efac"
+                            StrokeThickness="2"
+                            StrokeShape="RoundRectangle 40"
+                            WidthRequest="80"
+                            HeightRequest="80"
+                            HorizontalOptions="Center">
+                        <Label Text="&#x2713;"
+                               FontSize="40"
+                               FontAttributes="Bold"
+                               TextColor="#16a34a"
+                               HorizontalTextAlignment="Center"
+                               VerticalTextAlignment="Center"/>
+                    </Border>
+                    <Label x:Name="CompletionCountLabel"
+                           Text="0"
+                           FontSize="56"
+                           FontAttributes="Bold"
+                           TextColor="#111827"
+                           HorizontalTextAlignment="Center"/>
+                    <BoxView HeightRequest="1"
+                             BackgroundColor="#e5e7eb"
+                             Margin="20,0"/>
+                    <Label Text="ITEMS COMPLETE"
+                           FontSize="14"
+                           FontAttributes="Bold"
+                           TextColor="#6b7280"
+                           CharacterSpacing="4"
+                           HorizontalTextAlignment="Center"/>
+                    <Grid HeightRequest="6"
+                          WidthRequest="240"
+                          HorizontalOptions="Center"
+                          Margin="0,8,0,0">
+                        <BoxView BackgroundColor="#e5e7eb"
+                                 CornerRadius="3"/>
+                        <BoxView x:Name="CompletionProgressBar"
+                                 BackgroundColor="#16a34a"
+                                 CornerRadius="3"
+                                 HorizontalOptions="Start"
+                                 WidthRequest="240"/>
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+        </Grid>
+
         <!-- ── Command Palette search (centered, 70% width, soft shadow) ── -->
         <Border x:Name="PopupSearchBar"
                 Grid.Row="1"
@@ -1451,12 +1552,42 @@
                                 StrokeShape="RoundRectangle 3"
                                 Padding="4,2"
                                 Stroke="Transparent">
+                            <Label Text="&#x2191;&#x2193;"
+                                   FontSize="10"
+                                   FontAttributes="Bold"
+                                   TextColor="#374151"/>
+                        </Border>
+                        <Label Text="products"
+                               FontSize="10"
+                               TextColor="#6b7280"
+                               VerticalOptions="Center"/>
+                    </HorizontalStackLayout>
+                    <HorizontalStackLayout Spacing="4">
+                        <Border BackgroundColor="#e5e7eb"
+                                StrokeShape="RoundRectangle 3"
+                                Padding="4,2"
+                                Stroke="Transparent">
                             <Label Text="&#x2190;&#x2192;"
                                    FontSize="10"
                                    FontAttributes="Bold"
                                    TextColor="#374151"/>
                         </Border>
-                        <Label Text="navigate"
+                        <Label Text="history"
+                               FontSize="10"
+                               TextColor="#6b7280"
+                               VerticalOptions="Center"/>
+                    </HorizontalStackLayout>
+                    <HorizontalStackLayout Spacing="4">
+                        <Border BackgroundColor="#e5e7eb"
+                                StrokeShape="RoundRectangle 3"
+                                Padding="4,2"
+                                Stroke="Transparent">
+                            <Label Text="+ / −"
+                                   FontSize="10"
+                                   FontAttributes="Bold"
+                                   TextColor="#374151"/>
+                        </Border>
+                        <Label Text="verify"
                                FontSize="10"
                                TextColor="#6b7280"
                                VerticalOptions="Center"/>
@@ -1471,7 +1602,7 @@
                                    FontAttributes="Bold"
                                    TextColor="#374151"/>
                         </Border>
-                        <Label Text="+1 scanned"
+                        <Label Text="peek"
                                FontSize="10"
                                TextColor="#6b7280"
                                VerticalOptions="Center"/>
