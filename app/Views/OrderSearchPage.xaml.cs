@@ -2297,7 +2297,19 @@ public partial class OrderSearchPage : ContentPage
 
             HeaderTrackingLabel.IsVisible = true;
             HeaderTrackingLabel.Text = order.TrackingNumber;
+
+            var isQcHold = string.Equals(order.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(order.PackingStatus, "Packed", StringComparison.OrdinalIgnoreCase);
+            ResetButton.IsVisible = isQcHold;
         });
+    }
+
+    private void OnResetButtonTapped(object sender, TappedEventArgs e)
+    {
+        if (CurrentOrder == null) return;
+        var fakeEl = new Label { BindingContext = CurrentOrder };
+        OnResetClicked(fakeEl, EventArgs.Empty);
+        ResetButton.IsVisible = false;
     }
 
     private void ShowLoginOverlay() =>
@@ -2414,7 +2426,25 @@ public partial class OrderSearchPage : ContentPage
     private void UpdateOverlayScannerStatus(string msg) =>
         MainThread.BeginInvokeOnMainThread(() => OverlayScannerStatusLabel.Text = msg);
 
-    private void UpdateSearchStatus(string msg) { }
+    private IDispatcherTimer? _statusRevertTimer;
+    private void UpdateSearchStatus(string msg)
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            StatusLabel.Text = msg;
+            StatusLabel.Opacity = 1;
+
+            _statusRevertTimer?.Stop();
+            _statusRevertTimer = Dispatcher.CreateTimer();
+            _statusRevertTimer.Interval = TimeSpan.FromMilliseconds(4000);
+            _statusRevertTimer.IsRepeating = false;
+            _statusRevertTimer.Tick += (_, _) =>
+            {
+                _ = StatusLabel.FadeToAsync(0, 500, Easing.SinIn);
+            };
+            _statusRevertTimer.Start();
+        });
+    }
 
     private static Task<List<ComPortEntry>> GetFriendlyComPortsAsync() => Task.Run(() =>
     {

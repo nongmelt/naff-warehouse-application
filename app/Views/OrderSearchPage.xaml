@@ -559,6 +559,18 @@
                                 Padding="10,5">
                             <Label Text="✓ QC Passed" TextColor="#166534" FontSize="15" FontAttributes="Bold"/>
                         </Border>
+                        <Border x:Name="ResetButton"
+                                IsVisible="False"
+                                BackgroundColor="#fef2f2"
+                                Stroke="#fecaca" StrokeThickness="1"
+                                StrokeShape="RoundRectangle 4"
+                                Padding="10,5"
+                                ToolTipProperties.Text="Reset QC status and quantities">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnResetButtonTapped"/>
+                            </Border.GestureRecognizers>
+                            <Label Text="↺ Reset" TextColor="#dc2626" FontSize="13" FontAttributes="Bold"/>
+                        </Border>
                     </HorizontalStackLayout>
                 </Grid>
 
@@ -867,9 +879,12 @@
                             </Border>
                         </Grid>
 
-                        <!-- Large counter: verified / required -->
+                        <!-- Large counter: verified / required (tap to enter qty manually) -->
                         <HorizontalStackLayout HorizontalOptions="Start" Spacing="4"
                                                VerticalOptions="Center" Margin="0,8,0,0">
+                            <HorizontalStackLayout.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnOverlayQtyTapped"/>
+                            </HorizontalStackLayout.GestureRecognizers>
                             <Label x:Name="OverlayVerifiedQty"
                                    Text="0"
                                    FontSize="48"
@@ -1051,7 +1066,7 @@
 
         <!-- ── Bottom keyboard shortcuts bar ── -->
         <Border Grid.Row="4" BackgroundColor="#f9fafb" Stroke="#e5e7eb" StrokeThickness="1" Padding="16,6">
-            <Grid ColumnDefinitions="*, Auto">
+            <Grid ColumnDefinitions="*, Auto, Auto">
                 <HorizontalStackLayout Grid.Column="0" Spacing="20" VerticalOptions="Center">
                     <HorizontalStackLayout Spacing="4">
                         <Border BackgroundColor="#e5e7eb" StrokeShape="RoundRectangle 3" Padding="4,2" Stroke="Transparent">
@@ -1090,7 +1105,10 @@
                         <Label Text="peek" FontSize="10" TextColor="#6b7280" VerticalOptions="Center"/>
                     </HorizontalStackLayout>
                 </HorizontalStackLayout>
-                <Label x:Name="LastScanLabel" Grid.Column="1" Text="" FontSize="10"
+                <Label x:Name="StatusLabel" Grid.Column="1" Text="" FontSize="11"
+                       TextColor="#6b7280" FontAttributes="Bold"
+                       VerticalOptions="Center" Margin="0,0,12,0"/>
+                <Label x:Name="LastScanLabel" Grid.Column="2" Text="" FontSize="10"
                        TextColor="#9ca3af" VerticalOptions="Center"/>
             </Grid>
         </Border>
