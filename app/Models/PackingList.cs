@@ -559,7 +559,8 @@ public class PackingList : INotifyPropertyChanged
 
     private ObservableCollection<ProductItem> ParseProductsCore()
     {
-        var useUpdated = (IsQcHold || (IsPacked && !IsPackedComplete))
+        var isQcPassed = string.Equals(_packingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase);
+        var useUpdated = (IsQcHold || isQcPassed || (IsPacked && !IsPackedComplete))
                          && UpdatedProductLists?.Items is { Count: > 0 };
         var sourceItems = (useUpdated ? UpdatedProductLists : ProductLists)?.Items;
         if (sourceItems is null or { Count: 0 }) return [];

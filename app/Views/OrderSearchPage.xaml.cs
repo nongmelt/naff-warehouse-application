@@ -2428,9 +2428,7 @@ public partial class OrderSearchPage : ContentPage
             HeaderTrackingLabel.IsVisible = true;
             HeaderTrackingLabel.Text = order.TrackingNumber;
 
-            var isQcHold = string.Equals(order.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(order.PackingStatus, "Packed", StringComparison.OrdinalIgnoreCase);
-            ResetButton.IsVisible = isQcHold;
+            ResetButton.IsVisible = string.Equals(order.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase);
         });
     }
 
