@@ -1076,10 +1076,6 @@ public partial class OrderSearchPage : ContentPage
         item.IsExpanded = true;
     }
 
-    // ── Peek image overlay ──────────────────────────────────────────────────
-
-    private ProductItem? _peekItem;
-
     // ── Product image overlay ──────────────────────────────────────────────
 
     private ProductItem? _overlayItem;
@@ -1099,7 +1095,13 @@ public partial class OrderSearchPage : ContentPage
         _overlayItem = item;
 
         // Image
-        if (item.HasImage)
+        if (item.HasLocalImage)
+        {
+            OverlayImage.Source = ImageSource.FromFile(item.LocalImagePath);
+            OverlayImage.IsVisible = true;
+            OverlayNoImage.IsVisible = false;
+        }
+        else if (item.HasImage)
         {
             OverlayImage.Source = item.ImageSource;
             OverlayImage.IsVisible = true;
@@ -1111,9 +1113,40 @@ public partial class OrderSearchPage : ContentPage
             OverlayNoImage.IsVisible = true;
         }
 
+        // Category badge
+        if (!string.IsNullOrWhiteSpace(item.CategoryBadge))
+        {
+            OverlayCategoryBadge.IsVisible = true;
+            OverlayCategoryLabel.Text = item.CategoryBadge;
+            OverlayCategoryBadge.BackgroundColor = item.CategoryBadgeBg;
+        }
+        else
+        {
+            OverlayCategoryBadge.IsVisible = false;
+        }
+
+        // Item position (e.g., "ITEM 03 of 14")
+        var order = Results.FirstOrDefault(o => o.ParsedProducts.Contains(item));
+        if (order != null)
+        {
+            var idx = order.ParsedProducts.IndexOf(item) + 1;
+            var total = order.ParsedProducts.Count;
+            OverlayItemPosition.Text = $"ITEM {idx:D2} of {total}";
+        }
+        else
+        {
+            OverlayItemPosition.Text = "";
+        }
+
+        // Counter — show verified / required
+        OverlayVerifiedQty.Text = item.VerifiedQuantity.ToString();
+        OverlayReqQty.Text = item.RequiredQuantity.ToString();
+
         // Product info
         OverlayProductName.Text = item.BaseName;
-        OverlaySkuLabel.Text = $"SKU: {item.SellerSku}";
+        OverlaySkuLabel.Text = item.SellerSku;
+
+        // Variation badge (purple)
         if (item.HasVariation)
         {
             OverlayVariationLabel.Text = item.Variation;
@@ -1124,14 +1157,24 @@ public partial class OrderSearchPage : ContentPage
             OverlayVariationBorder.IsVisible = false;
         }
 
-        // Quantities
-        OverlayReqQty.Text = item.RequiredQuantity.ToString();
-        OverlayCurrentQty.Text = item.VerifiedQuantity.ToString();
+        // QC Notes
+        if (item.HasQcNotes)
+        {
+            OverlayNotesLabel.Text = item.QcNotes!;
+            OverlayNotesLabel.TextColor = Color.FromArgb("#dc2626");
+            OverlayNotesBorder.BackgroundColor = Color.FromArgb("#fef2f2");
+            OverlayNotesBorder.Stroke = Color.FromArgb("#fecaca");
+        }
+        else
+        {
+            OverlayNotesLabel.Text = "no notes";
+            OverlayNotesLabel.TextColor = Color.FromArgb("#d1d5db");
+            OverlayNotesBorder.BackgroundColor = Color.FromArgb("#f9fafb");
+            OverlayNotesBorder.Stroke = Color.FromArgb("#e5e7eb");
+        }
+
         OverlayPickEntry.IsVisible = false;
         OverlayPickEntry.Text = "";
-
-        // Card background — match the card's QC context color
-        UpdateOverlayCardBg(item);
 
         // Show with animation
         ProductImageOverlay.IsVisible = true;
@@ -1140,12 +1183,6 @@ public partial class OrderSearchPage : ContentPage
         _ = Task.WhenAll(
             ProductImageOverlay.FadeToAsync(1, 200, Easing.CubicOut),
             OverlayCard.ScaleToAsync(1, 250, Easing.CubicOut));
-    }
-
-    private void UpdateOverlayCardBg(ProductItem item)
-    {
-        var bgColor = item.IsFullyPicked ? Color.FromArgb("#dcfce7") : Colors.White;
-        OverlayCard.BackgroundColor = bgColor;
     }
 
     private async void OnImageOverlayBackdropTapped(object sender, TappedEventArgs e)
@@ -1160,6 +1197,32 @@ public partial class OrderSearchPage : ContentPage
             OverlayCard.ScaleToAsync(0.85, 180, Easing.CubicIn));
         ProductImageOverlay.IsVisible = false;
         _overlayItem = null;
+    }
+
+    private void OnOverlayImageTapped(object sender, TappedEventArgs e)
+    {
+        if (_overlayItem == null || _overlayItem.Quantity <= 0) return;
+
+        PackingList? order = null;
+        foreach (var o in Results)
+            if (o.ParsedProducts.Contains(_overlayItem)) { order = o; break; }
+        if (order == null) return;
+
+        bool isQcPassed = _completedPackingIds.Contains(order.PackingId)
+            || string.Equals(order.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase);
+        if (isQcPassed) return;
+
+        if (_pendingSkuProduct != null && _pendingSkuProduct != _overlayItem)
+            ApplySkuDeduction(_pendingSkuProduct, "1", DeductionSource.AutoPrior);
+
+        SetActiveProduct(_overlayItem);
+        ApplySkuDeduction(_overlayItem, "1", DeductionSource.CardTap);
+        SyncOverlayAfterDeduction(_overlayItem);
+    }
+
+    private async void OnOverlayCloseTapped(object sender, TappedEventArgs e)
+    {
+        await DismissImageOverlayAsync();
     }
 
     private void OnOverlayQtyTapped(object sender, TappedEventArgs e)
@@ -1226,8 +1289,7 @@ public partial class OrderSearchPage : ContentPage
 
     private void SyncOverlayAfterDeduction(ProductItem item)
     {
-        OverlayCurrentQty.Text = item.VerifiedQuantity.ToString();
-        UpdateOverlayCardBg(item);
+        OverlayVerifiedQty.Text = item.VerifiedQuantity.ToString();
 
         if (item.IsFullyPicked)
             _ = AnimateOverlayDismissGreenAsync(item);
@@ -1235,18 +1297,15 @@ public partial class OrderSearchPage : ContentPage
 
     private async Task AnimateOverlayDismissGreenAsync(ProductItem item)
     {
-        // Flash green
         OverlayCard.BackgroundColor = Color.FromArgb("#dcfce7");
-        OverlayImageBorder.BackgroundColor = Color.FromArgb("#dcfce7");
         await Task.Delay(600);
 
-        // Collapse: scale down + fade
         await Task.WhenAll(
             OverlayCard.ScaleToAsync(0.3, 350, Easing.CubicIn),
             ProductImageOverlay.FadeToAsync(0, 350, Easing.CubicIn));
 
         ProductImageOverlay.IsVisible = false;
-        OverlayImageBorder.BackgroundColor = Color.FromArgb("#f9fafb");
+        OverlayCard.BackgroundColor = Colors.White;
         OverlayCard.Scale = 1;
         _overlayItem = null;
     }
@@ -1748,15 +1807,15 @@ public partial class OrderSearchPage : ContentPage
             return;
         }
 
-        if (e.Key == Windows.System.VirtualKey.Escape && PeekOverlay.IsVisible)
+        if (e.Key == Windows.System.VirtualKey.Escape && ProductImageOverlay.IsVisible)
         {
-            HidePeekOverlay(); e.Handled = true; return;
+            _ = DismissImageOverlayAsync(); e.Handled = true; return;
         }
-        if (e.Key == Windows.System.VirtualKey.I && !PeekOverlay.IsVisible)
+        if (e.Key == Windows.System.VirtualKey.I && !ProductImageOverlay.IsVisible)
         {
             var target = _pendingSkuProduct
                 ?? Results.SelectMany(o => o.ParsedProducts).FirstOrDefault(p => !p.IsFullyPicked);
-            if (target != null) { ShowPeekOverlay(target); e.Handled = true; return; }
+            if (target != null) { ShowProductImageOverlay(target); e.Handled = true; return; }
         }
 
         var isLeft = e.Key == Windows.System.VirtualKey.Left;
@@ -2063,39 +2122,11 @@ public partial class OrderSearchPage : ContentPage
         MainThread.BeginInvokeOnMainThread(() => { if (LastScanLabel != null) LastScanLabel.Text = text; });
     }
 
-    // ── Peek image overlay ───────────────────────────────────────────────────
-
-    private void ShowPeekOverlay(ProductItem item)
-    {
-        if (!item.HasLocalImage) return;
-        _peekItem = item;
-        MainThread.BeginInvokeOnMainThread(() =>
-        {
-            PeekOverlay.IsVisible = true;
-            PeekImage.Source = ImageSource.FromFile(item.LocalImagePath);
-            PeekSkuLabel.Text = item.SellerSku;
-            PeekNameLabel.Text = item.BaseName;
-            PeekVariationLabel.Text = item.HasVariation ? item.Variation : "";
-        });
-    }
-
-    private void HidePeekOverlay()
-    {
-        _peekItem = null;
-        MainThread.BeginInvokeOnMainThread(() =>
-        {
-            PeekOverlay.IsVisible = false;
-            PeekImage.Source = null;
-        });
-    }
-
-    private void OnPeekOverlayTapped(object sender, TappedEventArgs e) => HidePeekOverlay();
-
     private void OnProductRowTapped(object sender, TappedEventArgs e)
     {
         if (sender is not VisualElement el) return;
         if (el.BindingContext is not ProductItem item) return;
-        if (item.HasLocalImage) ShowPeekOverlay(item);
+        ShowProductImageOverlay(item);
     }
 
     // ── +/- button handlers ──────────────────────────────────────────────────

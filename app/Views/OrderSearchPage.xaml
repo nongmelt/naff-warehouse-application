@@ -757,7 +757,7 @@
             </VerticalStackLayout>
         </ScrollView>
 
-        <!-- ── Product image overlay ── -->
+        <!-- ── Product image overlay (two-column split) ── -->
         <Grid x:Name="ProductImageOverlay"
               Grid.Row="0"
               Grid.RowSpan="5"
@@ -776,122 +776,188 @@
                     StrokeShape="RoundRectangle 12"
                     BackgroundColor="White"
                     Padding="0"
-                    MaximumWidthRequest="560">
+                    WidthRequest="720"
+                    InputTransparent="False">
+                <Border.Shadow>
+                    <Shadow Brush="#40000000" Offset="0,8" Radius="24"/>
+                </Border.Shadow>
 
-                <VerticalStackLayout Spacing="0">
-                    <!-- Large product image -->
-                    <Border x:Name="OverlayImageBorder"
+                <Grid ColumnDefinitions="*, *" ColumnSpacing="0">
+
+                    <!-- ── Left: Product image ── -->
+                    <Border Grid.Column="0"
                             StrokeThickness="0"
-                            StrokeShape="RoundRectangle 12,12,0,0"
+                            StrokeShape="RoundRectangle 12,0,0,12"
                             BackgroundColor="#f9fafb"
-                            HeightRequest="420"
-                            HorizontalOptions="Fill">
+                            Padding="0">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnOverlayImageTapped"/>
+                        </Border.GestureRecognizers>
                         <Grid>
                             <Image x:Name="OverlayImage"
                                    Aspect="AspectFit"
                                    HorizontalOptions="Fill"
-                                   VerticalOptions="Fill"/>
+                                   VerticalOptions="Fill"
+                                   MinimumHeightRequest="360"/>
                             <Label x:Name="OverlayNoImage"
                                    Text="&#x1F4E6;"
                                    FontSize="64"
                                    HorizontalOptions="Center"
                                    VerticalOptions="Center"
                                    IsVisible="False"/>
+                            <!-- Category badge (top-left) -->
+                            <Border x:Name="OverlayCategoryBadge"
+                                    BackgroundColor="#6366f1"
+                                    Stroke="Transparent"
+                                    StrokeShape="RoundRectangle 4"
+                                    Padding="8,3"
+                                    VerticalOptions="Start"
+                                    HorizontalOptions="Start"
+                                    Margin="12,12,0,0">
+                                <Label x:Name="OverlayCategoryLabel"
+                                       Text=""
+                                       FontSize="10"
+                                       FontAttributes="Bold"
+                                       TextColor="White"
+                                       FontFamily="Consolas"/>
+                            </Border>
+                            <!-- "click to +1 scanned" badge (bottom-right) -->
+                            <Border BackgroundColor="#1A111827"
+                                    Stroke="Transparent"
+                                    StrokeShape="RoundRectangle 6"
+                                    Padding="10,5"
+                                    VerticalOptions="End"
+                                    HorizontalOptions="End"
+                                    Margin="0,0,12,12">
+                                <Label Text="click to +1 scanned"
+                                       FontSize="10"
+                                       TextColor="#6b7280"
+                                       FontFamily="Consolas"/>
+                            </Border>
                         </Grid>
                     </Border>
 
-                    <!-- Product info section -->
-                    <VerticalStackLayout Padding="20,16" Spacing="10">
-                        <!-- Name -->
+                    <!-- ── Right: Product metadata ── -->
+                    <VerticalStackLayout Grid.Column="1" Spacing="16" Padding="24,20">
+
+                        <!-- Top row: item position + Esc close -->
+                        <Grid ColumnDefinitions="*, Auto">
+                            <Label x:Name="OverlayItemPosition"
+                                   Grid.Column="0"
+                                   Text="ITEM 01 of 01"
+                                   FontSize="11"
+                                   FontAttributes="Bold"
+                                   TextColor="#9ca3af"
+                                   FontFamily="Consolas"
+                                   VerticalOptions="Center"/>
+                            <Border Grid.Column="1"
+                                    BackgroundColor="#f3f4f6"
+                                    Stroke="#e5e7eb"
+                                    StrokeThickness="1"
+                                    StrokeShape="RoundRectangle 4"
+                                    Padding="8,4">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnOverlayCloseTapped"/>
+                                </Border.GestureRecognizers>
+                                <Label Text="Esc"
+                                       FontSize="10"
+                                       FontAttributes="Bold"
+                                       TextColor="#9ca3af"
+                                       FontFamily="Consolas"/>
+                            </Border>
+                        </Grid>
+
+                        <!-- Large counter: verified / required -->
+                        <HorizontalStackLayout HorizontalOptions="Start" Spacing="4"
+                                               VerticalOptions="Center" Margin="0,8,0,0">
+                            <Label x:Name="OverlayVerifiedQty"
+                                   Text="0"
+                                   FontSize="48"
+                                   FontAttributes="Bold"
+                                   TextColor="#111827"
+                                   FontFamily="Consolas"
+                                   VerticalOptions="Center"/>
+                            <Label Text="/"
+                                   FontSize="28"
+                                   TextColor="#d1d5db"
+                                   FontFamily="Consolas"
+                                   VerticalOptions="Center"/>
+                            <Label x:Name="OverlayReqQty"
+                                   Text="1"
+                                   FontSize="28"
+                                   TextColor="#9ca3af"
+                                   FontFamily="Consolas"
+                                   VerticalOptions="Center"/>
+                        </HorizontalStackLayout>
+
+                        <!-- Product name -->
                         <Label x:Name="OverlayProductName"
-                               FontSize="18"
+                               FontSize="16"
                                FontAttributes="Bold"
                                TextColor="#111827"
                                LineBreakMode="WordWrap"/>
 
-                        <!-- SKU + Variation row -->
-                        <HorizontalStackLayout Spacing="8">
-                            <Border BackgroundColor="#f3f4f6"
-                                    Stroke="#e5e7eb"
-                                    StrokeThickness="1"
-                                    StrokeShape="RoundRectangle 4"
-                                    Padding="8,3">
-                                <Label x:Name="OverlaySkuLabel"
-                                       FontSize="12"
-                                       TextColor="#374151"/>
-                            </Border>
-                            <Border x:Name="OverlayVariationBorder"
-                                    BackgroundColor="#eff6ff"
-                                    Stroke="#bfdbfe"
-                                    StrokeThickness="1"
-                                    StrokeShape="RoundRectangle 4"
-                                    Padding="8,3"
-                                    IsVisible="False">
-                                <Label x:Name="OverlayVariationLabel"
-                                       FontSize="12"
-                                       FontAttributes="Bold"
-                                       TextColor="#1d4ed8"/>
-                            </Border>
-                        </HorizontalStackLayout>
+                        <!-- SKU (monospace) -->
+                        <Label x:Name="OverlaySkuLabel"
+                               FontSize="13"
+                               TextColor="#6b7280"
+                               FontFamily="Consolas"/>
 
-                        <!-- Quantities row -->
-                        <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
-                            <Border Grid.Column="0"
+                        <!-- Variation badge (purple) -->
+                        <Border x:Name="OverlayVariationBorder"
+                                BackgroundColor="#f5f3ff"
+                                Stroke="#c4b5fd"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 6"
+                                Padding="12,6"
+                                HorizontalOptions="Start"
+                                IsVisible="False">
+                            <Label x:Name="OverlayVariationLabel"
+                                   FontSize="13"
+                                   FontAttributes="Bold"
+                                   TextColor="#7c3aed"
+                                   FontFamily="Consolas"/>
+                        </Border>
+
+                        <!-- QC Notes -->
+                        <VerticalStackLayout Spacing="4">
+                            <Label Text="QC Notes"
+                                   FontSize="10"
+                                   FontAttributes="Bold"
+                                   TextColor="#9ca3af"
+                                   FontFamily="Consolas"/>
+                            <Border x:Name="OverlayNotesBorder"
                                     BackgroundColor="#f9fafb"
                                     Stroke="#e5e7eb"
                                     StrokeThickness="1"
-                                    StrokeShape="RoundRectangle 8"
-                                    Padding="16,12">
-                                <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
-                                    <Label x:Name="OverlayReqQty"
-                                           FontSize="32"
-                                           FontAttributes="Bold"
-                                           TextColor="#6b7280"
-                                           HorizontalTextAlignment="Center"/>
-                                    <Label Text="req qty"
-                                           FontSize="11"
-                                           TextColor="#9ca3af"
-                                           HorizontalTextAlignment="Center"/>
-                                </VerticalStackLayout>
+                                    StrokeShape="RoundRectangle 6"
+                                    Padding="12,8"
+                                    HorizontalOptions="Fill">
+                                <Label x:Name="OverlayNotesLabel"
+                                       Text="no notes"
+                                       FontSize="12"
+                                       TextColor="#d1d5db"
+                                       FontFamily="Consolas"/>
                             </Border>
-                            <Border Grid.Column="1"
-                                    BackgroundColor="#f9fafb"
-                                    Stroke="#e5e7eb"
-                                    StrokeThickness="1"
-                                    StrokeShape="RoundRectangle 8"
-                                    Padding="16,12">
-                                <Border.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnOverlayQtyTapped"/>
-                                </Border.GestureRecognizers>
-                                <VerticalStackLayout Spacing="2" HorizontalOptions="Center">
-                                    <HorizontalStackLayout HorizontalOptions="Center" Spacing="8">
-                                        <Label x:Name="OverlayCurrentQty"
-                                               FontSize="32"
-                                               FontAttributes="Bold"
-                                               TextColor="#111827"
-                                               HorizontalTextAlignment="Center"
-                                               VerticalOptions="Center"/>
-                                        <Entry x:Name="OverlayPickEntry"
-                                               IsVisible="False"
-                                               Keyboard="Numeric"
-                                               WidthRequest="64"
-                                               FontSize="22"
-                                               FontAttributes="Bold"
-                                               HorizontalTextAlignment="Center"
-                                               ReturnType="Done"
-                                               Completed="OnOverlayPickEntryCompleted"
-                                               TextChanged="OnOverlayPickEntryTextChanged"
-                                               VerticalOptions="Center"/>
-                                    </HorizontalStackLayout>
-                                    <Label Text="qty"
-                                           FontSize="11"
-                                           TextColor="#9ca3af"
-                                           HorizontalTextAlignment="Center"/>
-                                </VerticalStackLayout>
-                            </Border>
-                        </Grid>
+                        </VerticalStackLayout>
+
+                        <!-- Hidden manual pick entry (shown when qty tapped) -->
+                        <Entry x:Name="OverlayPickEntry"
+                               IsVisible="False"
+                               Keyboard="Numeric"
+                               WidthRequest="80"
+                               FontSize="22"
+                               FontAttributes="Bold"
+                               FontFamily="Consolas"
+                               HorizontalTextAlignment="Center"
+                               ReturnType="Done"
+                               Completed="OnOverlayPickEntryCompleted"
+                               TextChanged="OnOverlayPickEntryTextChanged"
+                               VerticalOptions="Center"
+                               HorizontalOptions="Start"/>
+
                     </VerticalStackLayout>
-                </VerticalStackLayout>
+                </Grid>
             </Border>
         </Grid>
 
@@ -982,25 +1048,6 @@
                    TextColor="White"
                    HorizontalTextAlignment="Center"/>
         </Border>
-
-        <!-- ── Peek image overlay ── -->
-        <Grid x:Name="PeekOverlay" Grid.Row="0" Grid.RowSpan="5"
-              BackgroundColor="#CC111827" IsVisible="False" ZIndex="8">
-            <Grid.GestureRecognizers>
-                <TapGestureRecognizer Tapped="OnPeekOverlayTapped"/>
-            </Grid.GestureRecognizers>
-            <Border HorizontalOptions="Center" VerticalOptions="Center"
-                    Stroke="#374151" StrokeThickness="1" StrokeShape="RoundRectangle 12"
-                    BackgroundColor="White" Padding="24" MaximumWidthRequest="600" MaximumHeightRequest="600">
-                <VerticalStackLayout Spacing="12" HorizontalOptions="Center">
-                    <Image x:Name="PeekImage" WidthRequest="400" HeightRequest="400" Aspect="AspectFit"/>
-                    <Label x:Name="PeekSkuLabel" FontSize="16" FontAttributes="Bold" TextColor="#111827" HorizontalTextAlignment="Center"/>
-                    <Label x:Name="PeekNameLabel" FontSize="13" TextColor="#6b7280" HorizontalTextAlignment="Center"/>
-                    <Label x:Name="PeekVariationLabel" FontSize="12" TextColor="#9ca3af" HorizontalTextAlignment="Center"/>
-                    <Label Text="Press Esc or click to close" FontSize="10" TextColor="#d1d5db" HorizontalTextAlignment="Center"/>
-                </VerticalStackLayout>
-            </Border>
-        </Grid>
 
         <!-- ── Bottom keyboard shortcuts bar ── -->
         <Border Grid.Row="4" BackgroundColor="#f9fafb" Stroke="#e5e7eb" StrokeThickness="1" Padding="16,6">
