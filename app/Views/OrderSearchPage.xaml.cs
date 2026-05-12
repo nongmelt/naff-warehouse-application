@@ -868,6 +868,11 @@ public partial class OrderSearchPage : ContentPage
         if (Results.Count > 0 && Results.All(o => _completedPackingIds.Contains(o.PackingId) ||
             string.Equals(o.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase)))
         {
+            if (ProductImageOverlay.IsVisible)
+            {
+                ProductImageOverlay.IsVisible = false;
+                _overlayItem = null;
+            }
             var totalItems = Results.Sum(o => o.ParsedProducts.Count);
             ShowCompletionSummary(totalItems);
         }
@@ -1347,9 +1352,6 @@ public partial class OrderSearchPage : ContentPage
 
         if (nextUnfinished != null)
         {
-            // Crossfade: fade out card, swap content, fade back in
-            await OverlayCard.FadeToAsync(0, 150, Easing.CubicIn);
-
             OverlayCard.Stroke = Colors.Transparent;
             OverlayCard.StrokeThickness = 0;
             OverlayCard.BackgroundColor = Colors.White;
@@ -1357,18 +1359,10 @@ public partial class OrderSearchPage : ContentPage
             ShowProductImageOverlay(nextUnfinished);
             SetActiveProduct(nextUnfinished);
             ScrollToProduct(nextUnfinished);
-
-            OverlayCard.Opacity = 0;
-            await OverlayCard.FadeToAsync(1, 200, Easing.CubicOut);
         }
         else
         {
-            // All done — smooth scale-down dismiss
-            await Task.WhenAll(
-                OverlayCard.FadeToAsync(0, 300, Easing.CubicIn),
-                OverlayCard.ScaleToAsync(0.9, 300, Easing.CubicIn),
-                ProductImageOverlay.FadeToAsync(0, 300, Easing.CubicIn));
-
+            // All done — close overlay instantly, summary will show
             ProductImageOverlay.IsVisible = false;
             OverlayCard.BackgroundColor = Colors.White;
             OverlayCard.Stroke = Colors.Transparent;
