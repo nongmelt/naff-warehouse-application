@@ -463,6 +463,7 @@ public partial class OrderSearchPage : ContentPage
         _orderLoaded = false;
         _isFirstItemScan = false;
         _completedPackingIds.Clear();
+        _altSkuMap.Clear();
         if (_pendingSkuProduct != null) { _pendingSkuProduct.IsBeingPicked = false; SetActiveProduct(null); }
         Results.Clear();
         UpdateHeaderOrderInfo();
@@ -603,7 +604,8 @@ public partial class OrderSearchPage : ContentPage
         // Repeated scan of same SKU while already editing → increment verified target
         if (_pendingSkuProduct != null
             && _pendingSkuProduct.IsBeingPicked
-            && string.Equals(_pendingSkuProduct.SellerSku, barcode, StringComparison.OrdinalIgnoreCase))
+            && (string.Equals(_pendingSkuProduct.SellerSku, barcode, StringComparison.OrdinalIgnoreCase)
+                || (_altSkuMap.TryGetValue(barcode, out var pendingParent) && pendingParent == _pendingSkuProduct)))
         {
             if (int.TryParse(_pendingSkuProduct.PickQtyText, out var cur) && cur < _pendingSkuProduct.RequiredQuantity)
                 _pendingSkuProduct.PickQtyText = (cur + 1).ToString();
@@ -647,6 +649,20 @@ public partial class OrderSearchPage : ContentPage
             found = match;
             foundOrder = order;
             break;
+        }
+
+        // Fallback: check alias SKUs and bundle component SKUs
+        if (found == null && !blockedByQcPassed && _altSkuMap.TryGetValue(barcode, out var mappedProduct))
+        {
+            if (mappedProduct.Quantity > 0)
+            {
+                var mappedOrder = FindOrderForItem(mappedProduct);
+                if (mappedOrder != null && !IsOrderQcPassed(mappedOrder))
+                {
+                    found = mappedProduct;
+                    foundOrder = mappedOrder;
+                }
+            }
         }
 
         if (found == null)
