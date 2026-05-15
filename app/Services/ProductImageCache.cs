@@ -24,6 +24,9 @@ public static class ProductImageCache
     }
 
     public static async Task<string?> EnsureAsync(string sku, string apiBaseUrl)
+        => await EnsureAsync(sku, apiBaseUrl, productId: null);
+
+    public static async Task<string?> EnsureAsync(string sku, string apiBaseUrl, int? productId)
     {
         var existing = GetCachedPath(sku);
         if (existing != null) return existing;
@@ -36,15 +39,24 @@ public static class ProductImageCache
 
         try
         {
-            var url = $"{apiBaseUrl.TrimEnd('/')}/products/by-sku/{Uri.EscapeDataString(sku)}";
-            var productResp = await Http.GetAsync(url);
-            if (!productResp.IsSuccessStatusCode) return null;
+            int resolvedId;
+            if (productId.HasValue)
+            {
+                resolvedId = productId.Value;
+            }
+            else
+            {
+                var url = $"{apiBaseUrl.TrimEnd('/')}/products/by-sku/{Uri.EscapeDataString(sku)}";
+                var productResp = await Http.GetAsync(url);
+                if (!productResp.IsSuccessStatusCode) return null;
 
-            var json = await productResp.Content.ReadFromJsonAsync<JsonNode>();
-            var productId = json?["id"]?.GetValue<int>();
-            if (productId is null) return null;
+                var json = await productResp.Content.ReadFromJsonAsync<System.Text.Json.Nodes.JsonNode>();
+                var id = json?["id"]?.GetValue<int>();
+                if (id is null) return null;
+                resolvedId = id.Value;
+            }
 
-            var imgUrl = $"{apiBaseUrl.TrimEnd('/')}/products/{productId}/image";
+            var imgUrl = $"{apiBaseUrl.TrimEnd('/')}/products/{resolvedId}/image";
             var imgResp = await Http.GetAsync(imgUrl);
             if (!imgResp.IsSuccessStatusCode) return null;
 
