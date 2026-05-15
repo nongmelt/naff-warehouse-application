@@ -35,6 +35,7 @@ public partial class OrderSearchPage : ContentPage
     private readonly List<SearchSession> _sessions = [];
     private int _sessionIndex = -1;
     private readonly Queue<string> _pendingScanQueue = new();
+    private readonly Dictionary<string, ProductItem> _altSkuMap = new(StringComparer.OrdinalIgnoreCase);
     private bool _carouselDirty;
 
     // Station identifier — computer name, resolved once
@@ -1116,31 +1117,89 @@ public partial class OrderSearchPage : ContentPage
         var enrichments = await ApiService.EnrichProductsAsync(skus);
         if (enrichments.Count == 0) return;
 
+        // Build enrichment lookup by ALL known SKUs (primary + aliases)
+        var enrichByAnySku = new Dictionary<string, ProductEnrichment>(StringComparer.OrdinalIgnoreCase);
+        foreach (var e in enrichments.Values)
+            foreach (var s in e.AllSkus)
+                enrichByAnySku.TryAdd(s, e);
+
         foreach (var item in allProducts)
         {
-            if (!enrichments.TryGetValue(item.SellerSku, out var e)) continue;
+            if (!enrichByAnySku.TryGetValue(item.SellerSku, out var e)) continue;
+            item.ProductId = e.Id;
+            item.ProductType = e.ProductType;
             item.CategoryName = e.CategoryName;
             item.CategoryId = e.CategoryId;
             item.ImagePath = e.ImagePath;
             item.QcNotes = e.QcNotes;
             item.Brand = e.Brand;
             item.SwatchColor = ColorSwatchHelper.ParseSwatchColor(item.Variation);
+
+            if (e.Components.Count > 0)
+            {
+                item.BundleComponents = new ObservableCollection<BundleComponentItem>(
+                    e.Components.Select(c => new BundleComponentItem
+                    {
+                        ComponentProductId = c.ComponentProductId,
+                        Name = c.ProductName,
+                        Variation = c.ProductVariation,
+                        SellerSku = c.SellerSku,
+                        Quantity = c.Quantity,
+                    }));
+            }
         }
 
         foreach (var order in Results)
             CategoryBadgeHelper.AssignBadges(order.ParsedProducts);
 
+        // Build unified SKU → ProductItem map (alias SKUs + component SKUs)
+        _altSkuMap.Clear();
+        foreach (var item in allProducts)
+        {
+            if (enrichByAnySku.TryGetValue(item.SellerSku, out var enrich))
+                foreach (var alias in enrich.AllSkus)
+                    _altSkuMap.TryAdd(alias, item);
+
+            if (item.BundleComponents == null) continue;
+            foreach (var comp in item.BundleComponents)
+                _altSkuMap.TryAdd(comp.SellerSku, item);
+        }
+
         var apiBase = AppSettings.ApiUrl ?? "http://localhost:8080";
+
+        // Download images for main products
         foreach (var item in allProducts)
         {
             if (!item.HasImagePath) continue;
             var captured = item;
             _ = Task.Run(async () =>
             {
-                var path = await ProductImageCache.EnsureAsync(captured.SellerSku, apiBase);
+                var path = await ProductImageCache.EnsureAsync(
+                    captured.SellerSku, apiBase, captured.ProductId);
                 if (path != null)
                     MainThread.BeginInvokeOnMainThread(() => captured.LocalImagePath = path);
             });
+        }
+
+        // Download images for bundle components
+        foreach (var item in allProducts)
+        {
+            if (item.BundleComponents == null) continue;
+            foreach (var comp in item.BundleComponents)
+            {
+                var captured = comp;
+                _ = Task.Run(async () =>
+                {
+                    var path = await ProductImageCache.EnsureAsync(
+                        captured.SellerSku, apiBase, captured.ComponentProductId);
+                    if (path != null)
+                    {
+                        var bytes = await File.ReadAllBytesAsync(path);
+                        MainThread.BeginInvokeOnMainThread(() =>
+                            captured.ImageSource = ImageSource.FromStream(() => new MemoryStream(bytes)));
+                    }
+                });
+            }
         }
     }
 
