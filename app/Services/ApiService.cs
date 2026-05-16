@@ -40,6 +40,8 @@ public static class ApiService
         }
     }
 
+    internal static HttpClient GetHttpClient() => Http;
+
     // ── Operator lookup ───────────────────────────────────────────────────────
 
     /// <summary>
