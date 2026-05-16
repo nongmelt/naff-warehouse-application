@@ -35,7 +35,7 @@ public partial class OrderSearchPage : ContentPage
     private readonly List<SearchSession> _sessions = [];
     private int _sessionIndex = -1;
     private readonly Queue<string> _pendingScanQueue = new();
-    private readonly Dictionary<string, ProductItem> _altSkuMap = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<ProductItem>> _altSkuMap = new(StringComparer.OrdinalIgnoreCase);
     private bool _carouselDirty;
 
     // Station identifier — computer name, resolved once
@@ -605,7 +605,7 @@ public partial class OrderSearchPage : ContentPage
         if (_pendingSkuProduct != null
             && _pendingSkuProduct.IsBeingPicked
             && (string.Equals(_pendingSkuProduct.SellerSku, barcode, StringComparison.OrdinalIgnoreCase)
-                || (_altSkuMap.TryGetValue(barcode, out var pendingParent) && pendingParent == _pendingSkuProduct)))
+                || (_altSkuMap.TryGetValue(barcode, out var pendingParents) && pendingParents.Contains(_pendingSkuProduct))))
         {
             if (int.TryParse(_pendingSkuProduct.PickQtyText, out var cur) && cur < _pendingSkuProduct.RequiredQuantity)
                 _pendingSkuProduct.PickQtyText = (cur + 1).ToString();
@@ -652,16 +652,16 @@ public partial class OrderSearchPage : ContentPage
         }
 
         // Fallback: check alias SKUs and bundle component SKUs
-        if (found == null && !blockedByQcPassed && _altSkuMap.TryGetValue(barcode, out var mappedProduct))
+        if (found == null && !blockedByQcPassed && _altSkuMap.TryGetValue(barcode, out var mappedProducts))
         {
-            if (mappedProduct.Quantity > 0)
+            foreach (var candidate in mappedProducts)
             {
-                var mappedOrder = FindOrderForItem(mappedProduct);
-                if (mappedOrder != null && !IsOrderQcPassed(mappedOrder))
-                {
-                    found = mappedProduct;
-                    foundOrder = mappedOrder;
-                }
+                if (candidate.Quantity <= 0) continue;
+                var mappedOrder = FindOrderForItem(candidate);
+                if (mappedOrder == null || IsOrderQcPassed(mappedOrder)) continue;
+                found = candidate;
+                foundOrder = mappedOrder;
+                break;
             }
         }
 
@@ -708,6 +708,17 @@ public partial class OrderSearchPage : ContentPage
         found.IsBeingPicked = true;
 
         var label = found.Name + (found.HasVariation ? $" · {found.Variation}" : "");
+
+        // Auto-apply when scan already meets required qty (e.g. qty=1 products)
+        if (int.TryParse(targetVerified, out var tv) && tv >= found.RequiredQuantity)
+        {
+            ApplyVerifiedOverride(found, targetVerified, "item_scanned_await_qty", "sku_scan");
+            if (overlayOpen) { HideOverlayPickEntry(); SyncOverlayAfterDeduction(found); }
+            ScrollToProduct(found);
+            UpdateSearchStatus($"✓ {found.SellerSku} fully verified");
+            Logger.Log($"OrderSearch: SKU '{barcode}' auto-verified (qty met on first scan)");
+            return;
+        }
 
         if (overlayOpen)
         {
@@ -1168,17 +1179,25 @@ public partial class OrderSearchPage : ContentPage
         foreach (var order in Results)
             CategoryBadgeHelper.AssignBadges(order.ParsedProducts);
 
-        // Build unified SKU → ProductItem map (alias SKUs + component SKUs)
+        // Build unified SKU → ProductItem list map (alias SKUs + component SKUs)
         _altSkuMap.Clear();
         foreach (var item in allProducts)
         {
             if (enrichByAnySku.TryGetValue(item.SellerSku, out var enrich))
                 foreach (var alias in enrich.AllSkus)
-                    _altSkuMap.TryAdd(alias, item);
+                {
+                    if (!_altSkuMap.TryGetValue(alias, out var list))
+                        _altSkuMap[alias] = list = [];
+                    list.Add(item);
+                }
 
             if (item.BundleComponents == null) continue;
             foreach (var comp in item.BundleComponents)
-                _altSkuMap.TryAdd(comp.SellerSku, item);
+            {
+                if (!_altSkuMap.TryGetValue(comp.SellerSku, out var list))
+                    _altSkuMap[comp.SellerSku] = list = [];
+                list.Add(item);
+            }
         }
 
         var apiBase = AppSettings.ApiUrl ?? "http://localhost:8080";
@@ -1190,10 +1209,17 @@ public partial class OrderSearchPage : ContentPage
             var captured = item;
             _ = Task.Run(async () =>
             {
-                var path = await ProductImageCache.EnsureAsync(
-                    captured.SellerSku, apiBase, captured.ProductId);
-                if (path != null)
-                    MainThread.BeginInvokeOnMainThread(() => captured.LocalImagePath = path);
+                try
+                {
+                    var path = await ProductImageCache.EnsureAsync(
+                        captured.SellerSku, apiBase, captured.ProductId);
+                    if (path != null)
+                        MainThread.BeginInvokeOnMainThread(() => captured.LocalImagePath = path);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"Image download failed ({captured.SellerSku}): {ex.Message}");
+                }
             });
         }
 
@@ -1206,13 +1232,20 @@ public partial class OrderSearchPage : ContentPage
                 var captured = comp;
                 _ = Task.Run(async () =>
                 {
-                    var path = await ProductImageCache.EnsureAsync(
-                        captured.SellerSku, apiBase, captured.ComponentProductId);
-                    if (path != null)
+                    try
                     {
-                        var bytes = await File.ReadAllBytesAsync(path);
-                        MainThread.BeginInvokeOnMainThread(() =>
-                            captured.ImageSource = ImageSource.FromStream(() => new MemoryStream(bytes)));
+                        var path = await ProductImageCache.EnsureAsync(
+                            captured.SellerSku, apiBase, captured.ComponentProductId);
+                        if (path != null)
+                        {
+                            var bytes = await File.ReadAllBytesAsync(path);
+                            MainThread.BeginInvokeOnMainThread(() =>
+                                captured.ImageSource = ImageSource.FromStream(() => new MemoryStream(bytes)));
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Log($"Component image download failed ({captured.SellerSku}): {ex.Message}");
                     }
                 });
             }
@@ -1527,15 +1560,30 @@ public partial class OrderSearchPage : ContentPage
         await AnimateOverlayBtnAsync(OverlayPlusBtn, "#7C5CF0", "#5B31E0");
     }
 
+    private CancellationTokenSource? _cardBtnAnimCts;
+
     private async Task AnimateCardButtonAsync(ProductItem item, string buttonText)
     {
+        _cardBtnAnimCts?.Cancel();
+        var cts = _cardBtnAnimCts = new CancellationTokenSource();
+
         var btn = FindDescendant<Button>(this, b => b.BindingContext == item && b.Text == buttonText);
         if (btn == null) return;
+
         var flash = buttonText == "+" ? Color.FromArgb("#7C5CF0") : Color.FromArgb("#fca5a5");
         btn.BackgroundColor = flash;
-        await btn.ScaleToAsync(0.85, 80, Easing.CubicIn);
-        await btn.ScaleToAsync(1.0, 120, Easing.CubicOut);
-        btn.BackgroundColor = item.ButtonBgColor;
+        btn.Scale = 0.90;
+        try
+        {
+            await Task.Delay(100, cts.Token);
+            btn.Scale = 1.0;
+            btn.BackgroundColor = item.ButtonBgColor;
+        }
+        catch (TaskCanceledException)
+        {
+            btn.Scale = 1.0;
+            btn.BackgroundColor = item.ButtonBgColor;
+        }
     }
 
     private async void OnOverlayCloseTapped(object sender, TappedEventArgs e)
@@ -1579,7 +1627,44 @@ public partial class OrderSearchPage : ContentPage
             : Color.FromArgb("#111827");
 
         if (item.IsFullyPicked)
-            AdvanceOverlayToNext(item);
+            _ = AnimateOverlayCompletionThenAdvance(item);
+    }
+
+    private async Task AnimateOverlayCompletionThenAdvance(ProductItem item)
+    {
+        var green = Color.FromArgb("#10B981");
+        var target = item.RequiredQuantity;
+        var current = item.VerifiedQuantity;
+
+        // Count up from current to required
+        if (current < target)
+        {
+            for (int v = current; v <= target; v++)
+            {
+                OverlayVerifiedQty.Text = v.ToString();
+                await Task.WhenAll(
+                    OverlayVerifiedQty.ScaleToAsync(1.25, 40, Easing.SinIn),
+                    OverlayVerifiedQty.FadeToAsync(0.6, 40));
+                await Task.WhenAll(
+                    OverlayVerifiedQty.ScaleToAsync(1.0, 50, Easing.SinOut),
+                    OverlayVerifiedQty.FadeToAsync(1.0, 50));
+            }
+        }
+
+        OverlayVerifiedQty.Text = target.ToString();
+        OverlayVerifiedQty.TextColor = green;
+
+        // Flash green border on card
+        OverlayCard.Stroke = green;
+        OverlayCard.StrokeThickness = 4;
+
+        await Task.Delay(600);
+
+        // Reset border
+        OverlayCard.Stroke = Colors.Transparent;
+        OverlayCard.StrokeThickness = 0;
+
+        AdvanceOverlayToNext(item);
     }
 
     private void ShowOverlayPickEntry(string initialValue)
@@ -2844,10 +2929,10 @@ public partial class OrderSearchPage : ContentPage
             HeaderTrackingLabel.IsVisible = true;
             HeaderTrackingLabel.Text = order.TrackingNumber;
 
+            var isQcPassed = string.Equals(order.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase);
             var hasVerified = Results.Any(o => o.HasProducts && o.ParsedProducts.Any(p => p.Quantity != p.OriginalQuantity));
-            var isHoldOrPassed = string.Equals(order.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(order.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase);
-            ResetButton.IsVisible = hasVerified || isHoldOrPassed;
+            var isHold = string.Equals(order.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase);
+            ResetButton.IsVisible = !isQcPassed && (hasVerified || isHold);
         });
     }
 

@@ -8,12 +8,30 @@ namespace app.Services;
 public static class ProductImageCache
 {
     private static readonly string CacheDir = Path.Combine(FileSystem.CacheDirectory, "product-images");
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
     private static readonly HashSet<string> InFlight = [];
+    private const long MaxCacheBytes = 500 * 1024 * 1024; // 500 MB
 
     static ProductImageCache()
     {
         Directory.CreateDirectory(CacheDir);
+        EvictIfOverLimit();
+    }
+
+    private static void EvictIfOverLimit()
+    {
+        try
+        {
+            var dir = new DirectoryInfo(CacheDir);
+            var files = dir.GetFiles().OrderBy(f => f.LastAccessTime).ToArray();
+            var totalSize = files.Sum(f => f.Length);
+            foreach (var file in files)
+            {
+                if (totalSize <= MaxCacheBytes) break;
+                totalSize -= file.Length;
+                file.Delete();
+            }
+        }
+        catch { }
     }
 
     public static string? GetCachedPath(string sku)
@@ -39,6 +57,7 @@ public static class ProductImageCache
 
         try
         {
+            var http = ApiService.GetHttpClient();
             int resolvedId;
             if (productId.HasValue)
             {
@@ -46,8 +65,7 @@ public static class ProductImageCache
             }
             else
             {
-                var url = $"{apiBaseUrl.TrimEnd('/')}/products/by-sku/{Uri.EscapeDataString(sku)}";
-                var productResp = await Http.GetAsync(url);
+                var productResp = await http.GetAsync($"products/by-sku/{Uri.EscapeDataString(sku)}");
                 if (!productResp.IsSuccessStatusCode) return null;
 
                 var json = await productResp.Content.ReadFromJsonAsync<System.Text.Json.Nodes.JsonNode>();
@@ -56,8 +74,7 @@ public static class ProductImageCache
                 resolvedId = id.Value;
             }
 
-            var imgUrl = $"{apiBaseUrl.TrimEnd('/')}/products/{resolvedId}/image";
-            var imgResp = await Http.GetAsync(imgUrl);
+            var imgResp = await http.GetAsync($"products/{resolvedId}/image");
             if (!imgResp.IsSuccessStatusCode) return null;
 
             var contentType = imgResp.Content.Headers.ContentType?.MediaType ?? "";
