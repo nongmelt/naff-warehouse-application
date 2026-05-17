@@ -75,6 +75,7 @@ public partial class OrderSearchPage : ContentPage
     private bool _orderLoaded;
     private bool _isFirstItemScan;
     private ProductItem? _pendingSkuProduct;
+    private BundleComponentItem? _activeComponent;
     private readonly HashSet<int> _completedPackingIds = [];
 
     // Orders that were "To be packed" when first scanned this session — the only ones counted in SessionCard
@@ -204,38 +205,142 @@ public partial class OrderSearchPage : ContentPage
         }
 
         _syncingPickers = true;
-        ComPortPicker.Items.Clear();
         OverlayComPortPicker.Items.Clear();
-        ComPortPicker.Items.Add("(None)");
         OverlayComPortPicker.Items.Add("(None)");
         foreach (var p in _comPorts)
         {
-            ComPortPicker.Items.Add(p.DisplayName);
             OverlayComPortPicker.Items.Add(p.DisplayName);
         }
-        ComPortPicker.SelectedIndex = selIdx;
         OverlayComPortPicker.SelectedIndex = selIdx;
         _syncingPickers = false;
+
+        // Update badge
+        if (selIdx == 0)
+            ComPortBadgeLabel.Text = "None";
+        else if (selIdx - 1 < _comPorts.Count)
+            ComPortBadgeLabel.Text = _comPorts[selIdx - 1].PortName;
     }
 
     private async void OnOverlayRefreshPorts(object sender, EventArgs e)
         => await LoadComPortsAsync();
 
-    private void OnComPortSelected(object sender, EventArgs e)
+    private void OnComPortBadgeTapped(object sender, TappedEventArgs e)
     {
-        if (_syncingPickers) return;
+        BuildComPortDropdown();
+        ComPortDropdownBackdrop.IsVisible = true;
+    }
+
+    private void OnComPortDropdownBackdropTapped(object sender, TappedEventArgs e)
+    {
+        ComPortDropdownBackdrop.IsVisible = false;
+    }
+
+    private void BuildComPortDropdown()
+    {
+        ComPortDropdownList.Children.Clear();
+
+        // "None" option
+        var noneRow = BuildComPortOption("None", _selectedPortName == null);
+        noneRow.GestureRecognizers.Add(new TapGestureRecognizer
+        {
+            Command = new Command(() => SelectComPort(-1))
+        });
+        ComPortDropdownList.Children.Add(noneRow);
+
+        // Port options
+        for (int i = 0; i < _comPorts.Count; i++)
+        {
+            var port = _comPorts[i];
+            var isActive = _selectedPortName == port.PortName;
+            var row = BuildComPortOption(port.DisplayName, isActive);
+            var idx = i;
+            row.GestureRecognizers.Add(new TapGestureRecognizer
+            {
+                Command = new Command(() => SelectComPort(idx))
+            });
+            ComPortDropdownList.Children.Add(row);
+        }
+
+        // Refresh button
+        var refreshRow = new Border
+        {
+            BackgroundColor = Colors.Transparent,
+            Stroke = Colors.Transparent,
+            StrokeShape = new RoundRectangle { CornerRadius = 6 },
+            Padding = new Thickness(16, 10),
+            Margin = new Thickness(0, 4, 0, 0),
+        };
+        refreshRow.Content = new Label
+        {
+            Text = "↻ Refresh ports",
+            FontSize = 11,
+            TextColor = Color.FromArgb("#6b7280"),
+        };
+        refreshRow.GestureRecognizers.Add(new TapGestureRecognizer
+        {
+            Command = new Command(async () =>
+            {
+                await LoadComPortsAsync();
+                BuildComPortDropdown();
+            })
+        });
+        ComPortDropdownList.Children.Add(refreshRow);
+    }
+
+    private Border BuildComPortOption(string label, bool isActive)
+    {
+        var border = new Border
+        {
+            BackgroundColor = isActive ? Color.FromArgb("#f5f5ff") : Colors.Transparent,
+            Stroke = Colors.Transparent,
+            StrokeShape = new RoundRectangle { CornerRadius = 6 },
+            Padding = new Thickness(16, 12),
+        };
+
+        var grid = new Grid
+        {
+            ColumnDefinitions = [new(GridLength.Star), new(GridLength.Auto)],
+        };
+        grid.Add(new Label
+        {
+            Text = label,
+            FontSize = 13,
+            FontAttributes = isActive ? FontAttributes.Bold : FontAttributes.None,
+            TextColor = isActive ? Color.FromArgb("#4338ca") : Color.FromArgb("#374151"),
+        });
+        if (isActive)
+        {
+            var check = new Label
+            {
+                Text = "✓",
+                FontSize = 14,
+                FontAttributes = FontAttributes.Bold,
+                TextColor = Color.FromArgb("#4338ca"),
+                VerticalOptions = LayoutOptions.Center,
+            };
+            Grid.SetColumn(check, 1);
+            grid.Add(check);
+        }
+        border.Content = grid;
+        return border;
+    }
+
+    private void SelectComPort(int portIndex)
+    {
+        ComPortDropdownBackdrop.IsVisible = false;
+        ApplyComPortSelection(portIndex + 1);
+        if (portIndex < 0)
+            ComPortBadgeLabel.Text = "None";
+        else if (portIndex < _comPorts.Count)
+            ComPortBadgeLabel.Text = _comPorts[portIndex].PortName;
         _syncingPickers = true;
-        OverlayComPortPicker.SelectedIndex = ComPortPicker.SelectedIndex;
+        OverlayComPortPicker.SelectedIndex = portIndex + 1;
         _syncingPickers = false;
-        ApplyComPortSelection(ComPortPicker.SelectedIndex);
     }
 
     private void OnOverlayComPortSelected(object sender, EventArgs e)
     {
         if (_syncingPickers) return;
-        _syncingPickers = true;
-        ComPortPicker.SelectedIndex = OverlayComPortPicker.SelectedIndex;
-        _syncingPickers = false;
         ApplyComPortSelection(OverlayComPortPicker.SelectedIndex);
     }
 
@@ -249,7 +354,7 @@ public partial class OrderSearchPage : ContentPage
             CloseSerialPort();
             UpdateScannerStatus("No scanner connected");
             UpdateOverlayScannerStatus("No scanner connected");
-            MainThread.BeginInvokeOnMainThread(() => HeaderComPortLabel.Text = "");
+            MainThread.BeginInvokeOnMainThread(() => ComPortBadgeLabel.Text = "None");
             return;
         }
 
@@ -258,7 +363,7 @@ public partial class OrderSearchPage : ContentPage
 
         var portName = _comPorts[portIdx].PortName;
         _selectedPortName = portName;
-        MainThread.BeginInvokeOnMainThread(() => HeaderComPortLabel.Text = portName);
+        MainThread.BeginInvokeOnMainThread(() => ComPortBadgeLabel.Text = portName);
         CloseSerialPort();
         try
         {
@@ -651,11 +756,12 @@ public partial class OrderSearchPage : ContentPage
             break;
         }
 
-        // Fallback: check alias SKUs and bundle component SKUs
+        // Fallback: check alias SKUs (skip bundles — component scan handles those)
         if (found == null && !blockedByQcPassed && _altSkuMap.TryGetValue(barcode, out var mappedProducts))
         {
             foreach (var candidate in mappedProducts)
             {
+                if (candidate.IsBundle) continue;
                 if (candidate.Quantity <= 0) continue;
                 var mappedOrder = FindOrderForItem(candidate);
                 if (mappedOrder == null || IsOrderQcPassed(mappedOrder)) continue;
@@ -663,6 +769,39 @@ public partial class OrderSearchPage : ContentPage
                 foundOrder = mappedOrder;
                 break;
             }
+        }
+
+        // Component-level scan: find matching component within bundle products
+        BundleComponentItem? foundComponent = null;
+        ProductItem? foundBundleParent = null;
+        PackingList? foundComponentOrder = null;
+
+        if (found == null && !blockedByQcPassed)
+        {
+            foreach (var order in Results)
+            {
+                foreach (var product in order.ParsedProducts)
+                {
+                    if (!product.IsBundle || product.BundleComponents == null) continue;
+                    var comp = product.BundleComponents.FirstOrDefault(c =>
+                        !c.IsFullyVerified &&
+                        (string.Equals(c.SellerSku, barcode, StringComparison.OrdinalIgnoreCase) ||
+                         c.AllSkus.Any(s => string.Equals(s, barcode, StringComparison.OrdinalIgnoreCase))));
+                    if (comp == null) continue;
+                    if (IsOrderQcPassed(order)) { blockedByQcPassed = true; continue; }
+                    foundComponent = comp;
+                    foundBundleParent = product;
+                    foundComponentOrder = order;
+                    break;
+                }
+                if (foundComponent != null) break;
+            }
+        }
+
+        if (foundComponent != null)
+        {
+            HandleComponentScan(foundComponent, foundBundleParent!, foundComponentOrder!);
+            return;
         }
 
         if (found == null)
@@ -845,6 +984,14 @@ public partial class OrderSearchPage : ContentPage
         item.IsBeingPicked = false;
         item.OrderQcContext = item.VerifiedQuantity > 0 ? "QC Hold" : "";
 
+        // Cascade to bundle components when parent is fully verified
+        if (item.IsBundle && item.IsFullyPicked && item.BundleComponents != null)
+        {
+            foreach (var comp in item.BundleComponents)
+                comp.VerifiedQuantity = comp.RequiredQuantity;
+            item.NotifyBundleProgressChanged();
+        }
+
         if (owner != null && string.IsNullOrWhiteSpace(owner.CheckedBy))
         {
             owner.CheckedBy = EffectiveOperator;
@@ -896,6 +1043,14 @@ public partial class OrderSearchPage : ContentPage
         item.IsBeingPicked = false;
         item.OrderQcContext = item.VerifiedQuantity > 0 ? "QC Hold" : "";
 
+        // Cascade to bundle components when parent is fully verified
+        if (item.IsBundle && item.IsFullyPicked && item.BundleComponents != null)
+        {
+            foreach (var comp in item.BundleComponents)
+                comp.VerifiedQuantity = comp.RequiredQuantity;
+            item.NotifyBundleProgressChanged();
+        }
+
         if (owner != null && string.IsNullOrWhiteSpace(owner.CheckedBy))
         {
             owner.CheckedBy = EffectiveOperator;
@@ -923,6 +1078,587 @@ public partial class OrderSearchPage : ContentPage
         FlushCarouselIfDirty();
     }
 
+    // ── Component scan verification ─────────────────────────────────────────
+
+    private void HandleComponentScan(BundleComponentItem component, ProductItem bundleParent, PackingList order)
+    {
+        component.VerifiedQuantity = Math.Min(component.VerifiedQuantity + 1, component.RequiredQuantity);
+
+        // Refresh parent bundle progress
+        bundleParent.NotifyBundleProgressChanged();
+
+        if (bundleParent.IsBundleFullyVerified && bundleParent.Quantity > 0)
+            bundleParent.Quantity = 0;
+
+        if (bundleParent.IsBundleFullyVerified)
+        {
+            UpdateSearchStatus($"✓ Bundle '{bundleParent.BaseName}' fully verified — all components complete");
+        }
+        else
+        {
+            var remaining = component.RemainingQuantity;
+            UpdateSearchStatus($"✓ {component.Name} verified ({component.VerifiedQuantity}/{component.RequiredQuantity})" +
+                (remaining > 0 ? $" — {remaining} more needed" : " — done!"));
+        }
+        _ = CheckAndSaveQcStatusAsync();
+
+        UpdateScanIndicator(component.SellerSku, found: true);
+
+        // Always open bundle overlay on component scan
+        ShowBundleOverlay(bundleParent, component);
+        if (component.IsFullyVerified)
+            _ = AnimateOverlayComponentCompletion(bundleParent, component);
+
+        EmitQcEvent(
+            stepId: "component_scanned",
+            trigger: "sku_scan",
+            trackingNumber: order.TrackingNumber,
+            fromState: "picking",
+            toState: "picking",
+            payload: new Dictionary<string, object?>
+            {
+                ["sku"] = component.SellerSku,
+                ["componentName"] = component.Name,
+                ["verified"] = component.VerifiedQuantity,
+                ["required"] = component.RequiredQuantity,
+                ["bundleSku"] = bundleParent.SellerSku,
+                ["bundleComplete"] = bundleParent.IsBundleFullyVerified,
+            });
+    }
+
+    private void OnComponentPlusClicked(object sender, EventArgs e)
+    {
+        if (sender is not Button btn || btn.BindingContext is not BundleComponentItem comp) return;
+        if (comp.IsFullyVerified) return;
+
+        var parent = FindBundleParentForComponent(comp);
+        if (parent == null) return;
+        var order = FindOrderForItem(parent);
+        if (order == null) return;
+        if (IsOrderQcPassed(order)) { UpdateSearchStatus($"Order {order.TrackingNumber} is QC Passed — no changes allowed"); return; }
+
+        comp.VerifiedQuantity++;
+        parent.NotifyBundleProgressChanged();
+
+        if (parent.IsBundleFullyVerified && parent.Quantity > 0)
+            parent.Quantity = 0;
+
+        UpdateSearchStatus(comp.IsFullyVerified
+            ? $"✓ {comp.Name} fully verified ({comp.VerifiedQuantity}/{comp.RequiredQuantity})"
+            : $"{comp.Name} — {comp.VerifiedQuantity}/{comp.RequiredQuantity} verified");
+        Logger.Log($"OrderSearch: component+ '{comp.SellerSku}', now {comp.VerifiedQuantity}/{comp.RequiredQuantity}");
+
+        EmitQcEvent(
+            stepId: "component_card_clicked",
+            trigger: "card_tap_plus",
+            trackingNumber: order.TrackingNumber,
+            fromState: ConsumePickingFromState(),
+            toState: "picking",
+            payload: new Dictionary<string, object?>
+            {
+                ["sku"] = comp.SellerSku,
+                ["componentName"] = comp.Name,
+                ["verified"] = comp.VerifiedQuantity,
+                ["required"] = comp.RequiredQuantity,
+                ["bundleSku"] = parent.SellerSku,
+                ["bundleComplete"] = parent.IsBundleFullyVerified,
+            });
+
+        _ = CheckAndSaveQcStatusAsync();
+
+        if (ProductImageOverlay.IsVisible && _overlayItem == parent)
+        {
+            if (comp.IsFullyVerified)
+                _ = AnimateOverlayComponentCompletion(parent, comp);
+            else
+                ShowBundleOverlay(parent, comp);
+        }
+        else if (comp.IsFullyVerified)
+        {
+            ShowBundleOverlay(parent, comp);
+            _ = AnimateOverlayComponentCompletion(parent, comp);
+        }
+    }
+
+    private void OnComponentMinusClicked(object sender, EventArgs e)
+    {
+        if (sender is not Button btn || btn.BindingContext is not BundleComponentItem comp) return;
+        if (comp.VerifiedQuantity <= 0) return;
+
+        var parent = FindBundleParentForComponent(comp);
+        if (parent == null) return;
+        var order = FindOrderForItem(parent);
+        if (order == null) return;
+        if (IsOrderQcPassed(order)) { UpdateSearchStatus($"Order {order.TrackingNumber} is QC Passed — no changes allowed"); return; }
+
+        EmitQcEvent(
+            stepId: "component_card_unclicked",
+            trigger: "card_tap_minus",
+            trackingNumber: order.TrackingNumber,
+            fromState: ConsumePickingFromState(),
+            toState: "picking",
+            payload: new Dictionary<string, object?>
+            {
+                ["sku"] = comp.SellerSku,
+                ["componentName"] = comp.Name,
+                ["qtyBefore"] = comp.VerifiedQuantity,
+                ["qtyAfter"] = comp.VerifiedQuantity - 1,
+                ["bundleSku"] = parent.SellerSku,
+            });
+
+        comp.VerifiedQuantity--;
+        parent.NotifyBundleProgressChanged();
+
+        if (!parent.IsBundleFullyVerified && parent.Quantity <= 0)
+            parent.Quantity = parent.RequiredQuantity;
+
+        UpdateSearchStatus($"{comp.Name} — unverified, {comp.VerifiedQuantity}/{comp.RequiredQuantity}");
+        Logger.Log($"OrderSearch: component- '{comp.SellerSku}', now {comp.VerifiedQuantity}/{comp.RequiredQuantity}");
+
+        _ = CheckAndSaveQcStatusAsync();
+
+        if (_overlayItem == parent && ProductImageOverlay.IsVisible)
+            ShowBundleOverlay(parent, comp);
+    }
+
+    private void OnComponentRowTapped(object sender, TappedEventArgs e)
+    {
+        if (sender is not VisualElement ve || ve.BindingContext is not BundleComponentItem comp) return;
+        var parent = FindBundleParentForComponent(comp);
+        if (parent != null)
+            ShowBundleOverlay(parent, comp);
+    }
+
+    private ProductItem? FindBundleParentForComponent(BundleComponentItem comp)
+    {
+        return Results
+            .SelectMany(o => o.ParsedProducts)
+            .FirstOrDefault(p => p.IsBundle && p.BundleComponents?.Contains(comp) == true);
+    }
+
+    private void ShowBundleOverlay(ProductItem bundleParent, BundleComponentItem? highlightComponent = null)
+    {
+        _overlayItem = bundleParent;
+
+        // Determine active index
+        if (highlightComponent != null && bundleParent.BundleComponents != null)
+            _activeComponentIndex = bundleParent.BundleComponents.IndexOf(highlightComponent);
+        else
+            _activeComponentIndex = bundleParent.BundleComponents?.Count > 0 ? 0 : -1;
+
+        // Left pane image (based on active component)
+        UpdateOverlayImageForActiveComponent(bundleParent);
+
+        // Category badge
+        if (!string.IsNullOrWhiteSpace(bundleParent.CategoryBadge))
+        {
+            OverlayCategoryBadge.IsVisible = true;
+            OverlayCategoryLabel.Text = bundleParent.CategoryBadge;
+            OverlayCategoryBadge.BackgroundColor = bundleParent.CategoryBadgeBg;
+        }
+        else
+            OverlayCategoryBadge.IsVisible = false;
+
+        // Hide standard panel, show bundle panel
+        OverlayStandardPanel.IsVisible = false;
+        OverlayBundlePanel.IsVisible = true;
+
+        // Navigate hint visible for bundles
+        OverlayNavHint.IsVisible = true;
+
+        // Bundle name
+        OverlayBundleName.Text = bundleParent.BaseName;
+
+        // Progress bar
+        var fraction = bundleParent.BundleProgressFraction;
+        OverlayBundleProgressBar.WidthRequest = fraction * 200;
+        OverlayBundleProgressLabel.Text = bundleParent.BundleProgressText;
+
+        // Build component list (with parent row at top)
+        RebuildOverlayComponentList(bundleParent);
+
+        // Multi-SKU pills for bundle parent
+        var skuList = bundleParent.SkuPillSkus;
+        if (skuList.Count > 0)
+        {
+            OverlayBundleSkuSection.IsVisible = true;
+            RebuildOverlaySkuPills(skuList, bundleParent.SkuPillBg, bundleParent.SkuPillBorder, bundleParent.SkuPillText);
+        }
+        else
+            OverlayBundleSkuSection.IsVisible = false;
+
+        // Variation
+        if (bundleParent.HasVariation)
+        {
+            OverlayBundleVariationSection.IsVisible = true;
+            OverlayBundleVariationLabel.Text = bundleParent.Variation;
+            if (bundleParent.HasSwatch)
+            {
+                OverlayBundleVariationSwatch.IsVisible = true;
+                OverlayBundleVariationSwatch.Color = bundleParent.SwatchColor!;
+            }
+            else
+                OverlayBundleVariationSwatch.IsVisible = false;
+        }
+        else
+            OverlayBundleVariationSection.IsVisible = false;
+
+        // QC Notes
+        if (bundleParent.HasQcNotes)
+        {
+            OverlayBundleNotesSection.IsVisible = true;
+            OverlayBundleNotesLabel.Text = bundleParent.QcNotes!;
+        }
+        else
+            OverlayBundleNotesSection.IsVisible = false;
+
+        // Item position
+        var order = FindOrderForItem(bundleParent);
+        if (order != null)
+        {
+            var idx = order.ParsedProducts.IndexOf(bundleParent) + 1;
+            OverlayItemPosition.Text = $"ITEM {idx:D2} of {order.ParsedProducts.Count}";
+        }
+
+        if (!ProductImageOverlay.IsVisible)
+        {
+            ProductImageOverlay.IsVisible = true;
+            ProductImageOverlay.Opacity = 1;
+            OverlayCard.Scale = 1;
+            OverlayCard.Opacity = 1;
+        }
+    }
+
+    private void UpdateOverlayImageForActiveComponent(ProductItem bundleParent)
+    {
+        BundleComponentItem? activeComp = null;
+        if (_activeComponentIndex >= 0 && bundleParent.BundleComponents != null
+            && _activeComponentIndex < bundleParent.BundleComponents.Count)
+            activeComp = bundleParent.BundleComponents[_activeComponentIndex];
+
+        if (activeComp != null && activeComp.HasImage)
+        {
+            OverlayImage.Source = activeComp.ImageSource;
+            OverlayImage.IsVisible = true;
+            OverlayNoImage.IsVisible = false;
+            OverlayActiveCompLabel.IsVisible = true;
+            OverlayActiveCompText.Text = activeComp.Name;
+        }
+        else if (bundleParent.HasLocalImage)
+        {
+            OverlayImage.Source = ImageSource.FromFile(bundleParent.LocalImagePath);
+            OverlayImage.IsVisible = true;
+            OverlayNoImage.IsVisible = false;
+            OverlayActiveCompLabel.IsVisible = _activeComponentIndex >= 0;
+            OverlayActiveCompText.Text = activeComp?.Name ?? bundleParent.BaseName;
+        }
+        else if (bundleParent.HasImage)
+        {
+            OverlayImage.Source = bundleParent.ImageSource;
+            OverlayImage.IsVisible = true;
+            OverlayNoImage.IsVisible = false;
+            OverlayActiveCompLabel.IsVisible = _activeComponentIndex >= 0;
+            OverlayActiveCompText.Text = activeComp?.Name ?? bundleParent.BaseName;
+        }
+        else
+        {
+            OverlayImage.IsVisible = false;
+            OverlayNoImage.IsVisible = true;
+            OverlayActiveCompLabel.IsVisible = false;
+        }
+    }
+
+    private void RebuildOverlayComponentList(ProductItem bundleParent)
+    {
+        OverlayComponentList.Children.Clear();
+
+        // Parent image row (dashed border, clickable)
+        var parentRow = BuildOverlayParentRow(bundleParent, _activeComponentIndex == -1);
+        OverlayComponentList.Children.Add(parentRow);
+
+        // Component rows
+        if (bundleParent.BundleComponents != null)
+        {
+            for (var i = 0; i < bundleParent.BundleComponents.Count; i++)
+            {
+                var comp = bundleParent.BundleComponents[i];
+                var row = BuildOverlayComponentRow(comp, i == _activeComponentIndex, i);
+                OverlayComponentList.Children.Add(row);
+            }
+        }
+    }
+
+    private void RebuildOverlaySkuPills(List<string> skus, Color bg, Color border, Color text)
+    {
+        OverlayBundleSkuPills.Children.Clear();
+        foreach (var sku in skus.Take(6))
+        {
+            var pill = new Border
+            {
+                BackgroundColor = bg, Stroke = border,
+                StrokeThickness = 1, StrokeShape = new RoundRectangle { CornerRadius = 10 },
+                Padding = new Thickness(7, 2), Margin = new Thickness(0, 2, 4, 2),
+                Content = new Label
+                {
+                    Text = sku, FontSize = 9, FontFamily = "Consolas",
+                    FontAttributes = FontAttributes.Bold, TextColor = text,
+                }
+            };
+            OverlayBundleSkuPills.Add(pill);
+        }
+    }
+
+    private View BuildOverlayParentRow(ProductItem parent, bool active)
+    {
+        var border = new Border
+        {
+            BackgroundColor = active ? Color.FromArgb("#ede9fe") : Color.FromArgb("#fafafa"),
+            Stroke = active ? Color.FromArgb("#7c3aed") : Color.FromArgb("#d1d5db"),
+            StrokeThickness = active ? 2 : 1,
+            StrokeShape = new RoundRectangle { CornerRadius = 8 },
+            Padding = new Thickness(12, 8),
+        };
+
+        var grid = new Grid
+        {
+            ColumnDefinitions = [new(36), new(GridLength.Star), new(GridLength.Auto)],
+            ColumnSpacing = 10,
+        };
+
+        // Thumbnail
+        if (parent.HasLocalImage)
+        {
+            var img = new Image
+            {
+                HeightRequest = 32, WidthRequest = 32,
+                Aspect = Aspect.AspectFill,
+                Source = ImageSource.FromFile(parent.LocalImagePath),
+            };
+            Grid.SetColumn(img, 0);
+            grid.Add(img);
+        }
+        else
+        {
+            var placeholder = new Label
+            {
+                Text = "\U0001F4E6", FontSize = 18,
+                HorizontalOptions = LayoutOptions.Center,
+                VerticalOptions = LayoutOptions.Center,
+            };
+            Grid.SetColumn(placeholder, 0);
+            grid.Add(placeholder);
+        }
+
+        // Label
+        var info = new VerticalStackLayout { Spacing = 2, VerticalOptions = LayoutOptions.Center };
+        info.Add(new Label
+        {
+            Text = "◀ Parent Image",
+            FontSize = 12, FontAttributes = FontAttributes.Bold,
+            TextColor = Color.FromArgb("#7c3aed"),
+        });
+        info.Add(new Label
+        {
+            Text = "click to view bundle image",
+            FontSize = 10, TextColor = Color.FromArgb("#9ca3af"),
+        });
+        Grid.SetColumn(info, 1);
+        grid.Add(info);
+
+        border.Content = grid;
+
+        var tapGesture = new TapGestureRecognizer();
+        tapGesture.Tapped += (_, _) => ActivateOverlayComponent(-1);
+        border.GestureRecognizers.Add(tapGesture);
+
+        return border;
+    }
+
+    private View BuildOverlayComponentRow(BundleComponentItem comp, bool active, int index)
+    {
+        var border = new Border
+        {
+            BackgroundColor = active ? Color.FromArgb("#F5F3FF")
+                : comp.IsFullyVerified ? Color.FromArgb("#f0fdf4") : Color.FromArgb("#fafafa"),
+            Stroke = active ? Color.FromArgb("#7c3aed") : Colors.Transparent,
+            StrokeThickness = active ? 2 : 0,
+            StrokeShape = new RoundRectangle { CornerRadius = 8 },
+            Padding = new Thickness(12, 8),
+        };
+        if (active)
+            border.Shadow = new Shadow { Brush = Color.FromArgb("#207c3aed"), Offset = new Point(0, 0), Radius = 4 };
+
+        var grid = new Grid
+        {
+            ColumnDefinitions = [new(36), new(GridLength.Star), new(GridLength.Auto)],
+            ColumnSpacing = 10,
+        };
+
+        // Thumbnail
+        if (comp.HasImage)
+        {
+            var img = new Image
+            {
+                HeightRequest = 32, WidthRequest = 32,
+                Aspect = Aspect.AspectFill,
+                Source = comp.ImageSource,
+            };
+            Grid.SetColumn(img, 0);
+            grid.Add(img);
+        }
+
+        // Name + checkmark + variation + SKU pills
+        var info = new VerticalStackLayout { Spacing = 3, VerticalOptions = LayoutOptions.Center };
+        var nameRow = new Grid
+        {
+            ColumnDefinitions = [new(GridLength.Star), new(GridLength.Auto)],
+            ColumnSpacing = 6,
+        };
+        var nameLabel = new Label
+        {
+            Text = comp.Name, FontSize = 12, FontAttributes = FontAttributes.Bold,
+            TextColor = Color.FromArgb("#374151"), LineBreakMode = LineBreakMode.WordWrap,
+            MaxLines = 3,
+        };
+        Grid.SetColumn(nameLabel, 0);
+        nameRow.Add(nameLabel);
+        if (comp.IsFullyVerified)
+        {
+            var checkLabel = new Label
+            {
+                Text = "✓", FontSize = 13, FontAttributes = FontAttributes.Bold,
+                TextColor = Color.FromArgb("#16a34a"), VerticalOptions = LayoutOptions.Center,
+            };
+            Grid.SetColumn(checkLabel, 1);
+            nameRow.Add(checkLabel);
+        }
+        info.Add(nameRow);
+
+        // Variation badge
+        if (comp.HasVariation)
+        {
+            var varBadge = new Border
+            {
+                BackgroundColor = comp.VariationBadgeBg,
+                Stroke = Colors.Transparent,
+                StrokeShape = new RoundRectangle { CornerRadius = 6 },
+                Padding = new Thickness(8, 3),
+                HorizontalOptions = LayoutOptions.Start,
+            };
+            var varStack = new HorizontalStackLayout { Spacing = 5 };
+            if (comp.HasSwatch)
+                varStack.Add(new BoxView { WidthRequest = 10, HeightRequest = 10, CornerRadius = 5, Color = comp.SwatchColor!, VerticalOptions = LayoutOptions.Center });
+            varStack.Add(new Label { Text = comp.Variation, FontSize = 10, FontAttributes = FontAttributes.Bold, TextColor = comp.VariationBadgeTextColor });
+            varBadge.Content = varStack;
+            info.Add(varBadge);
+        }
+
+        // SKU pills row
+        var pillRow = new FlexLayout { Wrap = Microsoft.Maui.Layouts.FlexWrap.Wrap, AlignItems = Microsoft.Maui.Layouts.FlexAlignItems.Center };
+        var skus = comp.SkuPillSkus;
+        foreach (var sku in skus.Take(4))
+        {
+            var pill = new Border
+            {
+                BackgroundColor = comp.SkuPillBg, Stroke = comp.SkuPillBorder,
+                StrokeThickness = 1, StrokeShape = new RoundRectangle { CornerRadius = 10 },
+                Padding = new Thickness(7, 2), Margin = new Thickness(0, 1, 3, 1),
+                Content = new Label
+                {
+                    Text = sku, FontSize = 9, FontFamily = "Consolas",
+                    FontAttributes = FontAttributes.Bold, TextColor = comp.SkuPillText,
+                }
+            };
+            pillRow.Add(pill);
+        }
+        info.Add(pillRow);
+        Grid.SetColumn(info, 1);
+        grid.Add(info);
+
+        // Right side: +/- buttons + progress
+        var rightStack = new HorizontalStackLayout { Spacing = 6, VerticalOptions = LayoutOptions.Center };
+
+        var minusBtn = new Button
+        {
+            Text = "−", WidthRequest = 24, HeightRequest = 24, FontSize = 14,
+            FontAttributes = FontAttributes.Bold, Padding = 0, CornerRadius = 4,
+            BackgroundColor = comp.IsFullyVerified ? Color.FromArgb("#dcfce7") : Color.FromArgb("#f9fafb"),
+            TextColor = comp.IsFullyVerified ? Color.FromArgb("#16a34a") : Color.FromArgb("#374151"),
+            BorderColor = Color.FromArgb("#e5e7eb"), BorderWidth = 1,
+        };
+        minusBtn.Clicked += (_, _) =>
+        {
+            if (comp.VerifiedQuantity <= 0) return;
+            comp.VerifiedQuantity--;
+            var parent = _overlayItem;
+            if (parent != null)
+            {
+                parent.NotifyBundleProgressChanged();
+                if (!parent.IsBundleFullyVerified && parent.Quantity <= 0)
+                    parent.Quantity = parent.RequiredQuantity;
+                _ = CheckAndSaveQcStatusAsync();
+                ShowBundleOverlay(parent, comp);
+            }
+        };
+        rightStack.Add(minusBtn);
+
+        var progressLabel = new Label
+        {
+            Text = comp.ProgressText, FontSize = 13, FontAttributes = FontAttributes.Bold,
+            FontFamily = "Consolas", VerticalOptions = LayoutOptions.Center,
+            TextColor = comp.IsFullyVerified ? Color.FromArgb("#16a34a") : Color.FromArgb("#7c3aed"),
+        };
+        rightStack.Add(progressLabel);
+
+        var plusBtn = new Button
+        {
+            Text = "+", WidthRequest = 24, HeightRequest = 24, FontSize = 14,
+            FontAttributes = FontAttributes.Bold, Padding = 0, CornerRadius = 4,
+            BackgroundColor = comp.IsFullyVerified ? Color.FromArgb("#dcfce7") : Color.FromArgb("#f9fafb"),
+            TextColor = comp.IsFullyVerified ? Color.FromArgb("#16a34a") : Color.FromArgb("#374151"),
+            BorderColor = Color.FromArgb("#e5e7eb"), BorderWidth = 1,
+            IsEnabled = !comp.IsFullyVerified,
+        };
+        plusBtn.Clicked += (_, _) =>
+        {
+            if (comp.IsFullyVerified) return;
+            comp.VerifiedQuantity++;
+            var parent = _overlayItem;
+            if (parent != null)
+            {
+                parent.NotifyBundleProgressChanged();
+                if (parent.IsBundleFullyVerified && parent.Quantity > 0)
+                    parent.Quantity = 0;
+                _ = CheckAndSaveQcStatusAsync();
+                if (comp.IsFullyVerified)
+                    _ = AnimateOverlayComponentCompletion(parent, comp);
+                else
+                    ShowBundleOverlay(parent, comp);
+            }
+        };
+        rightStack.Add(plusBtn);
+
+        Grid.SetColumn(rightStack, 2);
+        grid.Add(rightStack);
+
+        border.Content = grid;
+
+        // Tap to activate
+        var tapGesture = new TapGestureRecognizer();
+        tapGesture.Tapped += (_, _) => ActivateOverlayComponent(index);
+        border.GestureRecognizers.Add(tapGesture);
+
+        return border;
+    }
+
+    private void ActivateOverlayComponent(int index)
+    {
+        if (_overlayItem == null || !_overlayItem.IsBundle) return;
+        _activeComponentIndex = index;
+        UpdateOverlayImageForActiveComponent(_overlayItem);
+        RebuildOverlayComponentList(_overlayItem);
+    }
+
     /// <summary>Immediately saves partially-picked orders as QC Hold after each deduction.</summary>
     private async Task SaveQcHoldImmediateAsync()
     {
@@ -934,17 +1670,21 @@ public partial class OrderSearchPage : ContentPage
             if (!order.ParsedProducts.Any(p => p.Quantity != p.OriginalQuantity)) continue;
 
             var wasHeld = string.Equals(order.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase);
+            foreach (var p in order.ParsedProducts)
+                p.PopulateBundleComponentStates();
             var payload = new ProductListPayload([.. order.ParsedProducts]);
             var now = DateTime.UtcNow;
             var ok = await ApiService.UpdatePackingStatusAsync(order.PackingId, "QC Hold", payload,
                 checkedBy: EffectiveOperator, checkingStationId: AppSettings.ResolvedStationId);
             if (ok)
             {
+                var firstHold = !wasHeld;
                 order.PackingStatus = "QC Hold";
                 order.UpdatedAt = now;
                 order.CheckedAt = now;
                 // Do NOT set OrderQcContext here — cards stay white while the user is scanning.
                 _carouselDirty = true;
+                if (firstHold) UpdateHeaderOrderInfo();
 
                 // Only emit on the first transition into QC Hold — subsequent deductions
                 // on the same held order would drown out the genuine state change.
@@ -977,6 +1717,8 @@ public partial class OrderSearchPage : ContentPage
             if (!order.ParsedProducts.Any(p => p.Quantity != p.OriginalQuantity)) continue;
 
             _completedPackingIds.Add(order.PackingId);
+            foreach (var p in order.ParsedProducts)
+                p.PopulateBundleComponentStates();
             var payload = new ProductListPayload([.. order.ParsedProducts]);
             var now = DateTime.UtcNow;
             var ok = await ApiService.UpdatePackingStatusAsync(
@@ -1037,6 +1779,8 @@ public partial class OrderSearchPage : ContentPage
             // Skip if nothing was actually picked (order was only viewed)
             if (!order.ParsedProducts.Any(p => p.Quantity != p.OriginalQuantity)) continue;
 
+            foreach (var p in order.ParsedProducts)
+                p.PopulateBundleComponentStates();
             var dbPayload = new ProductListPayload([.. order.ParsedProducts]);
             var now = DateTime.UtcNow;
             var ok = await ApiService.UpdatePackingStatusAsync(
@@ -1160,19 +1904,40 @@ public partial class OrderSearchPage : ContentPage
             item.ImagePath = e.ImagePath;
             item.QcNotes = e.QcNotes;
             item.Brand = e.Brand;
+            item.AllSkus = e.AllSkus;
             item.SwatchColor = ColorSwatchHelper.ParseSwatchColor(item.Variation);
 
             if (e.Components.Count > 0)
             {
                 item.BundleComponents = new ObservableCollection<BundleComponentItem>(
-                    e.Components.Select(c => new BundleComponentItem
+                    e.Components.Select((c, idx) => new BundleComponentItem
                     {
                         ComponentProductId = c.ComponentProductId,
                         Name = c.ProductName,
                         Variation = c.ProductVariation,
                         SellerSku = c.SellerSku,
-                        Quantity = c.Quantity,
+                        RequiredQuantity = c.Quantity * item.RequiredQuantity,
+                        VerifiedQuantity = 0,
+                        AllSkus = c.AllSkus,
+                        QcNotes = c.QcNotes,
+                        SubRowNumber = $"{item.RowNumber}.{idx + 1}",
+                        SwatchColor = ColorSwatchHelper.ParseSwatchColor(c.ProductVariation),
                     }));
+
+                if (item.BundleComponentStates is { Count: > 0 })
+                {
+                    foreach (var comp in item.BundleComponents)
+                    {
+                        var saved = item.BundleComponentStates.FirstOrDefault(s =>
+                            string.Equals(s.SellerSku, comp.SellerSku, StringComparison.OrdinalIgnoreCase));
+                        if (saved != null)
+                            comp.VerifiedQuantity = saved.VerifiedQuantity;
+                    }
+                    item.NotifyBundleProgressChanged();
+
+                    if (item.IsBundleFullyVerified && item.Quantity > 0)
+                        item.Quantity = 0;
+                }
             }
         }
 
@@ -1197,6 +1962,14 @@ public partial class OrderSearchPage : ContentPage
                 if (!_altSkuMap.TryGetValue(comp.SellerSku, out var list))
                     _altSkuMap[comp.SellerSku] = list = [];
                 list.Add(item);
+
+                foreach (var altSku in comp.AllSkus)
+                {
+                    if (!_altSkuMap.TryGetValue(altSku, out var altList))
+                        _altSkuMap[altSku] = altList = [];
+                    if (!altList.Contains(item))
+                        altList.Add(item);
+                }
             }
         }
 
@@ -1290,13 +2063,17 @@ public partial class OrderSearchPage : ContentPage
         {
             item.IsLoadingComponents = true;
             var components = await ApiService.GetBundleComponentsAsync(item.ProductId);
-            var componentItems = components.Select(c => new BundleComponentItem
+            var componentItems = components.Select((c, idx) => new BundleComponentItem
             {
                 ComponentProductId = c.ComponentProductId,
                 Name = c.ProductName,
                 Variation = c.ProductVariation,
                 SellerSku = c.SellerSku,
-                Quantity = c.Quantity,
+                RequiredQuantity = c.Quantity * item.RequiredQuantity,
+                VerifiedQuantity = 0,
+                QcNotes = c.QcNotes,
+                SubRowNumber = $"{item.RowNumber}.{idx + 1}",
+                SwatchColor = ColorSwatchHelper.ParseSwatchColor(c.ProductVariation),
             }).ToList();
 
             item.BundleComponents = new ObservableCollection<BundleComponentItem>(componentItems);
@@ -1316,6 +2093,7 @@ public partial class OrderSearchPage : ContentPage
     // ── Product image overlay ──────────────────────────────────────────────
 
     private ProductItem? _overlayItem;
+    private int _activeComponentIndex = -1; // -1 = parent, 0..N = component index
 
     private void OnProductCardTapped(object sender, TappedEventArgs e)
     {
@@ -1329,6 +2107,29 @@ public partial class OrderSearchPage : ContentPage
 
     private void ShowProductImageOverlay(ProductItem item, string? openTrigger = null)
     {
+        if (item.IsBundle)
+        {
+            ShowBundleOverlay(item);
+            if (openTrigger != null)
+            {
+                var owner = FindOrderForItem(item);
+                EmitQcEvent(
+                    stepId: "image_peek",
+                    trigger: openTrigger,
+                    trackingNumber: owner?.TrackingNumber,
+                    fromState: _isFirstItemScan ? "order-loaded" : "picking",
+                    toState: _isFirstItemScan ? "order-loaded" : "picking",
+                    payload: new Dictionary<string, object?> { ["sku"] = item.SellerSku, ["isBundle"] = true });
+            }
+            return;
+        }
+
+        // Ensure standard panel visible, bundle panel hidden
+        OverlayStandardPanel.IsVisible = true;
+        OverlayBundlePanel.IsVisible = false;
+        OverlayNavHint.IsVisible = false;
+        OverlayActiveCompLabel.IsVisible = false;
+
         _overlayItem = item;
 
         // Image
@@ -1386,11 +2187,29 @@ public partial class OrderSearchPage : ContentPage
         OverlayProductName.Text = item.BaseName;
         OverlaySkuLabel.Text = item.SellerSku;
 
-        // Variation badge (purple)
+        // Alt SKUs
+        if (item.HasMultipleSkus)
+        {
+            OverlayAltSkuLabel.IsVisible = true;
+            OverlayAltSkuLabel.Text = "also: " + string.Join(", ", item.AltSkus.Take(5));
+        }
+        else
+        {
+            OverlayAltSkuLabel.IsVisible = false;
+        }
+
+        // Variation badge (purple) with swatch
         if (item.HasVariation)
         {
             OverlayVariationLabel.Text = item.Variation;
             OverlayVariationBorder.IsVisible = true;
+            if (item.HasSwatch)
+            {
+                OverlayVariationSwatch.IsVisible = true;
+                OverlayVariationSwatch.Color = item.SwatchColor!;
+            }
+            else
+                OverlayVariationSwatch.IsVisible = false;
         }
         else
         {
@@ -1486,18 +2305,81 @@ public partial class OrderSearchPage : ContentPage
     private async void OnOverlayImageTapped(object sender, TappedEventArgs e)
     {
         _ = AnimateScanButtonAsync();
+
+        if (_overlayItem?.IsBundle == true && _activeComponentIndex >= 0
+            && _overlayItem.BundleComponents is { } comps && _activeComponentIndex < comps.Count)
+        {
+            var comp = comps[_activeComponentIndex];
+            if (comp.IsFullyVerified) return;
+
+            var order = FindOrderForItem(_overlayItem);
+            if (order == null || IsOrderQcPassed(order)) return;
+
+            comp.VerifiedQuantity++;
+            _overlayItem.NotifyBundleProgressChanged();
+            if (_overlayItem.IsBundleFullyVerified && _overlayItem.Quantity > 0)
+                _overlayItem.Quantity = 0;
+            _ = CheckAndSaveQcStatusAsync();
+            if (comp.IsFullyVerified)
+                _ = AnimateOverlayComponentCompletion(_overlayItem, comp);
+            else
+                ShowBundleOverlay(_overlayItem, comp);
+            return;
+        }
+
         DoOverlayPlus(DeductionSource.CardTap);
     }
 
     private async void OnOverlayPlusTapped(object sender, TappedEventArgs e)
     {
         _ = AnimateOverlayBtnAsync(OverlayPlusBtn, "#7C5CF0", "#5B31E0");
+
+        if (_overlayItem?.IsBundle == true && _activeComponentIndex >= 0
+            && _overlayItem.BundleComponents is { } comps && _activeComponentIndex < comps.Count)
+        {
+            var comp = comps[_activeComponentIndex];
+            if (comp.IsFullyVerified) return;
+
+            var order = FindOrderForItem(_overlayItem);
+            if (order == null || IsOrderQcPassed(order)) return;
+
+            comp.VerifiedQuantity++;
+            _overlayItem.NotifyBundleProgressChanged();
+            if (_overlayItem.IsBundleFullyVerified && _overlayItem.Quantity > 0)
+                _overlayItem.Quantity = 0;
+            _ = CheckAndSaveQcStatusAsync();
+            if (comp.IsFullyVerified)
+                _ = AnimateOverlayComponentCompletion(_overlayItem, comp);
+            else
+                ShowBundleOverlay(_overlayItem, comp);
+            return;
+        }
+
         DoOverlayPlus(DeductionSource.CardTap);
     }
 
     private async void OnOverlayMinusTapped(object sender, TappedEventArgs e)
     {
         _ = AnimateOverlayBtnAsync(OverlayMinusBtn, "#fca5a5", "#ef4444");
+
+        if (_overlayItem?.IsBundle == true && _activeComponentIndex >= 0
+            && _overlayItem.BundleComponents is { } comps && _activeComponentIndex < comps.Count)
+        {
+            var comp = comps[_activeComponentIndex];
+            if (comp.VerifiedQuantity <= 0) return;
+
+            var order = FindOrderForItem(_overlayItem);
+            if (order == null || IsOrderQcPassed(order)) return;
+
+            comp.VerifiedQuantity--;
+            _overlayItem.NotifyBundleProgressChanged();
+            if (!_overlayItem.IsBundleFullyVerified && _overlayItem.Quantity <= 0)
+                _overlayItem.Quantity = _overlayItem.RequiredQuantity;
+            _ = CheckAndSaveQcStatusAsync();
+            ShowBundleOverlay(_overlayItem, comp);
+            return;
+        }
+
         DoOverlayMinus("card_tap_minus");
     }
 
@@ -1667,6 +2549,24 @@ public partial class OrderSearchPage : ContentPage
         AdvanceOverlayToNext(item);
     }
 
+    private async Task AnimateOverlayComponentCompletion(ProductItem bundleParent, BundleComponentItem comp)
+    {
+        var green = Color.FromArgb("#10B981");
+
+        OverlayCard.Stroke = green;
+        OverlayCard.StrokeThickness = 3;
+
+        await Task.Delay(500);
+
+        OverlayCard.Stroke = Colors.Transparent;
+        OverlayCard.StrokeThickness = 0;
+
+        if (bundleParent.IsBundleFullyVerified)
+            AdvanceOverlayToNext(bundleParent);
+        else
+            ShowBundleOverlay(bundleParent, comp);
+    }
+
     private void ShowOverlayPickEntry(string initialValue)
     {
         OverlayVerifiedQty.IsVisible = false;
@@ -1781,11 +2681,36 @@ public partial class OrderSearchPage : ContentPage
         if (_pendingSkuProduct != null) _pendingSkuProduct.IsActive = false;
         _pendingSkuProduct = item;
         if (item != null) item.IsActive = true;
+        if (item == null || !item.IsBundle)
+            SetActiveComponent(null);
+    }
+
+    private void SetActiveComponent(BundleComponentItem? comp)
+    {
+        if (_activeComponent != null) _activeComponent.IsActiveComponent = false;
+        _activeComponent = comp;
+        if (comp != null) comp.IsActiveComponent = true;
     }
 
     private void ScrollToProduct(ProductItem item)
     {
         var border = FindDescendant<Border>(this, b => b.BindingContext == item);
+        if (border != null)
+        {
+            var y = border.Y;
+            var parent = border.Parent as VisualElement;
+            while (parent != null && parent != ResultsScroll.Content)
+            {
+                y += parent.Y;
+                parent = parent.Parent as VisualElement;
+            }
+            _ = ResultsScroll.ScrollToAsync(0, Math.Max(0, y - 100), true);
+        }
+    }
+
+    private void ScrollToComponent(BundleComponentItem comp)
+    {
+        var border = FindDescendant<Border>(this, b => b.BindingContext == comp);
         if (border != null)
         {
             var y = border.Y;
@@ -2350,6 +3275,29 @@ public partial class OrderSearchPage : ContentPage
             }
         }
 
+        // UP/DOWN for bundle component navigation
+        if (ProductImageOverlay.IsVisible && _overlayItem != null && _overlayItem.IsBundle)
+        {
+            var overlayUp = e.Key == Windows.System.VirtualKey.Up;
+            var overlayDown = e.Key == Windows.System.VirtualKey.Down;
+            if (overlayUp || overlayDown)
+            {
+                var compCount = _overlayItem.BundleComponents?.Count ?? 0;
+                if (overlayDown)
+                {
+                    if (_activeComponentIndex < compCount - 1)
+                        ActivateOverlayComponent(_activeComponentIndex + 1);
+                }
+                else
+                {
+                    if (_activeComponentIndex > -1)
+                        ActivateOverlayComponent(_activeComponentIndex - 1);
+                }
+                e.Handled = true;
+                return;
+            }
+        }
+
         if (e.Key == Windows.System.VirtualKey.Escape && ProductImageOverlay.IsVisible)
         {
             _ = DismissImageOverlayAsync("keyboard_escape"); e.Handled = true; return;
@@ -2364,13 +3312,113 @@ public partial class OrderSearchPage : ContentPage
         // +/- keys verify/unverify active product card
         const Windows.System.VirtualKey VkPlus = (Windows.System.VirtualKey)187;  // = / + key
         const Windows.System.VirtualKey VkMinus = (Windows.System.VirtualKey)189; // - / _ key
+        if (_activeComponent != null && !ProductImageOverlay.IsVisible)
+        {
+            var comp = _activeComponent;
+            var parent = FindBundleParentForComponent(comp);
+            var order = parent != null ? FindOrderForItem(parent) : null;
+
+            if (e.Key == VkPlus || e.Key == Windows.System.VirtualKey.Add)
+            {
+                if (comp.VerifiedQuantity < comp.RequiredQuantity && parent != null && order != null && !IsOrderQcPassed(order))
+                {
+                    comp.VerifiedQuantity++;
+                    parent.NotifyBundleProgressChanged();
+
+                    if (parent.IsBundleFullyVerified && parent.Quantity > 0)
+                        parent.Quantity = 0;
+
+                    UpdateSearchStatus(comp.IsFullyVerified
+                        ? $"✓ {comp.Name} fully verified ({comp.VerifiedQuantity}/{comp.RequiredQuantity})"
+                        : $"{comp.Name} — {comp.VerifiedQuantity}/{comp.RequiredQuantity} verified");
+                    Logger.Log($"OrderSearch: kb component+ '{comp.SellerSku}', now {comp.VerifiedQuantity}/{comp.RequiredQuantity}");
+
+                    EmitQcEvent(
+                        stepId: "component_card_clicked",
+                        trigger: "keyboard_plus",
+                        trackingNumber: order.TrackingNumber,
+                        fromState: ConsumePickingFromState(),
+                        toState: "picking",
+                        payload: new Dictionary<string, object?>
+                        {
+                            ["sku"] = comp.SellerSku,
+                            ["componentName"] = comp.Name,
+                            ["verified"] = comp.VerifiedQuantity,
+                            ["required"] = comp.RequiredQuantity,
+                            ["bundleSku"] = parent.SellerSku,
+                            ["bundleComplete"] = parent.IsBundleFullyVerified,
+                        });
+
+                    _ = CheckAndSaveQcStatusAsync();
+                }
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == VkMinus || e.Key == Windows.System.VirtualKey.Subtract)
+            {
+                if (comp.VerifiedQuantity > 0 && parent != null && order != null && !IsOrderQcPassed(order))
+                {
+                    EmitQcEvent(
+                        stepId: "component_card_unclicked",
+                        trigger: "keyboard_minus",
+                        trackingNumber: order.TrackingNumber,
+                        fromState: ConsumePickingFromState(),
+                        toState: "picking",
+                        payload: new Dictionary<string, object?>
+                        {
+                            ["sku"] = comp.SellerSku,
+                            ["componentName"] = comp.Name,
+                            ["qtyBefore"] = comp.VerifiedQuantity,
+                            ["qtyAfter"] = comp.VerifiedQuantity - 1,
+                            ["bundleSku"] = parent.SellerSku,
+                        });
+
+                    comp.VerifiedQuantity--;
+                    parent.NotifyBundleProgressChanged();
+
+                    if (!parent.IsBundleFullyVerified && parent.Quantity <= 0)
+                        parent.Quantity = parent.RequiredQuantity;
+
+                    UpdateSearchStatus($"{comp.Name} — unverified, {comp.VerifiedQuantity}/{comp.RequiredQuantity}");
+                    Logger.Log($"OrderSearch: kb component- '{comp.SellerSku}', now {comp.VerifiedQuantity}/{comp.RequiredQuantity}");
+
+                    _ = CheckAndSaveQcStatusAsync();
+                }
+                e.Handled = true;
+                return;
+            }
+        }
         var plusTarget = ProductImageOverlay.IsVisible ? _overlayItem : _pendingSkuProduct;
         if ((e.Key == VkPlus || e.Key == Windows.System.VirtualKey.Add) && plusTarget != null)
         {
             if (ProductImageOverlay.IsVisible)
             {
                 _ = AnimateOverlayBtnAsync(OverlayPlusBtn, "#7C5CF0", "#5B31E0");
-                DoOverlayPlus(DeductionSource.KeyboardPlus);
+                if (_overlayItem?.IsBundle == true && _activeComponentIndex >= 0
+                    && _overlayItem.BundleComponents is { } compsPlus && _activeComponentIndex < compsPlus.Count)
+                {
+                    var comp = compsPlus[_activeComponentIndex];
+                    if (!comp.IsFullyVerified)
+                    {
+                        var order = FindOrderForItem(_overlayItem);
+                        if (order != null && !IsOrderQcPassed(order))
+                        {
+                            comp.VerifiedQuantity++;
+                            _overlayItem.NotifyBundleProgressChanged();
+                            if (_overlayItem.IsBundleFullyVerified && _overlayItem.Quantity > 0)
+                                _overlayItem.Quantity = 0;
+                            _ = CheckAndSaveQcStatusAsync();
+                            if (comp.IsFullyVerified)
+                                _ = AnimateOverlayComponentCompletion(_overlayItem, comp);
+                            else
+                                ShowBundleOverlay(_overlayItem, comp);
+                        }
+                    }
+                }
+                else
+                {
+                    DoOverlayPlus(DeductionSource.KeyboardPlus);
+                }
             }
             else
             {
@@ -2385,7 +3433,28 @@ public partial class OrderSearchPage : ContentPage
             if (ProductImageOverlay.IsVisible)
             {
                 _ = AnimateOverlayBtnAsync(OverlayMinusBtn, "#fca5a5", "#ef4444");
-                DoOverlayMinus("keyboard_minus");
+                if (_overlayItem?.IsBundle == true && _activeComponentIndex >= 0
+                    && _overlayItem.BundleComponents is { } compsMinus && _activeComponentIndex < compsMinus.Count)
+                {
+                    var comp = compsMinus[_activeComponentIndex];
+                    if (comp.VerifiedQuantity > 0)
+                    {
+                        var order = FindOrderForItem(_overlayItem);
+                        if (order != null && !IsOrderQcPassed(order))
+                        {
+                            comp.VerifiedQuantity--;
+                            _overlayItem.NotifyBundleProgressChanged();
+                            if (!_overlayItem.IsBundleFullyVerified && _overlayItem.Quantity <= 0)
+                                _overlayItem.Quantity = _overlayItem.RequiredQuantity;
+                            _ = CheckAndSaveQcStatusAsync();
+                            ShowBundleOverlay(_overlayItem, comp);
+                        }
+                    }
+                }
+                else
+                {
+                    DoOverlayMinus("keyboard_minus");
+                }
             }
             else
             {
@@ -2401,18 +3470,44 @@ public partial class OrderSearchPage : ContentPage
         var isDown = e.Key == Windows.System.VirtualKey.Down;
         if ((isUp || isDown) && _orderLoaded && !ProductImageOverlay.IsVisible && Results.Count > 0)
         {
-            var allProducts = Results.SelectMany(o => o.ParsedProducts).ToList();
-            if (allProducts.Count > 0)
+            var navList = new List<object>();
+            foreach (var order in Results)
             {
-                var currentIdx = _pendingSkuProduct != null ? allProducts.IndexOf(_pendingSkuProduct) : -1;
+                foreach (var p in order.ParsedProducts)
+                {
+                    navList.Add(p);
+                    if (p.IsBundle && p.IsBundleExpanded && p.BundleComponents != null)
+                    {
+                        foreach (var c in p.BundleComponents)
+                            navList.Add(c);
+                    }
+                }
+            }
+
+            if (navList.Count > 0)
+            {
+                object? current = _activeComponent != null ? (object)_activeComponent : _pendingSkuProduct;
+                var currentIdx = current != null ? navList.IndexOf(current) : -1;
+
                 int nextIdx;
                 if (isDown)
-                    nextIdx = currentIdx < allProducts.Count - 1 ? currentIdx + 1 : 0;
+                    nextIdx = currentIdx < navList.Count - 1 ? currentIdx + 1 : 0;
                 else
-                    nextIdx = currentIdx > 0 ? currentIdx - 1 : allProducts.Count - 1;
+                    nextIdx = currentIdx > 0 ? currentIdx - 1 : navList.Count - 1;
 
-                SetActiveProduct(allProducts[nextIdx]);
-                ScrollToProduct(allProducts[nextIdx]);
+                var next = navList[nextIdx];
+                if (next is ProductItem pi)
+                {
+                    SetActiveComponent(null);
+                    SetActiveProduct(pi);
+                    ScrollToProduct(pi);
+                }
+                else if (next is BundleComponentItem ci)
+                {
+                    SetActiveProduct(null);
+                    SetActiveComponent(ci);
+                    ScrollToComponent(ci);
+                }
                 e.Handled = true;
                 return;
             }
@@ -2729,6 +3824,15 @@ public partial class OrderSearchPage : ContentPage
         ShowProductImageOverlay(item, "card_click");
     }
 
+    private void OnBundleChevronTapped(object sender, TappedEventArgs e)
+    {
+        ProductItem? item = null;
+        if (sender is VisualElement ve)
+            item = ve.BindingContext as ProductItem;
+        if (item == null || !item.IsBundle) return;
+        item.IsBundleExpanded = !item.IsBundleExpanded;
+    }
+
     // ── +/- button handlers ──────────────────────────────────────────────────
 
     private void OnPlusClicked(object sender, EventArgs e)
@@ -2758,6 +3862,12 @@ public partial class OrderSearchPage : ContentPage
 
         SetActiveProduct(item);
         ApplySkuDeduction(item, "1", source);
+
+        if (item.IsFullyPicked && !ProductImageOverlay.IsVisible)
+        {
+            ShowProductImageOverlay(item);
+            _ = AnimateOverlayCompletionThenAdvance(item);
+        }
     }
 
     private void DoCardMinus(ProductItem item, string trigger)
@@ -3015,15 +4125,13 @@ public partial class OrderSearchPage : ContentPage
 
     private void ApplyComStateVisuals(ComState state)
     {
-        var (color, label, opacity) = state switch
+        var strokeColor = state switch
         {
-            ComState.Ready => (Color.FromArgb("#4ade80"), "ready", 0.9),        // green
-            ComState.Open => (Color.FromArgb("#facc15"), "no data", 0.7),       // yellow
-            _ => (Color.FromArgb("#ef4444"), "disconnected", 0.5),              // red
+            ComState.Ready => Color.FromArgb("#4ade80"),
+            ComState.Open => Color.FromArgb("#facc15"),
+            _ => Color.FromArgb("#30ffffff"),
         };
-        ScannerStatusDot.TextColor = color;
-        HeaderComStatusLabel.Text = label;
-        HeaderComStatusLabel.Opacity = opacity;
+        ComPortBadge.Stroke = strokeColor;
     }
 
     private void StartComHeartbeatTimer()

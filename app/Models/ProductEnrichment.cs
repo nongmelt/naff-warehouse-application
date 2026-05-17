@@ -24,4 +24,6 @@ public class EnrichmentComponent
     [JsonPropertyName("productName")]        public string ProductName     { get; set; } = "";
     [JsonPropertyName("productVariation")]   public string? ProductVariation { get; set; }
     [JsonPropertyName("imagePath")]          public string? ImagePath       { get; set; }
+    [JsonPropertyName("allSkus")]            public List<string> AllSkus    { get; set; } = [];
+    [JsonPropertyName("qcNotes")]            public string? QcNotes         { get; set; }
 }
