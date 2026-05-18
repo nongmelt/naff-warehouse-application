@@ -22,10 +22,70 @@ public class BundleComponentItem : INotifyPropertyChanged
     public int ComponentProductId { get; set; }
     public string Name { get; set; } = "";
     public string? Variation { get; set; }
+    public string? QcNotes { get; set; }
+    public bool HasQcNotes => !string.IsNullOrWhiteSpace(QcNotes);
+    public bool HasNoQcNotes => !HasQcNotes;
     public string SellerSku { get; set; } = "";
-    public int Quantity { get; set; }
+
+    public string SubRowNumber { get; set; } = "";
+
+    private int _requiredQuantity;
+    public int RequiredQuantity
+    {
+        get => _requiredQuantity;
+        set { _requiredQuantity = value; OnPropertyChanged(); OnPropertyChanged(nameof(VerifiedQuantity)); OnPropertyChanged(nameof(IsFullyVerified)); OnPropertyChanged(nameof(IsPartiallyVerified)); OnPropertyChanged(nameof(RemainingQuantity)); OnPropertyChanged(nameof(ProgressText)); OnPropertyChanged(nameof(StripColor)); OnPropertyChanged(nameof(ComponentCardBg)); OnPropertyChanged(nameof(ComponentBorderColor)); OnPropertyChanged(nameof(ComponentBorderWidth)); OnPropertyChanged(nameof(QtyBadgeBg)); OnPropertyChanged(nameof(QtyTextColor)); }
+    }
+
+    private int _verifiedQuantity;
+    public int VerifiedQuantity
+    {
+        get => _verifiedQuantity;
+        set { _verifiedQuantity = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsFullyVerified)); OnPropertyChanged(nameof(IsPartiallyVerified)); OnPropertyChanged(nameof(RemainingQuantity)); OnPropertyChanged(nameof(ProgressText)); OnPropertyChanged(nameof(StripColor)); OnPropertyChanged(nameof(ComponentCardBg)); OnPropertyChanged(nameof(ComponentBorderColor)); OnPropertyChanged(nameof(ComponentBorderWidth)); OnPropertyChanged(nameof(QtyBadgeBg)); OnPropertyChanged(nameof(QtyTextColor)); OnPropertyChanged(nameof(SkuPillBg)); OnPropertyChanged(nameof(SkuPillBorder)); OnPropertyChanged(nameof(SkuPillText)); OnPropertyChanged(nameof(VariationBadgeBg)); OnPropertyChanged(nameof(VariationBadgeTextColor)); }
+    }
+
+    public int RemainingQuantity => RequiredQuantity - VerifiedQuantity;
+    public bool IsFullyVerified => VerifiedQuantity >= RequiredQuantity;
+    public string ProgressText => $"{VerifiedQuantity}/{RequiredQuantity}";
+
+    public List<string> AllSkus { get; set; } = [];
+    public bool HasMultipleSkus => AllSkus.Count > 1;
+    public IEnumerable<string> AltSkus => AllSkus.Where(s => !string.Equals(s, SellerSku, StringComparison.OrdinalIgnoreCase));
+    public string AltSkusDisplay => HasMultipleSkus ? string.Join("\n", AltSkus.Take(3)) : "";
+
+    public bool IsPartiallyVerified => !IsFullyVerified && VerifiedQuantity > 0;
+    public Color StripColor => IsFullyVerified ? Color.FromArgb("#86efac")
+        : IsPartiallyVerified ? Color.FromArgb("#fdba74") : Color.FromArgb("#e5e7eb");
+    public Color ComponentCardBg => _isActiveComponent ? Color.FromArgb("#F5F3FF")
+        : IsFullyVerified ? Color.FromArgb("#ECFDF5")
+        : IsPartiallyVerified ? Color.FromArgb("#FFF7ED") : Colors.White;
+    public Color ComponentBorderColor => _isActiveComponent ? Color.FromArgb("#a78bfa")
+        : IsFullyVerified ? Color.FromArgb("#86efac")
+        : IsPartiallyVerified ? Color.FromArgb("#fdba74") : Colors.Transparent;
+    public int ComponentBorderWidth => _isActiveComponent ? 2
+        : (IsFullyVerified || IsPartiallyVerified) ? 1 : 0;
+    public Color QtyBadgeBg => IsFullyVerified ? Color.FromArgb("#dcfce7")
+        : IsPartiallyVerified ? Color.FromArgb("#ffedd5") : Color.FromArgb("#f3f4f6");
+    public Color QtyTextColor => IsFullyVerified ? Color.FromArgb("#166534")
+        : IsPartiallyVerified ? Color.FromArgb("#c2410c") : Color.FromArgb("#374151");
+    public Color SkuPillBg => IsFullyVerified ? Color.FromArgb("#dcfce7")
+        : VerifiedQuantity > 0 ? Color.FromArgb("#ffedd5") : Color.FromArgb("#ede9fe");
+    public Color SkuPillBorder => IsFullyVerified ? Color.FromArgb("#86efac")
+        : VerifiedQuantity > 0 ? Color.FromArgb("#fdba74") : Color.FromArgb("#c4b5fd");
+    public Color SkuPillText => IsFullyVerified ? Color.FromArgb("#166534")
+        : VerifiedQuantity > 0 ? Color.FromArgb("#c2410c") : Color.FromArgb("#7c3aed");
+    public List<string> SkuPillSkus => AllSkus.Count > 0 ? AllSkus : string.IsNullOrEmpty(SellerSku) ? [] : [SellerSku];
+    public bool HasSkuPills => SkuPillSkus.Count > 0;
+    public bool HasNoSkuPills => !HasSkuPills;
 
     public bool HasVariation => !string.IsNullOrWhiteSpace(Variation);
+    public Color VariationBadgeBg => IsFullyVerified ? Color.FromArgb("#dcfce7")
+        : IsPartiallyVerified ? Color.FromArgb("#ffedd5")
+        : _isActiveComponent ? Color.FromArgb("#ede9fe") : Color.FromArgb("#EEF2FF");
+    public Color VariationBadgeTextColor => IsFullyVerified ? Color.FromArgb("#166534")
+        : IsPartiallyVerified ? Color.FromArgb("#c2410c")
+        : _isActiveComponent ? Color.FromArgb("#7c3aed") : Color.FromArgb("#4338CA");
+    public Color? SwatchColor { get; set; }
+    public bool HasSwatch => SwatchColor != null;
     public bool HasNoImage => !HasImage;
 
     private ImageSource? _imageSource;
@@ -36,6 +96,22 @@ public class BundleComponentItem : INotifyPropertyChanged
     }
     public bool HasImage => _imageSource != null;
 
+    private bool _isActiveComponent;
+    public bool IsActiveComponent
+    {
+        get => _isActiveComponent;
+        set
+        {
+            _isActiveComponent = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(ComponentCardBg));
+            OnPropertyChanged(nameof(ComponentBorderColor));
+            OnPropertyChanged(nameof(ComponentBorderWidth));
+            OnPropertyChanged(nameof(VariationBadgeBg));
+            OnPropertyChanged(nameof(VariationBadgeTextColor));
+        }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
     private void OnPropertyChanged([CallerMemberName] string? name = null)
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
@@ -44,12 +120,22 @@ public class BundleComponentItem : INotifyPropertyChanged
 /// <summary>Matches the backend jsonb payload shape: {"items": [...]}.</summary>
 public record ProductListPayload([property: JsonPropertyName("items")] List<ProductItem> Items);
 
+public record BundleComponentState(
+    [property: JsonPropertyName("seller_sku")] string SellerSku,
+    [property: JsonPropertyName("product_name")] string ProductName,
+    [property: JsonPropertyName("verified_quantity")] int VerifiedQuantity,
+    [property: JsonPropertyName("required_quantity")] int RequiredQuantity);
+
 [SupportedOSPlatform("windows")]
 public class ProductItem : INotifyPropertyChanged
 {
     [JsonPropertyName("product_name")]      public string Name      { get; set; } = "";
     [JsonPropertyName("product_variation")] public string Variation { get; set; } = "";
     [JsonPropertyName("seller_sku")]        public string SellerSku { get; set; } = "";
+
+    [JsonPropertyName("bundle_components")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<BundleComponentState>? BundleComponentStates { get; set; }
 
     private int _quantity;
     [JsonPropertyName("quantity")]
@@ -62,6 +148,7 @@ public class ProductItem : INotifyPropertyChanged
             OnPropertyChanged();
             OnPropertyChanged(nameof(VerifiedQuantity));
             OnPropertyChanged(nameof(IsFullyPicked));
+            OnPropertyChanged(nameof(IsCompleted));
             OnPropertyChanged(nameof(IsPartiallyVerified));
             OnPropertyChanged(nameof(CardBgColor));
             OnPropertyChanged(nameof(CardTextColor));
@@ -73,6 +160,9 @@ public class ProductItem : INotifyPropertyChanged
             OnPropertyChanged(nameof(VariationBadgeTextColor));
             OnPropertyChanged(nameof(StripColor));
             OnPropertyChanged(nameof(ShowCompletedCheck));
+            OnPropertyChanged(nameof(SkuPillBg));
+            OnPropertyChanged(nameof(SkuPillBorder));
+            OnPropertyChanged(nameof(SkuPillText));
         }
     }
 
@@ -140,6 +230,8 @@ public class ProductItem : INotifyPropertyChanged
 
     [JsonIgnore] public bool IsPartiallyVerified => !IsFullyPicked && VerifiedQuantity > 0;
 
+    [JsonIgnore] public bool IsCompleted => IsFullyPicked || (IsBundle && IsBundleFullyVerified);
+
     [JsonIgnore] public Color CardBgColor
     {
         get
@@ -147,7 +239,7 @@ public class ProductItem : INotifyPropertyChanged
             if (_isActive)
                 return Color.FromArgb("#F5F3FF");
 
-            if (IsFullyPicked ||
+            if (IsCompleted ||
                 string.Equals(_orderQcContext, "QC Passed", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(_orderQcContext, "Packed Complete", StringComparison.OrdinalIgnoreCase))
                 return Color.FromArgb("#ECFDF5");
@@ -161,7 +253,7 @@ public class ProductItem : INotifyPropertyChanged
             if (string.Equals(_orderQcContext, "Packed", StringComparison.OrdinalIgnoreCase))
                 return Color.FromArgb("#ffedd5");
 
-            return Colors.White;
+            return IsBundle ? Color.FromArgb("#F8F7FF") : Colors.White;
         }
     }
 
@@ -169,7 +261,7 @@ public class ProductItem : INotifyPropertyChanged
     {
         get
         {
-            if (IsFullyPicked ||
+            if (IsCompleted ||
                 string.Equals(_orderQcContext, "QC Passed", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(_orderQcContext, "Packed Complete", StringComparison.OrdinalIgnoreCase))
                 return Color.FromArgb("#166534");
@@ -181,18 +273,19 @@ public class ProductItem : INotifyPropertyChanged
     {
         get
         {
-            if (!_isActive) return Colors.Transparent;
-            return Color.FromArgb("#a78bfa");
+            if (_isActive) return Color.FromArgb("#a78bfa");
+            if (IsBundle && !IsCompleted) return Color.FromArgb("#e0daf7");
+            return Colors.Transparent;
         }
     }
 
-    [JsonIgnore] public int CardBorderWidth => _isActive ? 2 : 0;
+    [JsonIgnore] public int CardBorderWidth => _isActive ? 2 : (IsBundle && !IsCompleted) ? 1 : 0;
 
     [JsonIgnore] public Color ButtonBgColor
     {
         get
         {
-            if (IsFullyPicked) return Color.FromArgb("#dcfce7");
+            if (IsCompleted) return Color.FromArgb("#dcfce7");
             if (IsPartiallyVerified) return Color.FromArgb("#ffedd5");
             if (_isActive) return Color.FromArgb("#ede9fe");
             return Color.FromArgb("#f3f4f6");
@@ -203,7 +296,7 @@ public class ProductItem : INotifyPropertyChanged
     {
         get
         {
-            if (IsFullyPicked) return Color.FromArgb("#166534");
+            if (IsCompleted) return Color.FromArgb("#166534");
             if (IsPartiallyVerified) return Color.FromArgb("#c2410c");
             if (_isActive) return Color.FromArgb("#7c3aed");
             return Color.FromArgb("#374151");
@@ -214,7 +307,7 @@ public class ProductItem : INotifyPropertyChanged
     {
         get
         {
-            if (IsFullyPicked) return Color.FromArgb("#dcfce7");
+            if (IsCompleted) return Color.FromArgb("#dcfce7");
             if (IsPartiallyVerified) return Color.FromArgb("#ffedd5");
             if (_isActive) return Color.FromArgb("#ede9fe");
             return Color.FromArgb("#EEF2FF");
@@ -225,7 +318,7 @@ public class ProductItem : INotifyPropertyChanged
     {
         get
         {
-            if (IsFullyPicked) return Color.FromArgb("#166534");
+            if (IsCompleted) return Color.FromArgb("#166534");
             if (IsPartiallyVerified) return Color.FromArgb("#c2410c");
             if (_isActive) return Color.FromArgb("#7c3aed");
             return Color.FromArgb("#4338CA");
@@ -236,7 +329,7 @@ public class ProductItem : INotifyPropertyChanged
     {
         get
         {
-            if (IsFullyPicked ||
+            if (IsCompleted ||
                 string.Equals(_orderQcContext, "QC Passed", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(_orderQcContext, "Packed Complete", StringComparison.OrdinalIgnoreCase))
                 return Color.FromArgb("#86efac");
@@ -252,7 +345,7 @@ public class ProductItem : INotifyPropertyChanged
     }
 
     [JsonIgnore] public bool ShowCompletedCheck =>
-        IsFullyPicked ||
+        IsCompleted ||
         string.Equals(_orderQcContext, "QC Passed", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(_orderQcContext, "Packed Complete", StringComparison.OrdinalIgnoreCase);
 
@@ -338,9 +431,55 @@ public class ProductItem : INotifyPropertyChanged
     public ObservableCollection<BundleComponentItem>? BundleComponents
     {
         get => _bundleComponents;
-        set { _bundleComponents = value; OnPropertyChanged(); OnPropertyChanged(nameof(HasBundleComponents)); }
+        set { _bundleComponents = value; OnPropertyChanged(); OnPropertyChanged(nameof(HasBundleComponents)); NotifyBundleProgressChanged(); }
     }
     [JsonIgnore] public bool HasBundleComponents => _bundleComponents is { Count: > 0 };
+
+    [JsonIgnore] public int BundleVerifiedCount => BundleComponents?.Count(c => c.IsFullyVerified) ?? 0;
+    [JsonIgnore] public int BundleTotalCount => BundleComponents?.Count ?? 0;
+    [JsonIgnore] public string BundleProgressText => $"{BundleVerifiedCount}/{BundleTotalCount} components";
+    [JsonIgnore] public double BundleProgressFraction => BundleTotalCount > 0 ? (double)BundleVerifiedCount / BundleTotalCount : 0;
+    [JsonIgnore] public double BundleProgressBarWidth => BundleProgressFraction * 80;
+    [JsonIgnore] public bool IsBundleFullyVerified => BundleComponents?.All(c => c.IsFullyVerified) ?? false;
+    [JsonIgnore] public Color BundleQtyBadgeBg => IsBundleFullyVerified ? Color.FromArgb("#dcfce7") : Color.FromArgb("#f3f4f6");
+    [JsonIgnore] public Color BundleQtyTextColor => IsBundleFullyVerified ? Color.FromArgb("#166534") : Color.FromArgb("#374151");
+
+    public void NotifyBundleProgressChanged()
+    {
+        OnPropertyChanged(nameof(BundleVerifiedCount));
+        OnPropertyChanged(nameof(BundleTotalCount));
+        OnPropertyChanged(nameof(BundleProgressText));
+        OnPropertyChanged(nameof(BundleProgressFraction));
+        OnPropertyChanged(nameof(BundleProgressBarWidth));
+        OnPropertyChanged(nameof(IsBundleFullyVerified));
+        OnPropertyChanged(nameof(IsCompleted));
+        OnPropertyChanged(nameof(BundleQtyBadgeBg));
+        OnPropertyChanged(nameof(BundleQtyTextColor));
+        OnPropertyChanged(nameof(CardBgColor));
+        OnPropertyChanged(nameof(CardTextColor));
+        OnPropertyChanged(nameof(CardBorderColor));
+        OnPropertyChanged(nameof(CardBorderWidth));
+        OnPropertyChanged(nameof(StripColor));
+        OnPropertyChanged(nameof(ShowCompletedCheck));
+        OnPropertyChanged(nameof(ButtonBgColor));
+        OnPropertyChanged(nameof(ButtonTextColor));
+        OnPropertyChanged(nameof(SkuPillBg));
+        OnPropertyChanged(nameof(SkuPillBorder));
+        OnPropertyChanged(nameof(SkuPillText));
+        OnPropertyChanged(nameof(VariationBadgeBg));
+        OnPropertyChanged(nameof(VariationBadgeTextColor));
+    }
+
+    public void PopulateBundleComponentStates()
+    {
+        if (!IsBundle || BundleComponents is not { Count: > 0 })
+        {
+            BundleComponentStates = null;
+            return;
+        }
+        BundleComponentStates = BundleComponents.Select(c => new BundleComponentState(
+            c.SellerSku, c.Name, c.VerifiedQuantity, c.RequiredQuantity)).ToList();
+    }
 
     private bool _isLoadingComponents;
     [JsonIgnore]
@@ -350,13 +489,48 @@ public class ProductItem : INotifyPropertyChanged
         set { _isLoadingComponents = value; OnPropertyChanged(); }
     }
 
+    private bool _isBundleExpanded = true;
+    [JsonIgnore]
+    public bool IsBundleExpanded
+    {
+        get => _isBundleExpanded;
+        set { _isBundleExpanded = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsBundleCollapsed)); OnPropertyChanged(nameof(BundleChevron)); }
+    }
+    [JsonIgnore] public bool IsBundleCollapsed => !_isBundleExpanded;
+    [JsonIgnore] public string BundleChevron => _isBundleExpanded ? "▾" : "▸";
+
     // ── Enrichment (populated after search via EnrichProductsAsync) ──────────
 
     [JsonIgnore] public string? CategoryName { get; set; }
     [JsonIgnore] public int? CategoryId { get; set; }
     [JsonIgnore] public string? ImagePath { get; set; }
-    [JsonIgnore] public string? QcNotes { get; set; }
+    private string? _qcNotes;
+    [JsonIgnore] public string? QcNotes
+    {
+        get => _qcNotes;
+        set { _qcNotes = value; OnPropertyChanged(); OnPropertyChanged(nameof(HasQcNotes)); OnPropertyChanged(nameof(HasNoQcNotes)); }
+    }
     [JsonIgnore] public string? Brand { get; set; }
+
+    private List<string> _allSkus = [];
+    [JsonIgnore] public List<string> AllSkus
+    {
+        get => _allSkus;
+        set { _allSkus = value; OnPropertyChanged(); OnPropertyChanged(nameof(HasMultipleSkus)); OnPropertyChanged(nameof(SkuPillSkus)); OnPropertyChanged(nameof(HasSkuPills)); OnPropertyChanged(nameof(HasNoSkuPills)); }
+    }
+    [JsonIgnore] public bool HasMultipleSkus => AllSkus.Count > 1;
+    [JsonIgnore] public IEnumerable<string> AltSkus => AllSkus.Where(s => !string.Equals(s, SellerSku, StringComparison.OrdinalIgnoreCase));
+    [JsonIgnore] public string AltSkusDisplay => HasMultipleSkus ? string.Join("\n", AltSkus.Take(3)) : "";
+    [JsonIgnore] public Color SkuPillBg => IsCompleted ? Color.FromArgb("#dcfce7")
+        : IsPartiallyVerified ? Color.FromArgb("#ffedd5") : Color.FromArgb("#ede9fe");
+    [JsonIgnore] public Color SkuPillBorder => IsCompleted ? Color.FromArgb("#86efac")
+        : IsPartiallyVerified ? Color.FromArgb("#fdba74") : Color.FromArgb("#c4b5fd");
+    [JsonIgnore] public Color SkuPillText => IsCompleted ? Color.FromArgb("#166534")
+        : IsPartiallyVerified ? Color.FromArgb("#c2410c") : Color.FromArgb("#7c3aed");
+    [JsonIgnore] public List<string> SkuPillSkus => AllSkus.Count > 0 ? AllSkus : string.IsNullOrEmpty(SellerSku) ? [] : [SellerSku];
+    [JsonIgnore] public bool HasSkuPills => SkuPillSkus.Count > 0;
+    [JsonIgnore] public bool HasNoSkuPills => !HasSkuPills;
+    [JsonIgnore] public bool IsNotBundle => !IsBundle;
 
     [JsonIgnore] public bool HasQcNotes => !string.IsNullOrWhiteSpace(QcNotes);
     [JsonIgnore] public bool HasNoQcNotes => string.IsNullOrWhiteSpace(QcNotes);
@@ -371,8 +545,12 @@ public class ProductItem : INotifyPropertyChanged
     /// <summary>Category badge text color.</summary>
     [JsonIgnore] public Color CategoryBadgeFg { get; set; } = Colors.White;
 
-    /// <summary>Color swatch parsed from variation.</summary>
-    [JsonIgnore] public Color? SwatchColor { get; set; }
+    private Color? _swatchColor;
+    [JsonIgnore] public Color? SwatchColor
+    {
+        get => _swatchColor;
+        set { _swatchColor = value; OnPropertyChanged(); OnPropertyChanged(nameof(HasSwatch)); }
+    }
 
     [JsonIgnore] public bool HasSwatch => SwatchColor != null;
 
@@ -557,6 +735,12 @@ public class PackingList : INotifyPropertyChanged
             item.OriginalQuantity = item.RequiredQuantity;
             item.OrderQcContext   = "";
             item.IsBeingPicked    = false;
+            if (item.IsBundle && item.BundleComponents != null)
+            {
+                foreach (var comp in item.BundleComponents)
+                    comp.VerifiedQuantity = 0;
+                item.NotifyBundleProgressChanged();
+            }
         }
     }
 
@@ -588,6 +772,7 @@ public class PackingList : INotifyPropertyChanged
             Variation = p.Variation,
             SellerSku = p.SellerSku,
             Quantity  = p.Quantity,
+            BundleComponentStates = p.BundleComponentStates,
         }).ToList();
 
         foreach (var item in list)

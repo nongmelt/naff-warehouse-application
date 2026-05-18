@@ -533,5 +533,6 @@ public static class ApiService
         [property: JsonPropertyName("productName")] string ProductName,
         [property: JsonPropertyName("productVariation")] string? ProductVariation,
         [property: JsonPropertyName("sellerSku")] string SellerSku,
-        [property: JsonPropertyName("imagePath")] string? ImagePath);
+        [property: JsonPropertyName("imagePath")] string? ImagePath,
+        [property: JsonPropertyName("qcNotes")] string? QcNotes = null);
 }
