@@ -78,12 +78,14 @@ public class BundleComponentItem : INotifyPropertyChanged
     public bool HasNoSkuPills => !HasSkuPills;
 
     public bool HasVariation => !string.IsNullOrWhiteSpace(Variation);
-    public Color VariationBadgeBg => IsFullyVerified ? Color.FromArgb("#dcfce7")
-        : IsPartiallyVerified ? Color.FromArgb("#ffedd5")
-        : _isActiveComponent ? Color.FromArgb("#ede9fe") : Color.FromArgb("#EEF2FF");
+    public Color VariationBadgeBg => IsFullyVerified ? Color.FromArgb("#f0fdf4")
+        : IsPartiallyVerified ? Color.FromArgb("#fefce8")
+        : Color.FromArgb("#f3f4f6");
     public Color VariationBadgeTextColor => IsFullyVerified ? Color.FromArgb("#166534")
-        : IsPartiallyVerified ? Color.FromArgb("#c2410c")
-        : _isActiveComponent ? Color.FromArgb("#7c3aed") : Color.FromArgb("#4338CA");
+        : IsPartiallyVerified ? Color.FromArgb("#92400e")
+        : Color.FromArgb("#374151");
+    public Color VariationBorderColor => IsFullyVerified ? Color.FromArgb("#22c55e")
+        : IsPartiallyVerified ? Color.FromArgb("#f59e0b") : Color.FromArgb("#d1d5db");
     public Color? SwatchColor { get; set; }
     public bool HasSwatch => SwatchColor != null;
     public bool HasNoImage => !HasImage;
@@ -307,10 +309,10 @@ public class ProductItem : INotifyPropertyChanged
     {
         get
         {
-            if (IsCompleted) return Color.FromArgb("#dcfce7");
-            if (IsPartiallyVerified) return Color.FromArgb("#ffedd5");
-            if (_isActive) return Color.FromArgb("#ede9fe");
-            return Color.FromArgb("#EEF2FF");
+            if (IsBundle) return Color.FromArgb("#ede9fe");
+            if (IsCompleted) return Color.FromArgb("#f0fdf4");
+            if (IsPartiallyVerified) return Color.FromArgb("#fefce8");
+            return Color.FromArgb("#f3f4f6");
         }
     }
 
@@ -318,10 +320,21 @@ public class ProductItem : INotifyPropertyChanged
     {
         get
         {
+            if (IsBundle) return Color.FromArgb("#5b21b6");
             if (IsCompleted) return Color.FromArgb("#166534");
-            if (IsPartiallyVerified) return Color.FromArgb("#c2410c");
-            if (_isActive) return Color.FromArgb("#7c3aed");
-            return Color.FromArgb("#4338CA");
+            if (IsPartiallyVerified) return Color.FromArgb("#92400e");
+            return Color.FromArgb("#374151");
+        }
+    }
+
+    [JsonIgnore] public Color VariationBorderColor
+    {
+        get
+        {
+            if (IsBundle) return Color.FromArgb("#a78bfa");
+            if (IsCompleted) return Color.FromArgb("#22c55e");
+            if (IsPartiallyVerified) return Color.FromArgb("#f59e0b");
+            return Color.FromArgb("#d1d5db");
         }
     }
 
@@ -443,6 +456,11 @@ public class ProductItem : INotifyPropertyChanged
     [JsonIgnore] public bool IsBundleFullyVerified => BundleComponents?.All(c => c.IsFullyVerified) ?? false;
     [JsonIgnore] public Color BundleQtyBadgeBg => IsBundleFullyVerified ? Color.FromArgb("#dcfce7") : Color.FromArgb("#f3f4f6");
     [JsonIgnore] public Color BundleQtyTextColor => IsBundleFullyVerified ? Color.FromArgb("#166534") : Color.FromArgb("#374151");
+    [JsonIgnore] public IReadOnlyList<Color> BundleComponentDotColors =>
+        BundleComponents?.Select(c => c.IsFullyVerified ? Color.FromArgb("#22c55e")
+            : c.IsPartiallyVerified ? Color.FromArgb("#f59e0b")
+            : Color.FromArgb("#d1d5db")).ToList()
+        ?? [];
 
     public void NotifyBundleProgressChanged()
     {
@@ -468,6 +486,8 @@ public class ProductItem : INotifyPropertyChanged
         OnPropertyChanged(nameof(SkuPillText));
         OnPropertyChanged(nameof(VariationBadgeBg));
         OnPropertyChanged(nameof(VariationBadgeTextColor));
+        OnPropertyChanged(nameof(VariationBorderColor));
+        OnPropertyChanged(nameof(BundleComponentDotColors));
     }
 
     public void PopulateBundleComponentStates()
