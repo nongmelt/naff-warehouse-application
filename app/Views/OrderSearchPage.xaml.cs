@@ -741,7 +741,8 @@ public partial class OrderSearchPage : ContentPage
         {
             var match = order.ParsedProducts.FirstOrDefault(p =>
                 p.Quantity > 0 &&
-                string.Equals(p.SellerSku, barcode, StringComparison.OrdinalIgnoreCase));
+                (string.Equals(p.SellerSku, barcode, StringComparison.OrdinalIgnoreCase) ||
+                 p.AllSkus.Any(s => string.Equals(s, barcode, StringComparison.OrdinalIgnoreCase))));
 
             if (match == null) continue;
 
@@ -800,7 +801,7 @@ public partial class OrderSearchPage : ContentPage
 
         if (foundComponent != null)
         {
-            HandleComponentScan(foundComponent, foundBundleParent!, foundComponentOrder!);
+            HandleComponentScan(foundComponent, foundBundleParent!, foundComponentOrder!, barcode);
             return;
         }
 
@@ -1140,7 +1141,7 @@ public partial class OrderSearchPage : ContentPage
 
     // ── Component scan verification ─────────────────────────────────────────
 
-    private void HandleComponentScan(BundleComponentItem component, ProductItem bundleParent, PackingList order)
+    private void HandleComponentScan(BundleComponentItem component, ProductItem bundleParent, PackingList order, string scannedBarcode)
     {
         if (component.IsFullyVerified)
         {
@@ -1157,12 +1158,12 @@ public partial class OrderSearchPage : ContentPage
             component.VerifiedQuantity++;
             bundleParent.NotifyBundleProgressChanged();
 
-            UpdateScanIndicator(component.SellerSku, found: true);
+            UpdateScanIndicator(scannedBarcode, found: true);
             ShowBundleOverlay(bundleParent, component);
             ShowOverlayPickEntry(targetVerified.ToString());
 
             UpdateSearchStatus($"{component.Name} — {component.VerifiedQuantity}/{component.RequiredQuantity}, enter qty and confirm");
-            Logger.Log($"OrderSearch: component scan '{component.SellerSku}', awaiting qty input ({component.VerifiedQuantity}/{component.RequiredQuantity})");
+            Logger.Log($"OrderSearch: component scan '{scannedBarcode}', awaiting qty input ({component.VerifiedQuantity}/{component.RequiredQuantity})");
 
             EmitQcEvent(
                 stepId: "component_scanned",
@@ -1185,7 +1186,7 @@ public partial class OrderSearchPage : ContentPage
         }
 
         // Single remaining: show overlay with current qty, then apply after delay
-        UpdateScanIndicator(component.SellerSku, found: true);
+        UpdateScanIndicator(scannedBarcode, found: true);
         ShowBundleOverlay(bundleParent, component);
 
         _ = ApplyComponentVerificationThenDismiss(
@@ -1321,8 +1322,8 @@ public partial class OrderSearchPage : ContentPage
 
         OverlayStandardPanel.IsVisible = true;
         OverlayNavHint.IsVisible = true;
-        OverlayMinusBtn.IsVisible = false;
-        OverlayPlusBtn.IsVisible = false;
+        OverlayMinusBtn.IsVisible = true;
+        OverlayPlusBtn.IsVisible = true;
         PopulateStandardPanelForBundle(bundleParent);
         HideOverlayPickEntry();
 
@@ -1413,15 +1414,7 @@ public partial class OrderSearchPage : ContentPage
                 ? Color.FromArgb("#10B981") : Color.FromArgb("#111827");
 
             OverlayProductName.Text = comp.Name;
-            OverlaySkuLabel.Text = comp.SellerSku;
-
-            if (comp.HasMultipleSkus)
-            {
-                OverlayAltSkuLabel.IsVisible = true;
-                OverlayAltSkuLabel.Text = "also: " + string.Join(", ", comp.AltSkus.Take(5));
-            }
-            else
-                OverlayAltSkuLabel.IsVisible = false;
+            RefreshOverlaySkuPills();
 
             if (comp.HasVariation)
             {
@@ -1467,15 +1460,7 @@ public partial class OrderSearchPage : ContentPage
                 ? Color.FromArgb("#10B981") : Color.FromArgb("#111827");
 
             OverlayProductName.Text = bundleParent.BaseName;
-            OverlaySkuLabel.Text = bundleParent.SellerSku;
-
-            if (bundleParent.HasMultipleSkus)
-            {
-                OverlayAltSkuLabel.IsVisible = true;
-                OverlayAltSkuLabel.Text = "also: " + string.Join(", ", bundleParent.AltSkus.Take(5));
-            }
-            else
-                OverlayAltSkuLabel.IsVisible = false;
+            RefreshOverlaySkuPills();
 
             if (bundleParent.HasVariation)
             {
@@ -1660,8 +1645,13 @@ public partial class OrderSearchPage : ContentPage
         {
             if (ProductImageOverlay.IsVisible)
             {
-                ProductImageOverlay.IsVisible = false;
-                _overlayItem = null;
+                for (int i = 0; i < 20 && ProductImageOverlay.IsVisible; i++)
+                    await Task.Delay(100);
+                if (ProductImageOverlay.IsVisible)
+                {
+                    ProductImageOverlay.IsVisible = false;
+                    _overlayItem = null;
+                }
             }
             var totalItems = Results.Sum(o => o.ParsedProducts.Sum(p => p.RequiredQuantity));
             ShowCompletionSummary(totalItems);
@@ -2083,18 +2073,7 @@ public partial class OrderSearchPage : ContentPage
 
         // Product info
         OverlayProductName.Text = item.BaseName;
-        OverlaySkuLabel.Text = item.SellerSku;
-
-        // Alt SKUs
-        if (item.HasMultipleSkus)
-        {
-            OverlayAltSkuLabel.IsVisible = true;
-            OverlayAltSkuLabel.Text = "also: " + string.Join(", ", item.AltSkus.Take(5));
-        }
-        else
-        {
-            OverlayAltSkuLabel.IsVisible = false;
-        }
+        RefreshOverlaySkuPills();
 
         // Variation badge with state-colored text
         if (item.HasVariation)
@@ -2166,8 +2145,6 @@ public partial class OrderSearchPage : ContentPage
                 });
         }
 
-        if (item.IsFullyPicked)
-            _ = DismissImageOverlayAsync("auto_complete");
     }
 
     private void RefreshOverlayQuantity()
@@ -2178,6 +2155,51 @@ public partial class OrderSearchPage : ContentPage
         OverlayVerifiedQty.TextColor = _overlayItem.VerifiedQuantity >= _overlayItem.RequiredQuantity
             ? Color.FromArgb("#10B981")
             : Color.FromArgb("#111827");
+        RefreshOverlaySkuPills();
+    }
+
+    private void PopulateOverlaySkuPills(List<string> skus, Color bg, Color border, Color text)
+    {
+        OverlaySkuPills.Children.Clear();
+        foreach (var sku in skus)
+        {
+            var pill = new Border
+            {
+                BackgroundColor = bg,
+                Stroke = border,
+                StrokeThickness = 1,
+                StrokeShape = new RoundRectangle { CornerRadius = 12 },
+                Padding = new Thickness(10, 4),
+                Margin = new Thickness(0, 2, 6, 2),
+                Content = new Label
+                {
+                    Text = sku,
+                    FontSize = 13,
+                    FontFamily = "Consolas",
+                    FontAttributes = FontAttributes.Bold,
+                    TextColor = text,
+                    LineBreakMode = LineBreakMode.NoWrap,
+                }
+            };
+            OverlaySkuPills.Add(pill);
+        }
+    }
+
+    private void RefreshOverlaySkuPills()
+    {
+        if (_overlayItem == null) return;
+
+        if (_overlayItem.IsBundle && _activeComponentIndex >= 0
+            && _overlayItem.BundleComponents != null
+            && _activeComponentIndex < _overlayItem.BundleComponents.Count)
+        {
+            var comp = _overlayItem.BundleComponents[_activeComponentIndex];
+            PopulateOverlaySkuPills(comp.SkuPillSkus, comp.SkuPillBg, comp.SkuPillBorder, comp.SkuPillText);
+        }
+        else
+        {
+            PopulateOverlaySkuPills(_overlayItem.SkuPillSkus, _overlayItem.SkuPillBg, _overlayItem.SkuPillBorder, _overlayItem.SkuPillText);
+        }
     }
 
     private async void OnImageOverlayBackdropTapped(object sender, TappedEventArgs e)
@@ -2422,7 +2444,9 @@ public partial class OrderSearchPage : ContentPage
         if (item.IsFullyPicked) return;
         ApplyVerifiedOverride(item, targetVerified, "item_scanned_await_qty", "sku_scan");
         RefreshOverlayQuantity();
-        if (ProductImageOverlay.IsVisible)
+        if (item.IsFullyPicked)
+            await ShowCompletionAndDismiss(item);
+        else if (ProductImageOverlay.IsVisible)
             await DismissImageOverlayAsync("auto_complete");
     }
 
@@ -2568,6 +2592,7 @@ public partial class OrderSearchPage : ContentPage
         OverlayVerifiedQty.TextColor = item.VerifiedQuantity >= item.RequiredQuantity
             ? Color.FromArgb("#10B981")
             : Color.FromArgb("#111827");
+        RefreshOverlaySkuPills();
 
         if (item.IsFullyPicked)
             _ = AnimateOverlayCompletionThenAdvance(item);
@@ -2575,8 +2600,7 @@ public partial class OrderSearchPage : ContentPage
 
     private async Task AnimateOverlayCompletionThenAdvance(ProductItem item)
     {
-        if (ProductImageOverlay.IsVisible)
-            await DismissImageOverlayAsync("auto_complete");
+        await ShowCompletionAndDismiss(item);
     }
 
     private async Task AnimateOverlayComponentCompletion(ProductItem bundleParent, BundleComponentItem comp)
@@ -4001,7 +4025,15 @@ public partial class OrderSearchPage : ContentPage
 
         if (item.IsFullyPicked && !ProductImageOverlay.IsVisible && !item.IsBundle)
         {
-            ActivateNextUnfinishedProduct(item);
+            if (AppSettings.AutoPopupImageOverlay)
+            {
+                ShowProductImageOverlay(item);
+                _ = ShowCompletionAndDismiss(item);
+            }
+            else
+            {
+                ActivateNextUnfinishedProduct(item);
+            }
         }
     }
 

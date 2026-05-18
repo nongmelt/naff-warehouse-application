@@ -1934,23 +1934,17 @@
                                TextColor="#111827"
                                LineBreakMode="WordWrap"/>
 
-                        <!-- SKU (monospace) -->
+                        <!-- SKU pills -->
                         <VerticalStackLayout Spacing="4">
                             <Label Text="SKU"
                                    FontSize="12"
                                    FontAttributes="Bold"
                                    TextColor="#6b7280"
                                    FontFamily="Consolas"/>
-                            <Label x:Name="OverlaySkuLabel"
-                                   FontSize="17"
-                                   TextColor="#374151"
-                                   FontFamily="Consolas"/>
-                            <Label x:Name="OverlayAltSkuLabel"
-                                   IsVisible="False"
-                                   FontSize="12"
-                                   TextColor="#9ca3af"
-                                   FontFamily="Consolas"
-                                   Margin="0,2,0,0"/>
+                            <FlexLayout x:Name="OverlaySkuPills"
+                                        Wrap="Wrap"
+                                        AlignItems="Center"
+                                        JustifyContent="Start"/>
                         </VerticalStackLayout>
 
                         <!-- Variation pill badge (light purple) -->
