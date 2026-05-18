@@ -2167,7 +2167,7 @@ public partial class OrderSearchPage : ContentPage
         }
 
         if (item.IsFullyPicked)
-            _ = ShowCompletionAndDismiss(item);
+            _ = DismissImageOverlayAsync("auto_complete");
     }
 
     private void RefreshOverlayQuantity()
@@ -2422,7 +2422,8 @@ public partial class OrderSearchPage : ContentPage
         if (item.IsFullyPicked) return;
         ApplyVerifiedOverride(item, targetVerified, "item_scanned_await_qty", "sku_scan");
         RefreshOverlayQuantity();
-        await ShowCompletionAndDismiss(item);
+        if (ProductImageOverlay.IsVisible)
+            await DismissImageOverlayAsync("auto_complete");
     }
 
     private async Task ApplyComponentVerificationThenDismiss(
@@ -2574,38 +2575,6 @@ public partial class OrderSearchPage : ContentPage
 
     private async Task AnimateOverlayCompletionThenAdvance(ProductItem item)
     {
-        var green = Color.FromArgb("#10B981");
-        var target = item.RequiredQuantity;
-        var current = item.VerifiedQuantity;
-
-        // Count up from current to required
-        if (current < target)
-        {
-            for (int v = current; v <= target; v++)
-            {
-                OverlayVerifiedQty.Text = v.ToString();
-                await Task.WhenAll(
-                    OverlayVerifiedQty.ScaleToAsync(1.25, 40, Easing.SinIn),
-                    OverlayVerifiedQty.FadeToAsync(0.6, 40));
-                await Task.WhenAll(
-                    OverlayVerifiedQty.ScaleToAsync(1.0, 50, Easing.SinOut),
-                    OverlayVerifiedQty.FadeToAsync(1.0, 50));
-            }
-        }
-
-        OverlayVerifiedQty.Text = target.ToString();
-        OverlayVerifiedQty.TextColor = green;
-
-        // Flash green border on card
-        OverlayCard.Stroke = green;
-        OverlayCard.StrokeThickness = 4;
-
-        await Task.Delay(1000);
-
-        // Reset border
-        OverlayCard.Stroke = Colors.Transparent;
-        OverlayCard.StrokeThickness = 0;
-
         if (ProductImageOverlay.IsVisible)
             await DismissImageOverlayAsync("auto_complete");
     }
@@ -4030,11 +3999,9 @@ public partial class OrderSearchPage : ContentPage
         SetActiveProduct(item);
         ApplySkuDeduction(item, "1", source);
 
-        if (item.IsFullyPicked && !ProductImageOverlay.IsVisible && !item.IsBundle
-            && AppSettings.AutoPopupImageOverlay)
+        if (item.IsFullyPicked && !ProductImageOverlay.IsVisible && !item.IsBundle)
         {
-            ShowProductImageOverlay(item);
-            _ = AnimateOverlayCompletionThenAdvance(item);
+            ActivateNextUnfinishedProduct(item);
         }
     }
 
