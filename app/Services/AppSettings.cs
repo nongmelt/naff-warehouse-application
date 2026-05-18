@@ -14,6 +14,7 @@ public static class AppSettings
     private const string KeyStationId = "settings.station_id";
     private const string KeyUseDeclarativeWorkflow = "settings.use_declarative_workflow";
     private const string KeyAutoDeleteCompletedVideos = "settings.auto_delete_completed_videos";
+    private const string KeyAutoPopupImageOverlay = "settings.auto_popup_image_overlay";
     private const string KeyMaxConcurrentUploads = "settings.max_concurrent_uploads";
     private const string KeySeeded = "settings.seeded.v3";
 
@@ -269,6 +270,12 @@ public static class AppSettings
     {
         get => Preferences.Default.Get(KeyAutoDeleteCompletedVideos, false);
         set => Preferences.Default.Set(KeyAutoDeleteCompletedVideos, value);
+    }
+
+    public static bool AutoPopupImageOverlay
+    {
+        get => Preferences.Default.Get(KeyAutoPopupImageOverlay, true);
+        set => Preferences.Default.Set(KeyAutoPopupImageOverlay, value);
     }
 
     public static int MaxConcurrentUploads

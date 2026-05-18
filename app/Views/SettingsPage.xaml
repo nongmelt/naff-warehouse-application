@@ -370,6 +370,31 @@
                                                         </Grid>
                                                 </Border>
 
+                                                <!-- Auto Popup Image Overlay -->
+                                                <Border Stroke="#d1d5db"
+                                                        StrokeThickness="1"
+                                                        StrokeShape="RoundRectangle 8"
+                                                        BackgroundColor="White"
+                                                        Padding="16">
+                                                        <Grid ColumnDefinitions="*, Auto"
+                                                              ColumnSpacing="12">
+                                                                <VerticalStackLayout Grid.Column="0"
+                                                                                     Spacing="4"
+                                                                                     VerticalOptions="Center">
+                                                                        <Label Text="Auto Pop-up Image Overlay"
+                                                                               FontAttributes="Bold"
+                                                                               FontSize="14"
+                                                                               TextColor="#111827"/>
+                                                                        <Label Text="Automatically open the product image overlay when a product is scanned. Components always pop up regardless."
+                                                                               FontSize="12"
+                                                                               TextColor="#6b7280"/>
+                                                                </VerticalStackLayout>
+                                                                <Switch x:Name="AutoPopupOverlaySwitch"
+                                                                        Grid.Column="1"
+                                                                        VerticalOptions="Center"/>
+                                                        </Grid>
+                                                </Border>
+
                                                 <!-- Search History Limit -->
                                                 <Border Stroke="#d1d5db"
                                                         StrokeThickness="1"

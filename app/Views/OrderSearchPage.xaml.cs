@@ -851,16 +851,30 @@ public partial class OrderSearchPage : ContentPage
         // Auto-apply when scan already meets required qty (e.g. qty=1 products)
         if (int.TryParse(targetVerified, out var tv) && tv >= found.RequiredQuantity)
         {
-            ShowProductImageOverlay(found, "sku_scan");
+            if (AppSettings.AutoPopupImageOverlay)
+            {
+                ShowProductImageOverlay(found, "sku_scan");
+                _ = ApplyVerificationThenDismiss(found, targetVerified);
+            }
+            else
+            {
+                ApplyVerifiedOverride(found, targetVerified, "item_scanned_await_qty", "sku_scan");
+            }
             ScrollToProduct(found);
-            _ = ApplyVerificationThenDismiss(found, targetVerified);
             UpdateSearchStatus($"✓ {found.SellerSku} fully verified");
             Logger.Log($"OrderSearch: SKU '{barcode}' auto-verified (qty met on first scan)");
             return;
         }
 
-        ShowProductImageOverlay(found, "sku_scan");
-        ShowOverlayPickEntry(targetVerified);
+        if (AppSettings.AutoPopupImageOverlay)
+        {
+            ShowProductImageOverlay(found, "sku_scan");
+            ShowOverlayPickEntry(targetVerified);
+        }
+        else
+        {
+            FocusItemEntry(found);
+        }
 
         ScrollToProduct(found);
         UpdateSearchStatus($"Matched: {label} — enter qty and confirm");
@@ -2196,6 +2210,26 @@ public partial class OrderSearchPage : ContentPage
                 {
                     ["sku"] = closingItem.SellerSku,
                 });
+
+            if (closeTrigger == "auto_complete")
+                ActivateNextUnfinishedProduct(closingItem);
+        }
+    }
+
+    private void ActivateNextUnfinishedProduct(ProductItem completed)
+    {
+        var allProducts = Results.SelectMany(o => o.ParsedProducts).ToList();
+        var currentIdx = allProducts.IndexOf(completed);
+
+        for (int i = 1; i <= allProducts.Count; i++)
+        {
+            var candidate = allProducts[(currentIdx + i) % allProducts.Count];
+            if (!candidate.IsFullyPicked)
+            {
+                SetActiveProduct(candidate);
+                ScrollToProduct(candidate);
+                return;
+            }
         }
     }
 

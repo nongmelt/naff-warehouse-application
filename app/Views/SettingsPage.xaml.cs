@@ -28,6 +28,7 @@ public partial class SettingsPage : ContentPage
         MinFreeSpaceEntry.Text     = (AppSettings.VideoFolderMinFreeSpaceBytes / 1_073_741_824L).ToString();
         RebuildFolderRows();
         AutoDeleteSwitch.IsToggled  = AppSettings.AutoDeleteCompletedVideos;
+        AutoPopupOverlaySwitch.IsToggled = AppSettings.AutoPopupImageOverlay;
         ApiUrlEntry.Text            = AppSettings.ApiUrl;
         SearchHistoryMaxEntry.Text  = AppSettings.SearchHistoryMaxItems.ToString();
         MinioBucketEntry.Text    = AppSettings.MinioBucket;
@@ -187,9 +188,10 @@ public partial class SettingsPage : ContentPage
         if (long.TryParse(MinFreeSpaceEntry.Text?.Trim(), out var gb) && gb >= 1)
             AppSettings.VideoFolderMinFreeSpaceBytes = gb * 1_073_741_824L;
         AppSettings.AutoDeleteCompletedVideos = AutoDeleteSwitch.IsToggled;
+        AppSettings.AutoPopupImageOverlay = AutoPopupOverlaySwitch.IsToggled;
         if (int.TryParse(SearchHistoryMaxEntry.Text?.Trim(), out var maxHistory) && maxHistory >= 1)
             AppSettings.SearchHistoryMaxItems = maxHistory;
-        Logger.Log($"Settings saved — VideoFolders: {string.Join(";", _videoFolderPaths)}, AutoDelete: {AppSettings.AutoDeleteCompletedVideos}");
+        Logger.Log($"Settings saved — VideoFolders: {string.Join(";", _videoFolderPaths)}, AutoDelete: {AppSettings.AutoDeleteCompletedVideos}, AutoPopup: {AppSettings.AutoPopupImageOverlay}");
         GeneralSavedLabel.IsVisible = true;
         Dispatcher.DispatchDelayed(TimeSpan.FromSeconds(3), () => GeneralSavedLabel.IsVisible = false);
     }
