@@ -29,7 +29,7 @@
 		<ApplicationId>com.nafstationery.app</ApplicationId>
 
 		<!-- Versions -->
-		<ApplicationDisplayVersion>1.3.5</ApplicationDisplayVersion>
+		<ApplicationDisplayVersion>1.4.0</ApplicationDisplayVersion>
 		<ApplicationVersion>2</ApplicationVersion>
 
 		<!-- To develop, package, and publish an app to the Microsoft Store, see:
