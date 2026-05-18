@@ -915,7 +915,7 @@
                                                            Text="{Binding RowNumber}"
                                                            FontSize="13"
                                                            FontAttributes="Bold"
-                                                           TextColor="#9ca3af"
+                                                           TextColor="#374151"
                                                            FontFamily="Consolas"
                                                            VerticalOptions="Center"
                                                            HorizontalOptions="Center"
@@ -953,7 +953,7 @@
                                                         <Label Grid.Column="0"
                                                                Text="{Binding BaseName}"
                                                                FontAttributes="Bold"
-                                                               FontSize="13"
+                                                               FontSize="14"
                                                                TextColor="{Binding CardTextColor}"
                                                                LineBreakMode="WordWrap"
                                                                MaxLines="3"
@@ -1212,7 +1212,7 @@
                                                             <Label Grid.Column="0"
                                                                    Text="{Binding BaseName}"
                                                                    FontAttributes="Bold"
-                                                                   FontSize="13"
+                                                                   FontSize="14"
                                                                    TextColor="{Binding CardTextColor}"
                                                                    LineBreakMode="WordWrap"
                                                                    MaxLines="2"
@@ -1322,8 +1322,8 @@
                                                                            HorizontalOptions="End">
                                                         <Button Text="-"
                                                                 Clicked="OnMinusClicked"
-                                                                WidthRequest="32"
-                                                                HeightRequest="32"
+                                                                WidthRequest="34"
+                                                                HeightRequest="34"
                                                                 FontSize="16"
                                                                 FontAttributes="Bold"
                                                                 Padding="0"
@@ -1360,8 +1360,8 @@
                                                         </Border>
                                                         <Button Text="+"
                                                                 Clicked="OnPlusClicked"
-                                                                WidthRequest="32"
-                                                                HeightRequest="32"
+                                                                WidthRequest="34"
+                                                                HeightRequest="34"
                                                                 FontSize="16"
                                                                 FontAttributes="Bold"
                                                                 Padding="0"
@@ -1399,7 +1399,7 @@
                                                                 <Label Grid.Column="1"
                                                                        Text="{Binding SubRowNumber}"
                                                                        FontSize="11"
-                                                                       TextColor="#9ca3af"
+                                                                       TextColor="#6b7280"
                                                                        FontFamily="Consolas"
                                                                        VerticalOptions="Center"
                                                                        HorizontalOptions="Center"/>
@@ -1842,7 +1842,7 @@
                         <Label Text="SCANNED"
                                FontSize="12"
                                FontAttributes="Bold"
-                               TextColor="#9ca3af"
+                               TextColor="#6b7280"
                                FontFamily="Consolas"/>
 
                         <!-- Large counter: verified / required (tap to enter qty manually) -->
@@ -1905,7 +1905,7 @@
                             <Label Text="SKU"
                                    FontSize="12"
                                    FontAttributes="Bold"
-                                   TextColor="#9ca3af"
+                                   TextColor="#6b7280"
                                    FontFamily="Consolas"/>
                             <Label x:Name="OverlaySkuLabel"
                                    FontSize="17"
@@ -1924,27 +1924,27 @@
                             <Label Text="VARIATION"
                                    FontSize="12"
                                    FontAttributes="Bold"
-                                   TextColor="#9ca3af"
+                                   TextColor="#6b7280"
                                    FontFamily="Consolas"/>
                             <Border x:Name="OverlayVariationBorder"
                                     BackgroundColor="#F5F3FF"
                                     Stroke="Transparent"
-                                    StrokeThickness="0"
-                                    StrokeShape="RoundRectangle 20"
+                                    StrokeThickness="1.5"
+                                    StrokeShape="RoundRectangle 10"
                                     Padding="14,6"
                                     HorizontalOptions="Start"
                                     IsVisible="False">
-                                <HorizontalStackLayout Spacing="8">
+                                <HorizontalStackLayout Spacing="7">
                                     <BoxView x:Name="OverlayVariationSwatch"
-                                             WidthRequest="14"
-                                             HeightRequest="14"
-                                             CornerRadius="7"
+                                             WidthRequest="18"
+                                             HeightRequest="18"
+                                             CornerRadius="5"
                                              VerticalOptions="Center"
                                              IsVisible="False"/>
                                     <Label x:Name="OverlayVariationLabel"
-                                           FontSize="16"
+                                           FontSize="15"
                                            FontAttributes="Bold"
-                                           TextColor="#7c3aed"
+                                           TextColor="#5b21b6"
                                            FontFamily="Consolas"/>
                                 </HorizontalStackLayout>
                             </Border>
@@ -1955,7 +1955,7 @@
                             <Label Text="QC NOTES"
                                    FontSize="12"
                                    FontAttributes="Bold"
-                                   TextColor="#9ca3af"
+                                   TextColor="#6b7280"
                                    FontFamily="Consolas"/>
                             <Border x:Name="OverlayNotesBorder"
                                     BackgroundColor="#fafafa"

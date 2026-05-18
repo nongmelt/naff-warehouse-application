@@ -2099,6 +2099,9 @@ public partial class OrderSearchPage : ContentPage
         {
             OverlayVariationLabel.Text = item.Variation;
             OverlayVariationBorder.IsVisible = true;
+            OverlayVariationBorder.BackgroundColor = item.VariationBadgeBg;
+            OverlayVariationBorder.Stroke = item.VariationBorderColor;
+            OverlayVariationBorder.StrokeThickness = 1.5;
             if (item.HasSwatch)
             {
                 OverlayVariationSwatch.IsVisible = true;
@@ -2112,18 +2115,21 @@ public partial class OrderSearchPage : ContentPage
             OverlayVariationBorder.IsVisible = false;
         }
 
-        // QC Notes (borderless style)
         if (item.HasQcNotes)
         {
             OverlayNotesLabel.Text = item.QcNotes!;
-            OverlayNotesLabel.TextColor = Color.FromArgb("#dc2626");
+            OverlayNotesLabel.TextColor = Color.FromArgb("#991b1b");
             OverlayNotesBorder.BackgroundColor = Color.FromArgb("#fef2f2");
+            OverlayNotesBorder.Stroke = Color.FromArgb("#fca5a5");
+            OverlayNotesBorder.StrokeThickness = 1.5;
         }
         else
         {
             OverlayNotesLabel.Text = "no notes";
             OverlayNotesLabel.TextColor = Color.FromArgb("#d1d5db");
             OverlayNotesBorder.BackgroundColor = Color.FromArgb("#fafafa");
+            OverlayNotesBorder.Stroke = Colors.Transparent;
+            OverlayNotesBorder.StrokeThickness = 0;
         }
 
         OverlayPickEntry.IsVisible = false;
