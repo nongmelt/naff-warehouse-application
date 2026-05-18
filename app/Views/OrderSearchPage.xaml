@@ -1614,7 +1614,7 @@
                             Radius="40"/>
                 </Border.Shadow>
 
-                <Grid RowDefinitions="Auto, *"
+                <Grid RowDefinitions="Auto, Auto, *"
                       ColumnDefinitions="*, *"
                       ColumnSpacing="0"
                       RowSpacing="0">
@@ -1695,8 +1695,56 @@
                         </HorizontalStackLayout>
                     </Grid>
 
+                    <!-- ── Bundle header bar (visible only for bundles) ── -->
+                    <Grid x:Name="OverlayBundleBar"
+                          Grid.Row="1"
+                          Grid.ColumnSpan="2"
+                          IsVisible="False"
+                          BackgroundColor="#ede9fe"
+                          Padding="16,7"
+                          ColumnDefinitions="Auto, *, Auto, Auto"
+                          ColumnSpacing="8">
+                        <Border Grid.Column="0"
+                                BackgroundColor="#7c3aed"
+                                Stroke="Transparent"
+                                StrokeShape="RoundRectangle 3"
+                                Padding="7,2"
+                                VerticalOptions="Center">
+                            <Label Text="BUNDLE"
+                                   FontSize="9"
+                                   FontAttributes="Bold"
+                                   TextColor="White"
+                                   FontFamily="Consolas"/>
+                        </Border>
+                        <Label x:Name="OverlayBundleBarName"
+                               Grid.Column="1"
+                               FontSize="12"
+                               FontAttributes="Bold"
+                               TextColor="#3b0764"
+                               VerticalOptions="Center"
+                               LineBreakMode="TailTruncation"/>
+                        <HorizontalStackLayout x:Name="OverlayBundleStepDots"
+                                               Grid.Column="2"
+                                               Spacing="5"
+                                               VerticalOptions="Center"/>
+                        <Label x:Name="OverlayBundleBarCounter"
+                               Grid.Column="3"
+                               FontSize="11"
+                               FontAttributes="Bold"
+                               TextColor="#5b21b6"
+                               FontFamily="Consolas"
+                               VerticalOptions="Center"/>
+                    </Grid>
+                    <BoxView x:Name="OverlayBundleBarLine"
+                             Grid.Row="1"
+                             Grid.ColumnSpan="2"
+                             HeightRequest="2.5"
+                             BackgroundColor="#7c3aed"
+                             VerticalOptions="End"
+                             IsVisible="False"/>
+
                     <!-- ── Left column: Reference image (khaki bg, full-bleed) ── -->
-                    <Grid Grid.Row="1"
+                    <Grid Grid.Row="2"
                           Grid.Column="0"
                           BackgroundColor="#E5E4C1"
                           Padding="0">
@@ -1714,24 +1762,6 @@
                                HorizontalOptions="Center"
                                VerticalOptions="Center"
                                IsVisible="False"/>
-
-                        <!-- Category reference tag (centered subtle box) -->
-                        <Border x:Name="OverlayCategoryBadge"
-                                BackgroundColor="#20000000"
-                                Stroke="#40000000"
-                                StrokeThickness="1"
-                                StrokeShape="RoundRectangle 6"
-                                Padding="14,6"
-                                HorizontalOptions="Center"
-                                VerticalOptions="Start"
-                                Margin="0,16,0,0">
-                            <Label x:Name="OverlayCategoryLabel"
-                                   Text=""
-                                   FontSize="12"
-                                   FontAttributes="Bold"
-                                   TextColor="White"
-                                   FontFamily="Consolas"/>
-                        </Border>
 
                         <!-- Bottom bar: component name (left) + buttons (right) -->
                         <Grid ColumnDefinitions="*, Auto"
@@ -1802,7 +1832,7 @@
 
                     <!-- ── Right column: Details (white, 32px padding) ── -->
                     <VerticalStackLayout x:Name="OverlayStandardPanel"
-                                         Grid.Row="1"
+                                         Grid.Row="2"
                                          Grid.Column="1"
                                          Spacing="20"
                                          Padding="32"
@@ -1943,119 +1973,6 @@
                         </VerticalStackLayout>
 
 
-                    </VerticalStackLayout>
-
-                    <!-- ── Right column: Bundle overlay panel ── -->
-                    <VerticalStackLayout x:Name="OverlayBundlePanel"
-                                         Grid.Row="1"
-                                         Grid.Column="1"
-                                         IsVisible="False"
-                                         Spacing="16"
-                                         Padding="32"
-                                         BackgroundColor="White">
-                        <Grid ColumnDefinitions="Auto, *" ColumnSpacing="8">
-                            <Border Grid.Column="0"
-                                    BackgroundColor="#7c3aed"
-                                    Stroke="Transparent"
-                                    StrokeShape="RoundRectangle 4"
-                                    Padding="8,3"
-                                    VerticalOptions="Start">
-                                <Label Text="BUNDLE"
-                                       FontSize="10"
-                                       FontAttributes="Bold"
-                                       TextColor="White"
-                                       FontFamily="Consolas"/>
-                            </Border>
-                            <Label x:Name="OverlayBundleName"
-                                   Grid.Column="1"
-                                   FontSize="18"
-                                   FontAttributes="Bold"
-                                   TextColor="#111827"
-                                   VerticalOptions="Center"
-                                   LineBreakMode="WordWrap"
-                                   MaxLines="3"/>
-                        </Grid>
-                        <Grid ColumnDefinitions="*, Auto" Margin="0,4,0,0">
-                            <Grid HeightRequest="6" HorizontalOptions="Fill">
-                                <BoxView BackgroundColor="#e5e7eb" CornerRadius="3"/>
-                                <BoxView x:Name="OverlayBundleProgressBar"
-                                         BackgroundColor="#7c3aed"
-                                         CornerRadius="3"
-                                         HorizontalOptions="Start"/>
-                            </Grid>
-                            <Label x:Name="OverlayBundleProgressLabel"
-                                   Grid.Column="1"
-                                   Text="0/0"
-                                   FontSize="12"
-                                   FontAttributes="Bold"
-                                   TextColor="#7c3aed"
-                                   FontFamily="Consolas"
-                                   Margin="12,0,0,0"/>
-                        </Grid>
-                        <BoxView HeightRequest="1" BackgroundColor="#f3f4f6"/>
-                        <ScrollView VerticalOptions="FillAndExpand"
-                                    VerticalScrollBarVisibility="Default">
-                            <VerticalStackLayout x:Name="OverlayComponentList"
-                                                 Spacing="8"/>
-                        </ScrollView>
-                        <VerticalStackLayout x:Name="OverlayBundleSkuSection" Spacing="6">
-                            <Label Text="SKUs"
-                                   FontSize="11"
-                                   FontAttributes="Bold"
-                                   TextColor="#9ca3af"
-                                   FontFamily="Consolas"/>
-                            <FlexLayout x:Name="OverlayBundleSkuPills"
-                                        Wrap="Wrap"
-                                        AlignItems="Center"
-                                        JustifyContent="Start"/>
-                        </VerticalStackLayout>
-
-                        <!-- Variation -->
-                        <VerticalStackLayout x:Name="OverlayBundleVariationSection" Spacing="4" IsVisible="False">
-                            <Label Text="VARIATION"
-                                   FontSize="11"
-                                   FontAttributes="Bold"
-                                   TextColor="#9ca3af"
-                                   FontFamily="Consolas"/>
-                            <Border BackgroundColor="#F5F3FF"
-                                    Stroke="Transparent"
-                                    StrokeShape="RoundRectangle 20"
-                                    Padding="14,6"
-                                    HorizontalOptions="Start">
-                                <HorizontalStackLayout Spacing="6">
-                                    <BoxView x:Name="OverlayBundleVariationSwatch"
-                                             WidthRequest="12"
-                                             HeightRequest="12"
-                                             CornerRadius="6"
-                                             VerticalOptions="Center"
-                                             IsVisible="False"/>
-                                    <Label x:Name="OverlayBundleVariationLabel"
-                                           FontSize="14"
-                                           FontAttributes="Bold"
-                                           TextColor="#7c3aed"
-                                           FontFamily="Consolas"/>
-                                </HorizontalStackLayout>
-                            </Border>
-                        </VerticalStackLayout>
-
-                        <!-- QC Notes -->
-                        <VerticalStackLayout x:Name="OverlayBundleNotesSection" Spacing="4" IsVisible="False">
-                            <Label Text="QC NOTES"
-                                   FontSize="11"
-                                   FontAttributes="Bold"
-                                   TextColor="#9ca3af"
-                                   FontFamily="Consolas"/>
-                            <Border BackgroundColor="#fef2f2"
-                                    Stroke="Transparent"
-                                    StrokeShape="RoundRectangle 6"
-                                    Padding="12,8"
-                                    HorizontalOptions="Fill">
-                                <Label x:Name="OverlayBundleNotesLabel"
-                                       FontSize="13"
-                                       TextColor="#dc2626"
-                                       FontFamily="Consolas"/>
-                            </Border>
-                        </VerticalStackLayout>
                     </VerticalStackLayout>
 
                 </Grid>

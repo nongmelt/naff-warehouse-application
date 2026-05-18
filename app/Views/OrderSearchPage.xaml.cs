@@ -1333,79 +1333,22 @@ public partial class OrderSearchPage : ContentPage
     {
         _overlayItem = bundleParent;
 
-        // Determine active index
         if (highlightComponent != null && bundleParent.BundleComponents != null)
             _activeComponentIndex = bundleParent.BundleComponents.IndexOf(highlightComponent);
         else
             _activeComponentIndex = -1;
 
-        // Left pane image (based on active component)
         UpdateOverlayImageForActiveComponent(bundleParent);
 
-        // Category badge
-        if (!string.IsNullOrWhiteSpace(bundleParent.CategoryBadge))
-        {
-            OverlayCategoryBadge.IsVisible = true;
-            OverlayCategoryLabel.Text = bundleParent.CategoryBadge;
-            OverlayCategoryBadge.BackgroundColor = bundleParent.CategoryBadgeBg;
-        }
-        else
-            OverlayCategoryBadge.IsVisible = false;
+        OverlayBundleBar.IsVisible = true;
+        OverlayBundleBarLine.IsVisible = true;
+        OverlayBundleBarName.Text = bundleParent.BaseName;
+        RebuildBundleStepDots(bundleParent);
 
-        // Hide standard panel, show bundle panel
-        OverlayStandardPanel.IsVisible = false;
-        OverlayBundlePanel.IsVisible = true;
-
-        // Navigate hint visible for bundles
+        OverlayStandardPanel.IsVisible = true;
         OverlayNavHint.IsVisible = true;
+        PopulateStandardPanelForBundle(bundleParent);
 
-        // Bundle name
-        OverlayBundleName.Text = bundleParent.BaseName;
-
-        // Progress bar
-        var fraction = bundleParent.BundleProgressFraction;
-        OverlayBundleProgressBar.WidthRequest = fraction * 200;
-        OverlayBundleProgressLabel.Text = bundleParent.BundleProgressText;
-
-        // Build component list (with parent row at top)
-        RebuildOverlayComponentList(bundleParent);
-
-        // Multi-SKU pills for bundle parent
-        var skuList = bundleParent.SkuPillSkus;
-        if (skuList.Count > 0)
-        {
-            OverlayBundleSkuSection.IsVisible = true;
-            RebuildOverlaySkuPills(skuList, bundleParent.SkuPillBg, bundleParent.SkuPillBorder, bundleParent.SkuPillText);
-        }
-        else
-            OverlayBundleSkuSection.IsVisible = false;
-
-        // Variation
-        if (bundleParent.HasVariation)
-        {
-            OverlayBundleVariationSection.IsVisible = true;
-            OverlayBundleVariationLabel.Text = bundleParent.Variation;
-            if (bundleParent.HasSwatch)
-            {
-                OverlayBundleVariationSwatch.IsVisible = true;
-                OverlayBundleVariationSwatch.Color = bundleParent.SwatchColor!;
-            }
-            else
-                OverlayBundleVariationSwatch.IsVisible = false;
-        }
-        else
-            OverlayBundleVariationSection.IsVisible = false;
-
-        // QC Notes
-        if (bundleParent.HasQcNotes)
-        {
-            OverlayBundleNotesSection.IsVisible = true;
-            OverlayBundleNotesLabel.Text = bundleParent.QcNotes!;
-        }
-        else
-            OverlayBundleNotesSection.IsVisible = false;
-
-        // Item position
         var order = FindOrderForItem(bundleParent);
         if (order != null)
         {
@@ -1419,6 +1362,159 @@ public partial class OrderSearchPage : ContentPage
             ProductImageOverlay.Opacity = 1;
             OverlayCard.Scale = 1;
             OverlayCard.Opacity = 1;
+        }
+    }
+
+    private void RebuildBundleStepDots(ProductItem bundleParent)
+    {
+        OverlayBundleStepDots.Children.Clear();
+        if (bundleParent.BundleComponents == null) return;
+
+        var verified = 0;
+        for (var i = 0; i < bundleParent.BundleComponents.Count; i++)
+        {
+            var comp = bundleParent.BundleComponents[i];
+            if (comp.IsFullyVerified) verified++;
+
+            var dot = new BoxView
+            {
+                WidthRequest = 10, HeightRequest = 10, CornerRadius = 5,
+                Color = comp.IsFullyVerified ? Color.FromArgb("#22c55e")
+                    : i == _activeComponentIndex ? Color.FromArgb("#7c3aed")
+                    : Color.FromArgb("#d1d5db"),
+                VerticalOptions = LayoutOptions.Center,
+            };
+
+            if (i == _activeComponentIndex)
+            {
+                dot.Shadow = new Shadow
+                {
+                    Brush = Color.FromArgb("#40c4b5fd"),
+                    Offset = new Point(0, 0),
+                    Radius = 3,
+                };
+            }
+
+            OverlayBundleStepDots.Add(dot);
+        }
+
+        OverlayBundleBarCounter.Text = $"{verified} / {bundleParent.BundleComponents.Count}";
+    }
+
+    private void PopulateStandardPanelForBundle(ProductItem bundleParent)
+    {
+        BundleComponentItem? comp = null;
+        if (_activeComponentIndex >= 0 && bundleParent.BundleComponents != null
+            && _activeComponentIndex < bundleParent.BundleComponents.Count)
+        {
+            comp = bundleParent.BundleComponents[_activeComponentIndex];
+        }
+
+        if (comp != null)
+        {
+            OverlayVerifiedQty.Text = comp.VerifiedQuantity.ToString();
+            OverlayReqQty.Text = comp.RequiredQuantity.ToString();
+            OverlayVerifiedQty.TextColor = comp.IsFullyVerified
+                ? Color.FromArgb("#10B981") : Color.FromArgb("#111827");
+
+            OverlayProductName.Text = comp.Name;
+            OverlaySkuLabel.Text = comp.SellerSku;
+
+            if (comp.HasMultipleSkus)
+            {
+                OverlayAltSkuLabel.IsVisible = true;
+                OverlayAltSkuLabel.Text = "also: " + string.Join(", ", comp.AltSkus.Take(5));
+            }
+            else
+                OverlayAltSkuLabel.IsVisible = false;
+
+            if (comp.HasVariation)
+            {
+                OverlayVariationLabel.Text = comp.Variation;
+                OverlayVariationBorder.IsVisible = true;
+                OverlayVariationBorder.BackgroundColor = comp.VariationBadgeBg;
+                OverlayVariationBorder.Stroke = comp.VariationBorderColor;
+                OverlayVariationBorder.StrokeThickness = 1.5;
+                if (comp.HasSwatch)
+                {
+                    OverlayVariationSwatch.IsVisible = true;
+                    OverlayVariationSwatch.Color = comp.SwatchColor!;
+                }
+                else
+                    OverlayVariationSwatch.IsVisible = false;
+            }
+            else
+                OverlayVariationBorder.IsVisible = false;
+
+            if (comp.HasQcNotes)
+            {
+                OverlayNotesLabel.Text = comp.QcNotes!;
+                OverlayNotesLabel.TextColor = Color.FromArgb("#991b1b");
+                OverlayNotesBorder.BackgroundColor = Color.FromArgb("#fef2f2");
+                OverlayNotesBorder.Stroke = Color.FromArgb("#fca5a5");
+                OverlayNotesBorder.StrokeThickness = 1.5;
+            }
+            else
+            {
+                OverlayNotesLabel.Text = "no notes";
+                OverlayNotesLabel.TextColor = Color.FromArgb("#d1d5db");
+                OverlayNotesBorder.BackgroundColor = Color.FromArgb("#fafafa");
+                OverlayNotesBorder.Stroke = Colors.Transparent;
+                OverlayNotesBorder.StrokeThickness = 0;
+            }
+        }
+        else
+        {
+            OverlayVerifiedQty.Text = bundleParent.VerifiedQuantity.ToString();
+            OverlayReqQty.Text = bundleParent.RequiredQuantity.ToString();
+            OverlayVerifiedQty.TextColor = bundleParent.IsBundleFullyVerified
+                ? Color.FromArgb("#10B981") : Color.FromArgb("#111827");
+
+            OverlayProductName.Text = bundleParent.BaseName;
+            OverlaySkuLabel.Text = bundleParent.SellerSku;
+
+            if (bundleParent.HasMultipleSkus)
+            {
+                OverlayAltSkuLabel.IsVisible = true;
+                OverlayAltSkuLabel.Text = "also: " + string.Join(", ", bundleParent.AltSkus.Take(5));
+            }
+            else
+                OverlayAltSkuLabel.IsVisible = false;
+
+            if (bundleParent.HasVariation)
+            {
+                OverlayVariationLabel.Text = bundleParent.Variation;
+                OverlayVariationBorder.IsVisible = true;
+                OverlayVariationBorder.BackgroundColor = bundleParent.VariationBadgeBg;
+                OverlayVariationBorder.Stroke = bundleParent.VariationBorderColor;
+                OverlayVariationBorder.StrokeThickness = 1.5;
+                if (bundleParent.HasSwatch)
+                {
+                    OverlayVariationSwatch.IsVisible = true;
+                    OverlayVariationSwatch.Color = bundleParent.SwatchColor!;
+                }
+                else
+                    OverlayVariationSwatch.IsVisible = false;
+            }
+            else
+                OverlayVariationBorder.IsVisible = false;
+
+            if (bundleParent.HasQcNotes)
+            {
+                OverlayNotesLabel.Text = bundleParent.QcNotes!;
+                OverlayNotesLabel.TextColor = Color.FromArgb("#991b1b");
+                OverlayNotesBorder.BackgroundColor = Color.FromArgb("#fef2f2");
+                OverlayNotesBorder.Stroke = Color.FromArgb("#fca5a5");
+                OverlayNotesBorder.StrokeThickness = 1.5;
+            }
+            else
+            {
+                OverlayNotesLabel.Text = "no notes";
+                OverlayNotesLabel.TextColor = Color.FromArgb("#d1d5db");
+                OverlayNotesBorder.BackgroundColor = Color.FromArgb("#fafafa");
+                OverlayNotesBorder.Stroke = Colors.Transparent;
+                OverlayNotesBorder.StrokeThickness = 0;
+            }
         }
     }
 
@@ -1461,295 +1557,13 @@ public partial class OrderSearchPage : ContentPage
         }
     }
 
-    private void RebuildOverlayComponentList(ProductItem bundleParent)
-    {
-        OverlayComponentList.Children.Clear();
-
-        // Parent image row (dashed border, clickable)
-        var parentRow = BuildOverlayParentRow(bundleParent, _activeComponentIndex == -1);
-        OverlayComponentList.Children.Add(parentRow);
-
-        // Component rows
-        if (bundleParent.BundleComponents != null)
-        {
-            for (var i = 0; i < bundleParent.BundleComponents.Count; i++)
-            {
-                var comp = bundleParent.BundleComponents[i];
-                var row = BuildOverlayComponentRow(comp, i == _activeComponentIndex, i);
-                OverlayComponentList.Children.Add(row);
-            }
-        }
-    }
-
-    private void RebuildOverlaySkuPills(List<string> skus, Color bg, Color border, Color text)
-    {
-        OverlayBundleSkuPills.Children.Clear();
-        foreach (var sku in skus.Take(6))
-        {
-            var pill = new Border
-            {
-                BackgroundColor = bg, Stroke = border,
-                StrokeThickness = 1, StrokeShape = new RoundRectangle { CornerRadius = 10 },
-                Padding = new Thickness(7, 2), Margin = new Thickness(0, 2, 4, 2),
-                Content = new Label
-                {
-                    Text = sku, FontSize = 9, FontFamily = "Consolas",
-                    FontAttributes = FontAttributes.Bold, TextColor = text,
-                }
-            };
-            OverlayBundleSkuPills.Add(pill);
-        }
-    }
-
-    private View BuildOverlayParentRow(ProductItem parent, bool active)
-    {
-        var border = new Border
-        {
-            BackgroundColor = active ? Color.FromArgb("#ede9fe") : Color.FromArgb("#fafafa"),
-            Stroke = active ? Color.FromArgb("#7c3aed") : Color.FromArgb("#d1d5db"),
-            StrokeThickness = active ? 2 : 1,
-            StrokeShape = new RoundRectangle { CornerRadius = 8 },
-            Padding = new Thickness(12, 8),
-        };
-
-        var grid = new Grid
-        {
-            ColumnDefinitions = [new(36), new(GridLength.Star), new(GridLength.Auto)],
-            ColumnSpacing = 10,
-        };
-
-        // Thumbnail
-        if (parent.HasLocalImage)
-        {
-            var img = new Image
-            {
-                HeightRequest = 32, WidthRequest = 32,
-                Aspect = Aspect.AspectFill,
-                Source = ImageSource.FromFile(parent.LocalImagePath),
-            };
-            Grid.SetColumn(img, 0);
-            grid.Add(img);
-        }
-        else
-        {
-            var placeholder = new Label
-            {
-                Text = "\U0001F4E6", FontSize = 18,
-                HorizontalOptions = LayoutOptions.Center,
-                VerticalOptions = LayoutOptions.Center,
-            };
-            Grid.SetColumn(placeholder, 0);
-            grid.Add(placeholder);
-        }
-
-        // Label
-        var info = new VerticalStackLayout { Spacing = 2, VerticalOptions = LayoutOptions.Center };
-        info.Add(new Label
-        {
-            Text = "◀ Parent Image",
-            FontSize = 12, FontAttributes = FontAttributes.Bold,
-            TextColor = Color.FromArgb("#7c3aed"),
-        });
-        info.Add(new Label
-        {
-            Text = "click to view bundle image",
-            FontSize = 10, TextColor = Color.FromArgb("#9ca3af"),
-        });
-        Grid.SetColumn(info, 1);
-        grid.Add(info);
-
-        border.Content = grid;
-
-        var tapGesture = new TapGestureRecognizer();
-        tapGesture.Tapped += (_, _) => ActivateOverlayComponent(-1);
-        border.GestureRecognizers.Add(tapGesture);
-
-        return border;
-    }
-
-    private View BuildOverlayComponentRow(BundleComponentItem comp, bool active, int index)
-    {
-        var border = new Border
-        {
-            BackgroundColor = active ? Color.FromArgb("#F5F3FF")
-                : comp.IsFullyVerified ? Color.FromArgb("#f0fdf4") : Color.FromArgb("#fafafa"),
-            Stroke = active ? Color.FromArgb("#7c3aed") : Colors.Transparent,
-            StrokeThickness = active ? 2 : 0,
-            StrokeShape = new RoundRectangle { CornerRadius = 8 },
-            Padding = new Thickness(12, 8),
-        };
-        if (active)
-            border.Shadow = new Shadow { Brush = Color.FromArgb("#207c3aed"), Offset = new Point(0, 0), Radius = 4 };
-
-        var grid = new Grid
-        {
-            ColumnDefinitions = [new(36), new(GridLength.Star), new(GridLength.Auto)],
-            ColumnSpacing = 10,
-        };
-
-        // Thumbnail
-        if (comp.HasImage)
-        {
-            var img = new Image
-            {
-                HeightRequest = 32, WidthRequest = 32,
-                Aspect = Aspect.AspectFill,
-                Source = comp.ImageSource,
-            };
-            Grid.SetColumn(img, 0);
-            grid.Add(img);
-        }
-
-        // Name + checkmark + variation + SKU pills
-        var info = new VerticalStackLayout { Spacing = 3, VerticalOptions = LayoutOptions.Center };
-        var nameRow = new Grid
-        {
-            ColumnDefinitions = [new(GridLength.Star), new(GridLength.Auto)],
-            ColumnSpacing = 6,
-        };
-        var nameLabel = new Label
-        {
-            Text = comp.Name, FontSize = 12, FontAttributes = FontAttributes.Bold,
-            TextColor = Color.FromArgb("#374151"), LineBreakMode = LineBreakMode.WordWrap,
-            MaxLines = 3,
-        };
-        Grid.SetColumn(nameLabel, 0);
-        nameRow.Add(nameLabel);
-        if (comp.IsFullyVerified)
-        {
-            var checkLabel = new Label
-            {
-                Text = "✓", FontSize = 13, FontAttributes = FontAttributes.Bold,
-                TextColor = Color.FromArgb("#16a34a"), VerticalOptions = LayoutOptions.Center,
-            };
-            Grid.SetColumn(checkLabel, 1);
-            nameRow.Add(checkLabel);
-        }
-        info.Add(nameRow);
-
-        // Variation badge
-        if (comp.HasVariation)
-        {
-            var varBadge = new Border
-            {
-                BackgroundColor = comp.VariationBadgeBg,
-                Stroke = Colors.Transparent,
-                StrokeShape = new RoundRectangle { CornerRadius = 6 },
-                Padding = new Thickness(8, 3),
-                HorizontalOptions = LayoutOptions.Start,
-            };
-            var varStack = new HorizontalStackLayout { Spacing = 5 };
-            if (comp.HasSwatch)
-                varStack.Add(new BoxView { WidthRequest = 10, HeightRequest = 10, CornerRadius = 5, Color = comp.SwatchColor!, VerticalOptions = LayoutOptions.Center });
-            varStack.Add(new Label { Text = comp.Variation, FontSize = 10, FontAttributes = FontAttributes.Bold, TextColor = comp.VariationBadgeTextColor });
-            varBadge.Content = varStack;
-            info.Add(varBadge);
-        }
-
-        // SKU pills row
-        var pillRow = new FlexLayout { Wrap = Microsoft.Maui.Layouts.FlexWrap.Wrap, AlignItems = Microsoft.Maui.Layouts.FlexAlignItems.Center };
-        var skus = comp.SkuPillSkus;
-        foreach (var sku in skus.Take(4))
-        {
-            var pill = new Border
-            {
-                BackgroundColor = comp.SkuPillBg, Stroke = comp.SkuPillBorder,
-                StrokeThickness = 1, StrokeShape = new RoundRectangle { CornerRadius = 10 },
-                Padding = new Thickness(7, 2), Margin = new Thickness(0, 1, 3, 1),
-                Content = new Label
-                {
-                    Text = sku, FontSize = 9, FontFamily = "Consolas",
-                    FontAttributes = FontAttributes.Bold, TextColor = comp.SkuPillText,
-                }
-            };
-            pillRow.Add(pill);
-        }
-        info.Add(pillRow);
-        Grid.SetColumn(info, 1);
-        grid.Add(info);
-
-        // Right side: +/- buttons + progress
-        var rightStack = new HorizontalStackLayout { Spacing = 6, VerticalOptions = LayoutOptions.Center };
-
-        var minusBtn = new Button
-        {
-            Text = "−", WidthRequest = 24, HeightRequest = 24, FontSize = 14,
-            FontAttributes = FontAttributes.Bold, Padding = 0, CornerRadius = 4,
-            BackgroundColor = comp.IsFullyVerified ? Color.FromArgb("#dcfce7") : Color.FromArgb("#f9fafb"),
-            TextColor = comp.IsFullyVerified ? Color.FromArgb("#16a34a") : Color.FromArgb("#374151"),
-            BorderColor = Color.FromArgb("#e5e7eb"), BorderWidth = 1,
-        };
-        minusBtn.Clicked += (_, _) =>
-        {
-            if (comp.VerifiedQuantity <= 0) return;
-            comp.VerifiedQuantity--;
-            var parent = _overlayItem;
-            if (parent != null)
-            {
-                parent.NotifyBundleProgressChanged();
-                if (!parent.IsBundleFullyVerified && parent.Quantity <= 0)
-                    parent.Quantity = parent.RequiredQuantity;
-                _ = CheckAndSaveQcStatusAsync();
-                ShowBundleOverlay(parent, comp);
-            }
-        };
-        rightStack.Add(minusBtn);
-
-        var progressLabel = new Label
-        {
-            Text = comp.ProgressText, FontSize = 13, FontAttributes = FontAttributes.Bold,
-            FontFamily = "Consolas", VerticalOptions = LayoutOptions.Center,
-            TextColor = comp.IsFullyVerified ? Color.FromArgb("#16a34a") : Color.FromArgb("#7c3aed"),
-        };
-        rightStack.Add(progressLabel);
-
-        var plusBtn = new Button
-        {
-            Text = "+", WidthRequest = 24, HeightRequest = 24, FontSize = 14,
-            FontAttributes = FontAttributes.Bold, Padding = 0, CornerRadius = 4,
-            BackgroundColor = comp.IsFullyVerified ? Color.FromArgb("#dcfce7") : Color.FromArgb("#f9fafb"),
-            TextColor = comp.IsFullyVerified ? Color.FromArgb("#16a34a") : Color.FromArgb("#374151"),
-            BorderColor = Color.FromArgb("#e5e7eb"), BorderWidth = 1,
-            IsEnabled = !comp.IsFullyVerified,
-        };
-        plusBtn.Clicked += (_, _) =>
-        {
-            if (comp.IsFullyVerified) return;
-            comp.VerifiedQuantity++;
-            var parent = _overlayItem;
-            if (parent != null)
-            {
-                parent.NotifyBundleProgressChanged();
-                if (parent.IsBundleFullyVerified && parent.Quantity > 0)
-                    parent.Quantity = 0;
-                _ = CheckAndSaveQcStatusAsync();
-                if (comp.IsFullyVerified)
-                    _ = AnimateOverlayComponentCompletion(parent, comp);
-                else
-                    ShowBundleOverlay(parent, comp);
-            }
-        };
-        rightStack.Add(plusBtn);
-
-        Grid.SetColumn(rightStack, 2);
-        grid.Add(rightStack);
-
-        border.Content = grid;
-
-        // Tap to activate
-        var tapGesture = new TapGestureRecognizer();
-        tapGesture.Tapped += (_, _) => ActivateOverlayComponent(index);
-        border.GestureRecognizers.Add(tapGesture);
-
-        return border;
-    }
-
     private void ActivateOverlayComponent(int index)
     {
         if (_overlayItem == null || !_overlayItem.IsBundle) return;
         _activeComponentIndex = index;
         UpdateOverlayImageForActiveComponent(_overlayItem);
-        RebuildOverlayComponentList(_overlayItem);
+        RebuildBundleStepDots(_overlayItem);
+        PopulateStandardPanelForBundle(_overlayItem);
     }
 
     /// <summary>Immediately saves partially-picked orders as QC Hold after each deduction.</summary>
@@ -2217,9 +2031,10 @@ public partial class OrderSearchPage : ContentPage
             return;
         }
 
-        // Ensure standard panel visible, bundle panel hidden
+        // Ensure standard panel visible, bundle bar hidden
         OverlayStandardPanel.IsVisible = true;
-        OverlayBundlePanel.IsVisible = false;
+        OverlayBundleBar.IsVisible = false;
+        OverlayBundleBarLine.IsVisible = false;
         OverlayNavHint.IsVisible = false;
         OverlayActiveCompLabel.IsVisible = false;
 
@@ -2242,18 +2057,6 @@ public partial class OrderSearchPage : ContentPage
         {
             OverlayImage.IsVisible = false;
             OverlayNoImage.IsVisible = true;
-        }
-
-        // Category badge
-        if (!string.IsNullOrWhiteSpace(item.CategoryBadge))
-        {
-            OverlayCategoryBadge.IsVisible = true;
-            OverlayCategoryLabel.Text = item.CategoryBadge;
-            OverlayCategoryBadge.BackgroundColor = item.CategoryBadgeBg;
-        }
-        else
-        {
-            OverlayCategoryBadge.IsVisible = false;
         }
 
         // Item position (e.g., "ITEM 03 of 14")
@@ -2715,7 +2518,8 @@ public partial class OrderSearchPage : ContentPage
         {
             _activeComponentIndex = -1;
             UpdateOverlayImageForActiveComponent(bundleParent);
-            RebuildOverlayComponentList(bundleParent);
+            RebuildBundleStepDots(bundleParent);
+            PopulateStandardPanelForBundle(bundleParent);
             return;
         }
 
@@ -2727,7 +2531,8 @@ public partial class OrderSearchPage : ContentPage
             {
                 _activeComponentIndex = nextIdx;
                 UpdateOverlayImageForActiveComponent(bundleParent);
-                RebuildOverlayComponentList(bundleParent);
+                RebuildBundleStepDots(bundleParent);
+                PopulateStandardPanelForBundle(bundleParent);
                 return;
             }
         }
@@ -2740,11 +2545,8 @@ public partial class OrderSearchPage : ContentPage
         // Show parent image for celebration
         _activeComponentIndex = -1;
         UpdateOverlayImageForActiveComponent(bundleParent);
-        RebuildOverlayComponentList(bundleParent);
-
-        // Update progress bar to full
-        OverlayBundleProgressBar.WidthRequest = 200;
-        OverlayBundleProgressLabel.Text = bundleParent.BundleProgressText;
+        RebuildBundleStepDots(bundleParent);
+        PopulateStandardPanelForBundle(bundleParent);
 
         // Green border celebration
         OverlayCard.Stroke = green;
