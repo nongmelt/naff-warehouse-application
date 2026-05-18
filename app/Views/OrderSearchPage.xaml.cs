@@ -851,23 +851,16 @@ public partial class OrderSearchPage : ContentPage
         // Auto-apply when scan already meets required qty (e.g. qty=1 products)
         if (int.TryParse(targetVerified, out var tv) && tv >= found.RequiredQuantity)
         {
-            ApplyVerifiedOverride(found, targetVerified, "item_scanned_await_qty", "sku_scan");
-            if (overlayOpen) { HideOverlayPickEntry(); SyncOverlayAfterDeduction(found); }
+            ShowProductImageOverlay(found, "sku_scan");
             ScrollToProduct(found);
+            _ = ApplyVerificationThenDismiss(found, targetVerified);
             UpdateSearchStatus($"✓ {found.SellerSku} fully verified");
             Logger.Log($"OrderSearch: SKU '{barcode}' auto-verified (qty met on first scan)");
             return;
         }
 
-        if (overlayOpen)
-        {
-            ShowProductImageOverlay(found);
-            ShowOverlayPickEntry(targetVerified);
-        }
-        else
-        {
-            FocusItemEntry(found);
-        }
+        ShowProductImageOverlay(found, "sku_scan");
+        ShowOverlayPickEntry(targetVerified);
 
         ScrollToProduct(found);
         UpdateSearchStatus($"Matched: {label} — enter qty and confirm");
@@ -1177,46 +1170,12 @@ public partial class OrderSearchPage : ContentPage
             return;
         }
 
-        // Single remaining: auto-apply (same as qty=1 product scan)
-        component.VerifiedQuantity = Math.Min(targetVerified, component.RequiredQuantity);
-        bundleParent.NotifyBundleProgressChanged();
-
-        if (bundleParent.IsBundleFullyVerified && bundleParent.Quantity > 0)
-            bundleParent.Quantity = 0;
-
-        if (bundleParent.IsBundleFullyVerified)
-        {
-            UpdateSearchStatus($"✓ Bundle '{bundleParent.BaseName}' fully verified — all components complete");
-        }
-        else
-        {
-            var remaining = component.RemainingQuantity;
-            UpdateSearchStatus($"✓ {component.Name} verified ({component.VerifiedQuantity}/{component.RequiredQuantity})" +
-                (remaining > 0 ? $" — {remaining} more needed" : " — done!"));
-        }
-        _ = CheckAndSaveQcStatusAsync();
-
+        // Single remaining: show overlay with current qty, then apply after delay
         UpdateScanIndicator(component.SellerSku, found: true);
-
         ShowBundleOverlay(bundleParent, component);
-        if (component.IsFullyVerified)
-            _ = AnimateOverlayComponentCompletion(bundleParent, component);
 
-        EmitQcEvent(
-            stepId: "component_scanned",
-            trigger: "sku_scan",
-            trackingNumber: order.TrackingNumber,
-            fromState: "picking",
-            toState: "picking",
-            payload: new Dictionary<string, object?>
-            {
-                ["sku"] = component.SellerSku,
-                ["componentName"] = component.Name,
-                ["verified"] = component.VerifiedQuantity,
-                ["required"] = component.RequiredQuantity,
-                ["bundleSku"] = bundleParent.SellerSku,
-                ["bundleComplete"] = bundleParent.IsBundleFullyVerified,
-            });
+        _ = ApplyComponentVerificationThenDismiss(
+            component, bundleParent, order, targetVerified);
     }
 
     private void OnComponentPlusClicked(object sender, EventArgs e)
@@ -1331,6 +1290,7 @@ public partial class OrderSearchPage : ContentPage
 
     private void ShowBundleOverlay(ProductItem bundleParent, BundleComponentItem? highlightComponent = null)
     {
+        _completionDismissCts?.Cancel();
         _overlayItem = bundleParent;
 
         if (highlightComponent != null && bundleParent.BundleComponents != null)
@@ -1347,7 +1307,10 @@ public partial class OrderSearchPage : ContentPage
 
         OverlayStandardPanel.IsVisible = true;
         OverlayNavHint.IsVisible = true;
+        OverlayMinusBtn.IsVisible = false;
+        OverlayPlusBtn.IsVisible = false;
         PopulateStandardPanelForBundle(bundleParent);
+        HideOverlayPickEntry();
 
         var order = FindOrderForItem(bundleParent);
         if (order != null)
@@ -1363,6 +1326,9 @@ public partial class OrderSearchPage : ContentPage
             OverlayCard.Scale = 1;
             OverlayCard.Opacity = 1;
         }
+
+        if (bundleParent.IsBundleFullyVerified)
+            _ = ShowCompletionAndDismiss(bundleParent);
     }
 
     private void RebuildBundleStepDots(ProductItem bundleParent)
@@ -1381,7 +1347,7 @@ public partial class OrderSearchPage : ContentPage
                 WidthRequest = 10, HeightRequest = 10, CornerRadius = 5,
                 Color = comp.IsFullyVerified ? Color.FromArgb("#22c55e")
                     : i == _activeComponentIndex ? Color.FromArgb("#7c3aed")
-                    : Color.FromArgb("#d1d5db"),
+                    : Color.FromArgb("#3b82f6"),
                 VerticalOptions = LayoutOptions.Center,
             };
 
@@ -1394,6 +1360,11 @@ public partial class OrderSearchPage : ContentPage
                     Radius = 3,
                 };
             }
+
+            var dotIndex = i;
+            var tap = new TapGestureRecognizer();
+            tap.Tapped += (_, _) => ActivateOverlayComponent(dotIndex);
+            dot.GestureRecognizers.Add(tap);
 
             OverlayBundleStepDots.Add(dot);
         }
@@ -1408,6 +1379,16 @@ public partial class OrderSearchPage : ContentPage
             && _activeComponentIndex < bundleParent.BundleComponents.Count)
         {
             comp = bundleParent.BundleComponents[_activeComponentIndex];
+        }
+
+        if (comp != null)
+        {
+            OverlayComponentHint.IsVisible = true;
+            OverlayComponentHintText.Text = $"Component of {bundleParent.BaseName}";
+        }
+        else
+        {
+            OverlayComponentHint.IsVisible = false;
         }
 
         if (comp != null)
@@ -1431,6 +1412,7 @@ public partial class OrderSearchPage : ContentPage
             if (comp.HasVariation)
             {
                 OverlayVariationLabel.Text = comp.Variation;
+                OverlayVariationLabel.TextColor = comp.VariationBadgeTextColor;
                 OverlayVariationBorder.IsVisible = true;
                 OverlayVariationBorder.BackgroundColor = comp.VariationBadgeBg;
                 OverlayVariationBorder.Stroke = comp.VariationBorderColor;
@@ -1484,6 +1466,7 @@ public partial class OrderSearchPage : ContentPage
             if (bundleParent.HasVariation)
             {
                 OverlayVariationLabel.Text = bundleParent.Variation;
+                OverlayVariationLabel.TextColor = bundleParent.VariationBadgeTextColor;
                 OverlayVariationBorder.IsVisible = true;
                 OverlayVariationBorder.BackgroundColor = bundleParent.VariationBadgeBg;
                 OverlayVariationBorder.Stroke = bundleParent.VariationBorderColor;
@@ -2014,6 +1997,7 @@ public partial class OrderSearchPage : ContentPage
 
     private void ShowProductImageOverlay(ProductItem item, string? openTrigger = null)
     {
+        _completionDismissCts?.Cancel();
         if (item.IsBundle)
         {
             ShowBundleOverlay(item);
@@ -2037,8 +2021,12 @@ public partial class OrderSearchPage : ContentPage
         OverlayBundleBarLine.IsVisible = false;
         OverlayNavHint.IsVisible = false;
         OverlayActiveCompLabel.IsVisible = false;
+        OverlayComponentHint.IsVisible = false;
 
         _overlayItem = item;
+
+        // Clear previous image immediately to avoid stale flash
+        OverlayImage.Source = null;
 
         // Image
         if (item.HasLocalImage)
@@ -2094,10 +2082,11 @@ public partial class OrderSearchPage : ContentPage
             OverlayAltSkuLabel.IsVisible = false;
         }
 
-        // Variation badge (purple) with swatch
+        // Variation badge with state-colored text
         if (item.HasVariation)
         {
             OverlayVariationLabel.Text = item.Variation;
+            OverlayVariationLabel.TextColor = item.VariationBadgeTextColor;
             OverlayVariationBorder.IsVisible = true;
             OverlayVariationBorder.BackgroundColor = item.VariationBadgeBg;
             OverlayVariationBorder.Stroke = item.VariationBorderColor;
@@ -2136,6 +2125,9 @@ public partial class OrderSearchPage : ContentPage
         OverlayPickEntry.Text = "";
         OverlayVerifiedQty.IsVisible = true;
 
+        OverlayMinusBtn.IsVisible = true;
+        OverlayPlusBtn.IsVisible = true;
+
         if (!ProductImageOverlay.IsVisible)
         {
             ProductImageOverlay.IsVisible = true;
@@ -2159,6 +2151,9 @@ public partial class OrderSearchPage : ContentPage
                     ["sku"] = item.SellerSku,
                 });
         }
+
+        if (item.IsFullyPicked)
+            _ = ShowCompletionAndDismiss(item);
     }
 
     private void RefreshOverlayQuantity()
@@ -2364,6 +2359,88 @@ public partial class OrderSearchPage : ContentPage
         _ = CheckAndSaveQcStatusAsync();
     }
 
+    private async Task ShowCompletionAndDismiss(ProductItem item)
+    {
+        _completionDismissCts?.Cancel();
+        var cts = _completionDismissCts = new CancellationTokenSource();
+        try
+        {
+            var green = Color.FromArgb("#10B981");
+            OverlayCard.Stroke = green;
+            OverlayCard.StrokeThickness = 4;
+            await Task.Delay(1200, cts.Token);
+            OverlayCard.Stroke = Colors.Transparent;
+            OverlayCard.StrokeThickness = 0;
+            if (ProductImageOverlay.IsVisible)
+                await DismissImageOverlayAsync("auto_complete");
+        }
+        catch (TaskCanceledException)
+        {
+            OverlayCard.Stroke = Colors.Transparent;
+            OverlayCard.StrokeThickness = 0;
+        }
+    }
+
+    private async Task ApplyVerificationThenDismiss(ProductItem item, string targetVerified)
+    {
+        await Task.Delay(400);
+        if (item.IsFullyPicked) return;
+        ApplyVerifiedOverride(item, targetVerified, "item_scanned_await_qty", "sku_scan");
+        RefreshOverlayQuantity();
+        await ShowCompletionAndDismiss(item);
+    }
+
+    private async Task ApplyComponentVerificationThenDismiss(
+        BundleComponentItem component, ProductItem bundleParent, PackingList order, int targetVerified)
+    {
+        await Task.Delay(400);
+
+        if (component.IsFullyVerified) return;
+
+        component.VerifiedQuantity = Math.Min(targetVerified, component.RequiredQuantity);
+        bundleParent.NotifyBundleProgressChanged();
+
+        if (bundleParent.IsBundleFullyVerified && bundleParent.Quantity > 0)
+            bundleParent.Quantity = 0;
+
+        RebuildBundleStepDots(bundleParent);
+        PopulateStandardPanelForBundle(bundleParent);
+
+        EmitQcEvent(
+            stepId: "component_scanned",
+            trigger: "sku_scan",
+            trackingNumber: order.TrackingNumber,
+            fromState: "picking",
+            toState: "picking",
+            payload: new Dictionary<string, object?>
+            {
+                ["sku"] = component.SellerSku,
+                ["componentName"] = component.Name,
+                ["verified"] = component.VerifiedQuantity,
+                ["required"] = component.RequiredQuantity,
+                ["bundleSku"] = bundleParent.SellerSku,
+                ["bundleComplete"] = bundleParent.IsBundleFullyVerified,
+            });
+
+        _ = CheckAndSaveQcStatusAsync();
+
+        if (bundleParent.IsBundleFullyVerified)
+        {
+            UpdateSearchStatus($"✓ Bundle '{bundleParent.BaseName}' fully verified — all components complete");
+            await ShowCompletionAndDismiss(bundleParent);
+        }
+        else if (component.IsFullyVerified)
+        {
+            UpdateSearchStatus($"✓ {component.Name} verified ({component.VerifiedQuantity}/{component.RequiredQuantity}) — done!");
+            await AnimateComponentCompleteMoment();
+            AdvanceToNextUnverifiedComponent(bundleParent, component);
+        }
+        else
+        {
+            UpdateSearchStatus($"✓ {component.Name} — {component.VerifiedQuantity}/{component.RequiredQuantity}");
+        }
+    }
+
     private async Task AnimateOverlayBtnAsync(Border btn, string flashColor, string restColor)
     {
         btn.BackgroundColor = Color.FromArgb(flashColor);
@@ -2378,6 +2455,7 @@ public partial class OrderSearchPage : ContentPage
     }
 
     private CancellationTokenSource? _cardBtnAnimCts;
+    private CancellationTokenSource? _completionDismissCts;
 
     private async Task AnimateCardButtonAsync(ProductItem item, string buttonText)
     {
@@ -2487,36 +2565,69 @@ public partial class OrderSearchPage : ContentPage
         OverlayCard.Stroke = green;
         OverlayCard.StrokeThickness = 4;
 
-        await Task.Delay(600);
+        await Task.Delay(1000);
 
         // Reset border
         OverlayCard.Stroke = Colors.Transparent;
         OverlayCard.StrokeThickness = 0;
 
-        AdvanceOverlayToNext(item);
+        if (ProductImageOverlay.IsVisible)
+            await DismissImageOverlayAsync("auto_complete");
     }
 
     private async Task AnimateOverlayComponentCompletion(ProductItem bundleParent, BundleComponentItem comp)
     {
-        var green = Color.FromArgb("#10B981");
-
-        OverlayCard.Stroke = green;
-        OverlayCard.StrokeThickness = 3;
-
-        await Task.Delay(300);
-
-        OverlayCard.Stroke = Colors.Transparent;
-        OverlayCard.StrokeThickness = 0;
+        RebuildBundleStepDots(bundleParent);
+        PopulateStandardPanelForBundle(bundleParent);
 
         if (bundleParent.IsBundleFullyVerified)
-            _ = AnimateBundleCompletionThenAdvance(bundleParent);
+        {
+            await ShowCompletionAndDismiss(bundleParent);
+        }
         else
+        {
+            await AnimateComponentCompleteMoment();
             AdvanceToNextUnverifiedComponent(bundleParent, comp);
+        }
+    }
+
+    private async Task AnimateComponentCompleteMoment()
+    {
+        _completionDismissCts?.Cancel();
+        var cts = _completionDismissCts = new CancellationTokenSource();
+        try
+        {
+            var green = Color.FromArgb("#10B981");
+
+            OverlayVerifiedQty.TextColor = green;
+            await Task.WhenAll(
+                OverlayVerifiedQty.ScaleToAsync(1.3, 80, Easing.SinIn),
+                OverlayVerifiedQty.FadeToAsync(0.6, 80));
+            await Task.WhenAll(
+                OverlayVerifiedQty.ScaleToAsync(1.0, 100, Easing.SinOut),
+                OverlayVerifiedQty.FadeToAsync(1.0, 100));
+
+            OverlayCard.Stroke = green;
+            OverlayCard.StrokeThickness = 4;
+            await Task.Delay(800, cts.Token);
+            if (ProductImageOverlay.IsVisible)
+            {
+                OverlayCard.Stroke = Colors.Transparent;
+                OverlayCard.StrokeThickness = 0;
+            }
+        }
+        catch (TaskCanceledException)
+        {
+            OverlayCard.Stroke = Colors.Transparent;
+            OverlayCard.StrokeThickness = 0;
+        }
     }
 
     private void AdvanceToNextUnverifiedComponent(ProductItem bundleParent, BundleComponentItem justCompleted)
     {
         if (bundleParent.BundleComponents == null) return;
+
+        HideOverlayPickEntry();
 
         var comps = bundleParent.BundleComponents;
         var currentIdx = comps.IndexOf(justCompleted);
@@ -2546,26 +2657,8 @@ public partial class OrderSearchPage : ContentPage
 
     private async Task AnimateBundleCompletionThenAdvance(ProductItem bundleParent)
     {
-        var green = Color.FromArgb("#10B981");
-
-        // Show parent image for celebration
-        _activeComponentIndex = -1;
-        UpdateOverlayImageForActiveComponent(bundleParent);
         RebuildBundleStepDots(bundleParent);
-        PopulateStandardPanelForBundle(bundleParent);
-
-        // Green border celebration
-        OverlayCard.Stroke = green;
-        OverlayCard.StrokeThickness = 4;
-
-        await Task.Delay(800);
-
-        // Reset
-        OverlayCard.Stroke = Colors.Transparent;
-        OverlayCard.StrokeThickness = 0;
-
-        if (!ProductImageOverlay.IsVisible) return;
-        AdvanceOverlayToNext(bundleParent);
+        await ShowCompletionAndDismiss(bundleParent);
     }
 
     private void ShowOverlayPickEntry(string initialValue)

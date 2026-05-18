@@ -80,12 +80,12 @@ public class BundleComponentItem : INotifyPropertyChanged
     public bool HasVariation => !string.IsNullOrWhiteSpace(Variation);
     public Color VariationBadgeBg => IsFullyVerified ? Color.FromArgb("#f0fdf4")
         : IsPartiallyVerified ? Color.FromArgb("#fefce8")
-        : Color.FromArgb("#f3f4f6");
+        : Color.FromArgb("#f5f3ff");
     public Color VariationBadgeTextColor => IsFullyVerified ? Color.FromArgb("#166534")
         : IsPartiallyVerified ? Color.FromArgb("#92400e")
-        : Color.FromArgb("#374151");
+        : Color.FromArgb("#5b21b6");
     public Color VariationBorderColor => IsFullyVerified ? Color.FromArgb("#22c55e")
-        : IsPartiallyVerified ? Color.FromArgb("#f59e0b") : Color.FromArgb("#d1d5db");
+        : IsPartiallyVerified ? Color.FromArgb("#f59e0b") : Color.FromArgb("#a78bfa");
     public Color? SwatchColor { get; set; }
     public bool HasSwatch => SwatchColor != null;
     public bool HasNoImage => !HasImage;
@@ -162,6 +162,8 @@ public class ProductItem : INotifyPropertyChanged
             OnPropertyChanged(nameof(VariationBadgeTextColor));
             OnPropertyChanged(nameof(StripColor));
             OnPropertyChanged(nameof(ShowCompletedCheck));
+            OnPropertyChanged(nameof(ShowRowNumber));
+            OnPropertyChanged(nameof(CompletedQtyText));
             OnPropertyChanged(nameof(SkuPillBg));
             OnPropertyChanged(nameof(SkuPillBorder));
             OnPropertyChanged(nameof(SkuPillText));
@@ -312,7 +314,7 @@ public class ProductItem : INotifyPropertyChanged
             if (IsBundle) return Color.FromArgb("#ede9fe");
             if (IsCompleted) return Color.FromArgb("#f0fdf4");
             if (IsPartiallyVerified) return Color.FromArgb("#fefce8");
-            return Color.FromArgb("#f3f4f6");
+            return Color.FromArgb("#f5f3ff");
         }
     }
 
@@ -323,7 +325,7 @@ public class ProductItem : INotifyPropertyChanged
             if (IsBundle) return Color.FromArgb("#5b21b6");
             if (IsCompleted) return Color.FromArgb("#166534");
             if (IsPartiallyVerified) return Color.FromArgb("#92400e");
-            return Color.FromArgb("#374151");
+            return Color.FromArgb("#5b21b6");
         }
     }
 
@@ -334,7 +336,7 @@ public class ProductItem : INotifyPropertyChanged
             if (IsBundle) return Color.FromArgb("#a78bfa");
             if (IsCompleted) return Color.FromArgb("#22c55e");
             if (IsPartiallyVerified) return Color.FromArgb("#f59e0b");
-            return Color.FromArgb("#d1d5db");
+            return Color.FromArgb("#a78bfa");
         }
     }
 
@@ -361,6 +363,9 @@ public class ProductItem : INotifyPropertyChanged
         IsCompleted ||
         string.Equals(_orderQcContext, "QC Passed", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(_orderQcContext, "Packed Complete", StringComparison.OrdinalIgnoreCase);
+
+    [JsonIgnore] public bool ShowRowNumber => !ShowCompletedCheck;
+    [JsonIgnore] public string CompletedQtyText => $"{VerifiedQuantity}/{RequiredQuantity}";
 
     private bool _isBeingPicked;
     [JsonIgnore]
@@ -396,6 +401,8 @@ public class ProductItem : INotifyPropertyChanged
             OnPropertyChanged(nameof(VariationBadgeTextColor));
             OnPropertyChanged(nameof(StripColor));
             OnPropertyChanged(nameof(ShowCompletedCheck));
+            OnPropertyChanged(nameof(ShowRowNumber));
+            OnPropertyChanged(nameof(CompletedQtyText));
         }
     }
 
@@ -413,7 +420,9 @@ public class ProductItem : INotifyPropertyChanged
     public string OrderQcContext
     {
         get => _orderQcContext;
-        set { _orderQcContext = value; OnPropertyChanged(nameof(CardBgColor)); OnPropertyChanged(nameof(CardTextColor)); OnPropertyChanged(nameof(StripColor)); OnPropertyChanged(nameof(ShowCompletedCheck)); OnPropertyChanged(nameof(StatusBadges)); }
+        set { _orderQcContext = value; OnPropertyChanged(nameof(CardBgColor)); OnPropertyChanged(nameof(CardTextColor)); OnPropertyChanged(nameof(StripColor)); OnPropertyChanged(nameof(ShowCompletedCheck));
+            OnPropertyChanged(nameof(ShowRowNumber));
+            OnPropertyChanged(nameof(CompletedQtyText)); OnPropertyChanged(nameof(StatusBadges)); }
     }
 
     // ── Product catalog enrichment ───────────────────────────────────────────
@@ -459,7 +468,7 @@ public class ProductItem : INotifyPropertyChanged
     [JsonIgnore] public IReadOnlyList<Color> BundleComponentDotColors =>
         BundleComponents?.Select(c => c.IsFullyVerified ? Color.FromArgb("#22c55e")
             : c.IsPartiallyVerified ? Color.FromArgb("#f59e0b")
-            : Color.FromArgb("#d1d5db")).ToList()
+            : Color.FromArgb("#3b82f6")).ToList()
         ?? [];
 
     public void NotifyBundleProgressChanged()
@@ -479,6 +488,8 @@ public class ProductItem : INotifyPropertyChanged
         OnPropertyChanged(nameof(CardBorderWidth));
         OnPropertyChanged(nameof(StripColor));
         OnPropertyChanged(nameof(ShowCompletedCheck));
+            OnPropertyChanged(nameof(ShowRowNumber));
+            OnPropertyChanged(nameof(CompletedQtyText));
         OnPropertyChanged(nameof(ButtonBgColor));
         OnPropertyChanged(nameof(ButtonTextColor));
         OnPropertyChanged(nameof(SkuPillBg));
