@@ -1015,6 +1015,7 @@ public partial class OrderSearchPage : ContentPage
     private void ApplyVerifiedOverride(ProductItem item, string? text,
         string stepId = "manual_qty_entered", string trigger = "qty_entered")
     {
+        if (item.IsFullyPicked) { item.IsBeingPicked = false; return; }
         if (!int.TryParse(text?.Trim(), out var verified)) { item.IsBeingPicked = false; return; }
         verified = Math.Clamp(verified, 0, item.RequiredQuantity);
 
@@ -1071,6 +1072,58 @@ public partial class OrderSearchPage : ContentPage
         _ = CheckAndSaveQcStatusAsync();
     }
 
+    private void ApplyComponentVerifiedOverride(ProductItem parent, BundleComponentItem comp, string? text)
+    {
+        if (comp.IsFullyVerified) return;
+        if (!int.TryParse(text?.Trim(), out var verified)) return;
+        verified = Math.Clamp(verified, 0, comp.RequiredQuantity);
+        if (verified == comp.VerifiedQuantity) return;
+
+        var order = FindOrderForItem(parent);
+        if (order == null || IsOrderQcPassed(order)) return;
+
+        var qtyBefore = comp.VerifiedQuantity;
+        var fromState = ConsumePickingFromState();
+        comp.VerifiedQuantity = verified;
+        parent.NotifyBundleProgressChanged();
+
+        EmitQcEvent(
+            stepId: "component_qty_entered",
+            trigger: "manual_qty_entered",
+            trackingNumber: order.TrackingNumber,
+            fromState: fromState,
+            toState: "picking",
+            payload: new Dictionary<string, object?>
+            {
+                ["sku"] = comp.SellerSku,
+                ["componentName"] = comp.Name,
+                ["qtyBefore"] = qtyBefore,
+                ["qtyAfter"] = verified,
+                ["bundleSku"] = parent.SellerSku,
+                ["bundleComplete"] = parent.IsBundleFullyVerified,
+            });
+
+        if (parent.IsBundleFullyVerified && parent.Quantity > 0)
+            parent.Quantity = 0;
+        else if (!parent.IsBundleFullyVerified && parent.Quantity <= 0)
+            parent.Quantity = parent.RequiredQuantity;
+
+        UpdateSearchStatus(comp.IsFullyVerified
+            ? $"✓ {comp.Name} fully verified ({comp.VerifiedQuantity}/{comp.RequiredQuantity})"
+            : $"{comp.Name} — {comp.VerifiedQuantity}/{comp.RequiredQuantity} verified");
+        Logger.Log($"OrderSearch: component override verified={verified} for '{comp.SellerSku}', now {comp.VerifiedQuantity}/{comp.RequiredQuantity}");
+
+        _ = CheckAndSaveQcStatusAsync();
+
+        if (ProductImageOverlay.IsVisible && _overlayItem == parent)
+        {
+            if (comp.IsFullyVerified)
+                _ = AnimateOverlayComponentCompletion(parent, comp);
+            else
+                ShowBundleOverlay(parent, comp);
+        }
+    }
+
     private async Task CheckAndSaveQcStatusAsync()
     {
         await CheckCompletedOrdersAsync();
@@ -1082,9 +1135,50 @@ public partial class OrderSearchPage : ContentPage
 
     private void HandleComponentScan(BundleComponentItem component, ProductItem bundleParent, PackingList order)
     {
-        component.VerifiedQuantity = Math.Min(component.VerifiedQuantity + 1, component.RequiredQuantity);
+        if (component.IsFullyVerified)
+        {
+            UpdateSearchStatus($"{component.Name} already verified ({component.VerifiedQuantity}/{component.RequiredQuantity})");
+            ShowBundleOverlay(bundleParent, component);
+            return;
+        }
 
-        // Refresh parent bundle progress
+        var targetVerified = component.VerifiedQuantity + 1;
+
+        // Multi-qty component with remaining > 1: open pick entry for operator to type target qty
+        if (component.RemainingQuantity > 1)
+        {
+            component.VerifiedQuantity++;
+            bundleParent.NotifyBundleProgressChanged();
+
+            UpdateScanIndicator(component.SellerSku, found: true);
+            ShowBundleOverlay(bundleParent, component);
+            ShowOverlayPickEntry(targetVerified.ToString());
+
+            UpdateSearchStatus($"{component.Name} — {component.VerifiedQuantity}/{component.RequiredQuantity}, enter qty and confirm");
+            Logger.Log($"OrderSearch: component scan '{component.SellerSku}', awaiting qty input ({component.VerifiedQuantity}/{component.RequiredQuantity})");
+
+            EmitQcEvent(
+                stepId: "component_scanned",
+                trigger: "sku_scan",
+                trackingNumber: order.TrackingNumber,
+                fromState: ConsumePickingFromState(),
+                toState: "picking",
+                payload: new Dictionary<string, object?>
+                {
+                    ["sku"] = component.SellerSku,
+                    ["componentName"] = component.Name,
+                    ["verified"] = component.VerifiedQuantity,
+                    ["required"] = component.RequiredQuantity,
+                    ["bundleSku"] = bundleParent.SellerSku,
+                    ["bundleComplete"] = bundleParent.IsBundleFullyVerified,
+                    ["awaitingQty"] = true,
+                });
+            _ = CheckAndSaveQcStatusAsync();
+            return;
+        }
+
+        // Single remaining: auto-apply (same as qty=1 product scan)
+        component.VerifiedQuantity = Math.Min(targetVerified, component.RequiredQuantity);
         bundleParent.NotifyBundleProgressChanged();
 
         if (bundleParent.IsBundleFullyVerified && bundleParent.Quantity > 0)
@@ -1104,7 +1198,6 @@ public partial class OrderSearchPage : ContentPage
 
         UpdateScanIndicator(component.SellerSku, found: true);
 
-        // Always open bundle overlay on component scan
         ShowBundleOverlay(bundleParent, component);
         if (component.IsFullyVerified)
             _ = AnimateOverlayComponentCompletion(bundleParent, component);
@@ -1173,7 +1266,7 @@ public partial class OrderSearchPage : ContentPage
             else
                 ShowBundleOverlay(parent, comp);
         }
-        else if (comp.IsFullyVerified)
+        else if (comp.IsFullyVerified && ProductImageOverlay.IsVisible)
         {
             ShowBundleOverlay(parent, comp);
             _ = AnimateOverlayComponentCompletion(parent, comp);
@@ -1183,7 +1276,7 @@ public partial class OrderSearchPage : ContentPage
     private void OnComponentMinusClicked(object sender, EventArgs e)
     {
         if (sender is not Button btn || btn.BindingContext is not BundleComponentItem comp) return;
-        if (comp.VerifiedQuantity <= 0) return;
+        if (comp.IsFullyVerified || comp.VerifiedQuantity <= 0) return;
 
         var parent = FindBundleParentForComponent(comp);
         if (parent == null) return;
@@ -1244,7 +1337,7 @@ public partial class OrderSearchPage : ContentPage
         if (highlightComponent != null && bundleParent.BundleComponents != null)
             _activeComponentIndex = bundleParent.BundleComponents.IndexOf(highlightComponent);
         else
-            _activeComponentIndex = bundleParent.BundleComponents?.Count > 0 ? 0 : -1;
+            _activeComponentIndex = -1;
 
         // Left pane image (based on active component)
         UpdateOverlayImageForActiveComponent(bundleParent);
@@ -2347,6 +2440,23 @@ public partial class OrderSearchPage : ContentPage
             _overlayItem.NotifyBundleProgressChanged();
             if (_overlayItem.IsBundleFullyVerified && _overlayItem.Quantity > 0)
                 _overlayItem.Quantity = 0;
+
+            EmitQcEvent(
+                stepId: "component_card_clicked",
+                trigger: "overlay_tap_plus",
+                trackingNumber: order.TrackingNumber,
+                fromState: ConsumePickingFromState(),
+                toState: "picking",
+                payload: new Dictionary<string, object?>
+                {
+                    ["sku"] = comp.SellerSku,
+                    ["componentName"] = comp.Name,
+                    ["verified"] = comp.VerifiedQuantity,
+                    ["required"] = comp.RequiredQuantity,
+                    ["bundleSku"] = _overlayItem.SellerSku,
+                    ["bundleComplete"] = _overlayItem.IsBundleFullyVerified,
+                });
+
             _ = CheckAndSaveQcStatusAsync();
             if (comp.IsFullyVerified)
                 _ = AnimateOverlayComponentCompletion(_overlayItem, comp);
@@ -2366,10 +2476,25 @@ public partial class OrderSearchPage : ContentPage
             && _overlayItem.BundleComponents is { } comps && _activeComponentIndex < comps.Count)
         {
             var comp = comps[_activeComponentIndex];
-            if (comp.VerifiedQuantity <= 0) return;
+            if (comp.IsFullyVerified || comp.VerifiedQuantity <= 0) return;
 
             var order = FindOrderForItem(_overlayItem);
             if (order == null || IsOrderQcPassed(order)) return;
+
+            EmitQcEvent(
+                stepId: "component_card_unclicked",
+                trigger: "overlay_tap_minus",
+                trackingNumber: order.TrackingNumber,
+                fromState: ConsumePickingFromState(),
+                toState: "picking",
+                payload: new Dictionary<string, object?>
+                {
+                    ["sku"] = comp.SellerSku,
+                    ["componentName"] = comp.Name,
+                    ["qtyBefore"] = comp.VerifiedQuantity,
+                    ["qtyAfter"] = comp.VerifiedQuantity - 1,
+                    ["bundleSku"] = _overlayItem.SellerSku,
+                });
 
             comp.VerifiedQuantity--;
             _overlayItem.NotifyBundleProgressChanged();
@@ -2400,7 +2525,8 @@ public partial class OrderSearchPage : ContentPage
 
     private void DoOverlayMinus(string trigger)
     {
-        if (_overlayItem == null || _overlayItem.Quantity >= _overlayItem.RequiredQuantity) return;
+        if (_overlayItem == null || _overlayItem.IsFullyPicked) return;
+        if (_overlayItem.Quantity >= _overlayItem.RequiredQuantity) return;
 
         var order = FindOrderForItem(_overlayItem);
         if (order == null || IsOrderQcPassed(order)) return;
@@ -2484,9 +2610,17 @@ public partial class OrderSearchPage : ContentPage
     private void OnOverlayPickEntryCompleted(object sender, EventArgs e)
     {
         if (_overlayItem == null) return;
-        ApplyVerifiedOverride(_overlayItem, OverlayPickEntry.Text);
+        if (_overlayItem.IsBundle && _activeComponentIndex >= 0
+            && _overlayItem.BundleComponents is { } pickedComps && _activeComponentIndex < pickedComps.Count)
+        {
+            ApplyComponentVerifiedOverride(_overlayItem, pickedComps[_activeComponentIndex], OverlayPickEntry.Text);
+        }
+        else
+        {
+            ApplyVerifiedOverride(_overlayItem, OverlayPickEntry.Text);
+            SyncOverlayAfterDeduction(_overlayItem);
+        }
         HideOverlayPickEntry();
-        SyncOverlayAfterDeduction(_overlayItem);
     }
 
     private void OnOverlayPickEntryTextChanged(object sender, TextChangedEventArgs e)
@@ -2497,8 +2631,12 @@ public partial class OrderSearchPage : ContentPage
         if (digits != raw) { OverlayPickEntry.Text = digits; return; }
         if (digits.Length > 1 && digits[0] == '0') { OverlayPickEntry.Text = digits.TrimStart('0'); return; }
         if (string.IsNullOrEmpty(digits)) return;
-        if (int.TryParse(digits, out var qty) && qty > _overlayItem.RequiredQuantity)
-            OverlayPickEntry.Text = _overlayItem.RequiredQuantity.ToString();
+        var maxQty = _overlayItem.RequiredQuantity;
+        if (_overlayItem.IsBundle && _activeComponentIndex >= 0
+            && _overlayItem.BundleComponents is { } clampComps && _activeComponentIndex < clampComps.Count)
+            maxQty = clampComps[_activeComponentIndex].RequiredQuantity;
+        if (int.TryParse(digits, out var qty) && qty > maxQty)
+            OverlayPickEntry.Text = maxQty.ToString();
     }
 
     private void SyncOverlayAfterDeduction(ProductItem item)
@@ -2556,15 +2694,70 @@ public partial class OrderSearchPage : ContentPage
         OverlayCard.Stroke = green;
         OverlayCard.StrokeThickness = 3;
 
-        await Task.Delay(500);
+        await Task.Delay(300);
 
         OverlayCard.Stroke = Colors.Transparent;
         OverlayCard.StrokeThickness = 0;
 
         if (bundleParent.IsBundleFullyVerified)
-            AdvanceOverlayToNext(bundleParent);
+            _ = AnimateBundleCompletionThenAdvance(bundleParent);
         else
-            ShowBundleOverlay(bundleParent, comp);
+            AdvanceToNextUnverifiedComponent(bundleParent, comp);
+    }
+
+    private void AdvanceToNextUnverifiedComponent(ProductItem bundleParent, BundleComponentItem justCompleted)
+    {
+        if (bundleParent.BundleComponents == null) return;
+
+        var comps = bundleParent.BundleComponents;
+        var currentIdx = comps.IndexOf(justCompleted);
+        if (currentIdx < 0)
+        {
+            _activeComponentIndex = -1;
+            UpdateOverlayImageForActiveComponent(bundleParent);
+            RebuildOverlayComponentList(bundleParent);
+            return;
+        }
+
+        for (int i = 1; i <= comps.Count; i++)
+        {
+            var nextIdx = (currentIdx + i) % comps.Count;
+            var candidate = comps[nextIdx];
+            if (!candidate.IsFullyVerified)
+            {
+                _activeComponentIndex = nextIdx;
+                UpdateOverlayImageForActiveComponent(bundleParent);
+                RebuildOverlayComponentList(bundleParent);
+                return;
+            }
+        }
+    }
+
+    private async Task AnimateBundleCompletionThenAdvance(ProductItem bundleParent)
+    {
+        var green = Color.FromArgb("#10B981");
+
+        // Show parent image for celebration
+        _activeComponentIndex = -1;
+        UpdateOverlayImageForActiveComponent(bundleParent);
+        RebuildOverlayComponentList(bundleParent);
+
+        // Update progress bar to full
+        OverlayBundleProgressBar.WidthRequest = 200;
+        OverlayBundleProgressLabel.Text = bundleParent.BundleProgressText;
+
+        // Green border celebration
+        OverlayCard.Stroke = green;
+        OverlayCard.StrokeThickness = 4;
+
+        await Task.Delay(800);
+
+        // Reset
+        OverlayCard.Stroke = Colors.Transparent;
+        OverlayCard.StrokeThickness = 0;
+
+        if (!ProductImageOverlay.IsVisible) return;
+        AdvanceOverlayToNext(bundleParent);
     }
 
     private void ShowOverlayPickEntry(string initialValue)
@@ -3214,9 +3407,17 @@ public partial class OrderSearchPage : ContentPage
         {
             if (ProductImageOverlay.IsVisible && OverlayPickEntry.IsVisible && _overlayItem != null)
             {
-                ApplyVerifiedOverride(_overlayItem, OverlayPickEntry.Text);
+                if (_overlayItem.IsBundle && _activeComponentIndex >= 0
+                    && _overlayItem.BundleComponents is { } enterComps && _activeComponentIndex < enterComps.Count)
+                {
+                    ApplyComponentVerifiedOverride(_overlayItem, enterComps[_activeComponentIndex], OverlayPickEntry.Text);
+                }
+                else
+                {
+                    ApplyVerifiedOverride(_overlayItem, OverlayPickEntry.Text);
+                    SyncOverlayAfterDeduction(_overlayItem);
+                }
                 HideOverlayPickEntry();
-                SyncOverlayAfterDeduction(_overlayItem);
                 e.Handled = true;
                 return;
             }
@@ -3228,27 +3429,43 @@ public partial class OrderSearchPage : ContentPage
             }
         }
 
-        // Number keys → activate qty field on active product
+        // Number keys → activate qty field on active product (or active component in bundle overlay)
         if (e.Key >= Windows.System.VirtualKey.Number0 && e.Key <= Windows.System.VirtualKey.Number9
             || e.Key >= Windows.System.VirtualKey.NumberPad0 && e.Key <= Windows.System.VirtualKey.NumberPad9)
         {
-            var target = ProductImageOverlay.IsVisible ? _overlayItem : _pendingSkuProduct;
-            if (target != null && target.Quantity > 0)
-            {
-                int digit = e.Key >= Windows.System.VirtualKey.NumberPad0
-                    ? (int)e.Key - (int)Windows.System.VirtualKey.NumberPad0
-                    : (int)e.Key - (int)Windows.System.VirtualKey.Number0;
+            int digit = e.Key >= Windows.System.VirtualKey.NumberPad0
+                ? (int)e.Key - (int)Windows.System.VirtualKey.NumberPad0
+                : (int)e.Key - (int)Windows.System.VirtualKey.Number0;
 
-                if (ProductImageOverlay.IsVisible)
+            if (ProductImageOverlay.IsVisible && _overlayItem != null)
+            {
+                // Bundle with active component — allow number input if component not fully verified
+                if (_overlayItem.IsBundle && _activeComponentIndex >= 0
+                    && _overlayItem.BundleComponents is { } numComps && _activeComponentIndex < numComps.Count)
+                {
+                    var comp = numComps[_activeComponentIndex];
+                    if (!comp.IsFullyVerified)
+                    {
+                        ShowOverlayPickEntry(digit.ToString());
+                        e.Handled = true;
+                        return;
+                    }
+                }
+                else if (_overlayItem.Quantity > 0)
                 {
                     ShowOverlayPickEntry(digit.ToString());
+                    e.Handled = true;
+                    return;
                 }
-                else
+            }
+            else
+            {
+                var target = _pendingSkuProduct;
+                if (target != null && target.Quantity > 0)
                 {
                     target.PickQtyText = digit.ToString();
                     target.IsBeingPicked = true;
                     SetActiveProduct(target);
-                    // Focus the entry after layout
                     _ = Dispatcher.DispatchAsync(async () =>
                     {
                         await Task.Delay(80);
@@ -3257,9 +3474,9 @@ public partial class OrderSearchPage : ContentPage
                             && en.ReturnType == ReturnType.Done);
                         entry?.Focus();
                     });
+                    e.Handled = true;
+                    return;
                 }
-                e.Handled = true;
-                return;
             }
         }
 
@@ -3356,7 +3573,7 @@ public partial class OrderSearchPage : ContentPage
             }
             if (e.Key == VkMinus || e.Key == Windows.System.VirtualKey.Subtract)
             {
-                if (comp.VerifiedQuantity > 0 && parent != null && order != null && !IsOrderQcPassed(order))
+                if (!comp.IsFullyVerified && comp.VerifiedQuantity > 0 && parent != null && order != null && !IsOrderQcPassed(order))
                 {
                     EmitQcEvent(
                         stepId: "component_card_unclicked",
@@ -3407,6 +3624,23 @@ public partial class OrderSearchPage : ContentPage
                             _overlayItem.NotifyBundleProgressChanged();
                             if (_overlayItem.IsBundleFullyVerified && _overlayItem.Quantity > 0)
                                 _overlayItem.Quantity = 0;
+
+                            EmitQcEvent(
+                                stepId: "component_card_clicked",
+                                trigger: "keyboard_plus",
+                                trackingNumber: order.TrackingNumber,
+                                fromState: ConsumePickingFromState(),
+                                toState: "picking",
+                                payload: new Dictionary<string, object?>
+                                {
+                                    ["sku"] = comp.SellerSku,
+                                    ["componentName"] = comp.Name,
+                                    ["verified"] = comp.VerifiedQuantity,
+                                    ["required"] = comp.RequiredQuantity,
+                                    ["bundleSku"] = _overlayItem.SellerSku,
+                                    ["bundleComplete"] = _overlayItem.IsBundleFullyVerified,
+                                });
+
                             _ = CheckAndSaveQcStatusAsync();
                             if (comp.IsFullyVerified)
                                 _ = AnimateOverlayComponentCompletion(_overlayItem, comp);
@@ -3437,11 +3671,26 @@ public partial class OrderSearchPage : ContentPage
                     && _overlayItem.BundleComponents is { } compsMinus && _activeComponentIndex < compsMinus.Count)
                 {
                     var comp = compsMinus[_activeComponentIndex];
-                    if (comp.VerifiedQuantity > 0)
+                    if (!comp.IsFullyVerified && comp.VerifiedQuantity > 0)
                     {
                         var order = FindOrderForItem(_overlayItem);
                         if (order != null && !IsOrderQcPassed(order))
                         {
+                            EmitQcEvent(
+                                stepId: "component_card_unclicked",
+                                trigger: "keyboard_minus",
+                                trackingNumber: order.TrackingNumber,
+                                fromState: ConsumePickingFromState(),
+                                toState: "picking",
+                                payload: new Dictionary<string, object?>
+                                {
+                                    ["sku"] = comp.SellerSku,
+                                    ["componentName"] = comp.Name,
+                                    ["qtyBefore"] = comp.VerifiedQuantity,
+                                    ["qtyAfter"] = comp.VerifiedQuantity - 1,
+                                    ["bundleSku"] = _overlayItem.SellerSku,
+                                });
+
                             comp.VerifiedQuantity--;
                             _overlayItem.NotifyBundleProgressChanged();
                             if (!_overlayItem.IsBundleFullyVerified && _overlayItem.Quantity <= 0)
@@ -3863,7 +4112,7 @@ public partial class OrderSearchPage : ContentPage
         SetActiveProduct(item);
         ApplySkuDeduction(item, "1", source);
 
-        if (item.IsFullyPicked && !ProductImageOverlay.IsVisible)
+        if (item.IsFullyPicked && !ProductImageOverlay.IsVisible && !item.IsBundle)
         {
             ShowProductImageOverlay(item);
             _ = AnimateOverlayCompletionThenAdvance(item);
@@ -3872,6 +4121,7 @@ public partial class OrderSearchPage : ContentPage
 
     private void DoCardMinus(ProductItem item, string trigger)
     {
+        if (item.IsFullyPicked) return;
         if (item.Quantity >= item.RequiredQuantity) return;
 
         var order = FindOrderForItem(item);
