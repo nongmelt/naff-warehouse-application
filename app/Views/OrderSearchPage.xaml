@@ -972,16 +972,17 @@
                                                     <Border Grid.Column="4"
                                                             IsVisible="{Binding HasVariation}"
                                                             BackgroundColor="{Binding VariationBadgeBg}"
-                                                            Stroke="Transparent"
-                                                            StrokeShape="RoundRectangle 6"
-                                                            Padding="10,5"
+                                                            Stroke="{Binding VariationBorderColor}"
+                                                            StrokeThickness="1.5"
+                                                            StrokeShape="RoundRectangle 7"
+                                                            Padding="8,4"
                                                             VerticalOptions="Center"
                                                             HorizontalOptions="Start">
-                                                        <HorizontalStackLayout Spacing="6">
+                                                        <HorizontalStackLayout Spacing="5">
                                                             <BoxView IsVisible="{Binding HasSwatch}"
-                                                                     WidthRequest="12"
-                                                                     HeightRequest="12"
-                                                                     CornerRadius="6"
+                                                                     WidthRequest="14"
+                                                                     HeightRequest="14"
+                                                                     CornerRadius="4"
                                                                      Color="{Binding SwatchColor}"
                                                                      VerticalOptions="Center"/>
                                                             <Label Text="{Binding Variation}"
@@ -1225,20 +1226,17 @@
                                                                    VerticalOptions="Center"
                                                                    Margin="6,0,0,0"/>
                                                         </Grid>
-                                                        <HorizontalStackLayout Spacing="8">
-                                                            <Grid HeightRequest="6" WidthRequest="80">
-                                                                <BoxView BackgroundColor="#e5e7eb" CornerRadius="3"/>
-                                                                <BoxView BackgroundColor="#7c3aed"
-                                                                         CornerRadius="3"
-                                                                         HorizontalOptions="Start"
-                                                                         WidthRequest="{Binding BundleProgressBarWidth}"/>
-                                                            </Grid>
-                                                            <Label Text="{Binding BundleProgressText}"
-                                                                   FontSize="10"
-                                                                   TextColor="#7c3aed"
-                                                                   FontFamily="Consolas"
-                                                                   FontAttributes="Bold"
-                                                                   VerticalOptions="Center"/>
+                                                        <HorizontalStackLayout Spacing="4"
+                                                                                BindableLayout.ItemsSource="{Binding BundleComponentDotColors}">
+                                                            <BindableLayout.ItemTemplate>
+                                                                <DataTemplate x:DataType="Color">
+                                                                    <BoxView WidthRequest="10"
+                                                                             HeightRequest="10"
+                                                                             CornerRadius="5"
+                                                                             Color="{Binding .}"
+                                                                             VerticalOptions="Center"/>
+                                                                </DataTemplate>
+                                                            </BindableLayout.ItemTemplate>
                                                         </HorizontalStackLayout>
                                                     </VerticalStackLayout>
 
@@ -1246,21 +1244,22 @@
                                                     <Border Grid.Column="4"
                                                             IsVisible="{Binding HasVariation}"
                                                             BackgroundColor="{Binding VariationBadgeBg}"
-                                                            Stroke="Transparent"
-                                                            StrokeShape="RoundRectangle 6"
+                                                            Stroke="{Binding VariationBorderColor}"
+                                                            StrokeThickness="1.5"
+                                                            StrokeShape="RoundRectangle 7"
                                                             Padding="8,4"
                                                             VerticalOptions="Center"
                                                             HorizontalOptions="Start">
-                                                        <HorizontalStackLayout Spacing="6">
+                                                        <HorizontalStackLayout Spacing="5">
                                                             <BoxView IsVisible="{Binding HasSwatch}"
-                                                                     WidthRequest="12"
-                                                                     HeightRequest="12"
-                                                                     CornerRadius="6"
+                                                                     WidthRequest="14"
+                                                                     HeightRequest="14"
+                                                                     CornerRadius="4"
                                                                      Color="{Binding SwatchColor}"
                                                                      VerticalOptions="Center"/>
                                                             <Label Text="{Binding Variation}"
                                                                    TextColor="{Binding VariationBadgeTextColor}"
-                                                                   FontSize="11"
+                                                                   FontSize="12"
                                                                    FontAttributes="Bold"/>
                                                         </HorizontalStackLayout>
                                                     </Border>
@@ -1436,21 +1435,22 @@
                                                                 <Border Grid.Column="4"
                                                                         IsVisible="{Binding HasVariation}"
                                                                         BackgroundColor="{Binding VariationBadgeBg}"
-                                                                        Stroke="Transparent"
-                                                                        StrokeShape="RoundRectangle 6"
+                                                                        Stroke="{Binding VariationBorderColor}"
+                                                                        StrokeThickness="1.5"
+                                                                        StrokeShape="RoundRectangle 7"
                                                                         Padding="8,4"
                                                                         VerticalOptions="Center"
                                                                         HorizontalOptions="Start">
-                                                                    <HorizontalStackLayout Spacing="6">
+                                                                    <HorizontalStackLayout Spacing="5">
                                                                         <BoxView IsVisible="{Binding HasSwatch}"
-                                                                                 WidthRequest="12"
-                                                                                 HeightRequest="12"
-                                                                                 CornerRadius="6"
+                                                                                 WidthRequest="14"
+                                                                                 HeightRequest="14"
+                                                                                 CornerRadius="4"
                                                                                  Color="{Binding SwatchColor}"
                                                                                  VerticalOptions="Center"/>
                                                                         <Label Text="{Binding Variation}"
                                                                                TextColor="{Binding VariationBadgeTextColor}"
-                                                                               FontSize="11"
+                                                                               FontSize="12"
                                                                                FontAttributes="Bold"
                                                                                VerticalOptions="Center"/>
                                                                     </HorizontalStackLayout>
