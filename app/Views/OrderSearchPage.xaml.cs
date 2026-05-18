@@ -2220,6 +2220,7 @@ public partial class OrderSearchPage : ContentPage
     {
         var allProducts = Results.SelectMany(o => o.ParsedProducts).ToList();
         var currentIdx = allProducts.IndexOf(completed);
+        if (currentIdx < 0) return;
 
         for (int i = 1; i <= allProducts.Count; i++)
         {
@@ -2713,25 +2714,7 @@ public partial class OrderSearchPage : ContentPage
         OverlayVerifiedQty.IsVisible = true;
     }
 
-    private void AdvanceOverlayToNext(ProductItem item)
-    {
-        var allProducts = Results.SelectMany(o => o.ParsedProducts).ToList();
-        var currentIdx = allProducts.IndexOf(item);
-        ProductItem? nextUnfinished = null;
 
-        for (int i = 1; i <= allProducts.Count; i++)
-        {
-            var candidate = allProducts[(currentIdx + i) % allProducts.Count];
-            if (!candidate.IsFullyPicked) { nextUnfinished = candidate; break; }
-        }
-
-        if (nextUnfinished != null)
-        {
-            ShowProductImageOverlay(nextUnfinished);
-            SetActiveProduct(nextUnfinished);
-            ScrollToProduct(nextUnfinished);
-        }
-    }
 
     private void NavigateOverlayProduct(int direction)
     {
@@ -4047,7 +4030,8 @@ public partial class OrderSearchPage : ContentPage
         SetActiveProduct(item);
         ApplySkuDeduction(item, "1", source);
 
-        if (item.IsFullyPicked && !ProductImageOverlay.IsVisible && !item.IsBundle)
+        if (item.IsFullyPicked && !ProductImageOverlay.IsVisible && !item.IsBundle
+            && AppSettings.AutoPopupImageOverlay)
         {
             ShowProductImageOverlay(item);
             _ = AnimateOverlayCompletionThenAdvance(item);
