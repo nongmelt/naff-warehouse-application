@@ -421,22 +421,27 @@
                                    VerticalOptions="Center"/>
                         </Grid>
                     </Border>
-                    <!-- Cancel mode (disabled / coming soon) -->
-                    <Border BackgroundColor="Transparent"
-                            Stroke="Transparent"
-                            StrokeShape="RoundRectangle 6"
+                    <!-- Returns Mode Option -->
+                    <Border x:Name="ModeOptionReturns"
+                            BackgroundColor="Transparent"
+                            StrokeThickness="0"
                             Padding="16"
-                            Opacity="0.5"
-                            InputTransparent="True">
-                        <VerticalStackLayout Spacing="4">
-                            <Label Text="Cancel"
-                                   TextColor="#6b7280"
-                                   FontSize="15"/>
-                            <Label Text="coming soon"
-                                   TextColor="#cccccc"
-                                   FontSize="11"
-                                   FontFamily="Consolas"/>
-                        </VerticalStackLayout>
+                            StrokeShape="RoundRectangle 6">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnModeSelectReturns"/>
+                        </Border.GestureRecognizers>
+                        <Grid ColumnDefinitions="*, Auto">
+                            <VerticalStackLayout Spacing="2">
+                                <Label Text="Returns"
+                                       FontSize="15"
+                                       FontAttributes="Bold"
+                                       TextColor="#4338ca"/>
+                                <Label Text="return &amp; pickup"
+                                       FontSize="11"
+                                       FontFamily="Consolas"
+                                       TextColor="#9ca3af"/>
+                            </VerticalStackLayout>
+                        </Grid>
                     </Border>
                 </VerticalStackLayout>
             </Border>
@@ -1802,6 +1807,156 @@
 
                 </CollectionView>
 
+                <!-- ═══ Returns Mode: Action Form ═══ -->
+                <VerticalStackLayout x:Name="ReturnsActionForm"
+                                     IsVisible="False"
+                                     Spacing="12"
+                                     Padding="0,16,0,0">
+                    <Border BackgroundColor="White"
+                            Stroke="#e5e7eb"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 4"
+                            Padding="20,16">
+                        <VerticalStackLayout Spacing="14">
+
+                            <!-- Header -->
+                            <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                                <Border x:Name="ReturnsFormIcon"
+                                        BackgroundColor="#dc2626"
+                                        StrokeThickness="0"
+                                        StrokeShape="RoundRectangle 4"
+                                        WidthRequest="28" HeightRequest="28">
+                                    <Label x:Name="ReturnsFormIconLabel"
+                                           Text="✕"
+                                           FontSize="14" FontAttributes="Bold"
+                                           TextColor="White"
+                                           HorizontalTextAlignment="Center"
+                                           VerticalTextAlignment="Center"/>
+                                </Border>
+                                <Label x:Name="ReturnsFormTitle"
+                                       Text="Return Details"
+                                       FontSize="16" FontAttributes="Bold"
+                                       TextColor="#111827"
+                                       VerticalOptions="Center"/>
+                                <Label Text="* required"
+                                       FontSize="11" FontAttributes="Bold"
+                                       TextColor="#dc2626"
+                                       VerticalOptions="Center"
+                                       HorizontalOptions="EndAndExpand"/>
+                            </HorizontalStackLayout>
+
+                            <!-- Action type selector -->
+                            <Grid ColumnDefinitions="*, *" ColumnSpacing="8">
+                                <Border x:Name="BtnReturn"
+                                        Grid.Column="0"
+                                        BackgroundColor="#fef2f2"
+                                        Stroke="#dc2626"
+                                        StrokeThickness="2"
+                                        StrokeShape="RoundRectangle 6"
+                                        Padding="12,10">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnSelectReturnType"/>
+                                    </Border.GestureRecognizers>
+                                    <HorizontalStackLayout Spacing="8" HorizontalOptions="Center">
+                                        <Label Text="↩" FontSize="15" TextColor="#dc2626"
+                                               VerticalTextAlignment="Center"/>
+                                        <Label Text="Return" FontSize="15" FontAttributes="Bold"
+                                               TextColor="#991b1b" VerticalOptions="Center"/>
+                                    </HorizontalStackLayout>
+                                </Border>
+                                <Border x:Name="BtnPendingPickup"
+                                        Grid.Column="1"
+                                        BackgroundColor="Transparent"
+                                        Stroke="#e5e7eb"
+                                        StrokeThickness="1"
+                                        StrokeShape="RoundRectangle 6"
+                                        Padding="12,10">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnSelectPendingPickupType"/>
+                                    </Border.GestureRecognizers>
+                                    <HorizontalStackLayout Spacing="8" HorizontalOptions="Center">
+                                        <Label Text="⏳" FontSize="15" TextColor="#a21caf"
+                                               VerticalTextAlignment="Center"/>
+                                        <Label Text="Pending Pickup" FontSize="15" FontAttributes="Bold"
+                                               TextColor="#86198f" VerticalOptions="Center"/>
+                                    </HorizontalStackLayout>
+                                </Border>
+                            </Grid>
+
+                            <!-- Return reasons -->
+                            <VerticalStackLayout x:Name="ReturnReasonsSection" Spacing="8">
+                                <Label Text="SELECT REASON FOR RETURN"
+                                       FontSize="11" FontAttributes="Bold"
+                                       TextColor="#9ca3af"
+                                       CharacterSpacing="0.5"/>
+                                <FlexLayout x:Name="ReturnReasonChips"
+                                            Wrap="Wrap"
+                                            JustifyContent="Start"
+                                            AlignItems="Center"
+                                            Direction="Row"/>
+                            </VerticalStackLayout>
+
+                            <!-- Pickup reasons -->
+                            <VerticalStackLayout x:Name="PickupReasonsSection" IsVisible="False" Spacing="8">
+                                <Label Text="SELECT REASON FOR PENDING PICKUP"
+                                       FontSize="11" FontAttributes="Bold"
+                                       TextColor="#9ca3af"
+                                       CharacterSpacing="0.5"/>
+                                <FlexLayout x:Name="PickupReasonChips"
+                                            Wrap="Wrap"
+                                            JustifyContent="Start"
+                                            AlignItems="Center"
+                                            Direction="Row"/>
+                            </VerticalStackLayout>
+
+                            <!-- Notes -->
+                            <VerticalStackLayout Spacing="6">
+                                <Label Text="NOTES (OPTIONAL)"
+                                       FontSize="11" FontAttributes="Bold"
+                                       TextColor="#9ca3af"
+                                       CharacterSpacing="0.5"/>
+                                <Editor x:Name="ReturnsNotesEditor"
+                                        Placeholder="Additional details..."
+                                        HeightRequest="60"
+                                        FontSize="13"/>
+                            </VerticalStackLayout>
+
+                            <!-- Action buttons -->
+                            <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                                <Button x:Name="ConfirmReturnBtn"
+                                        Text="✕ Confirm Return"
+                                        BackgroundColor="#dc2626"
+                                        TextColor="White"
+                                        FontSize="14" FontAttributes="Bold"
+                                        CornerRadius="6"
+                                        Padding="16,10"
+                                        Clicked="OnConfirmReturn"/>
+                                <Button Text="Skip →"
+                                        BackgroundColor="#f3f4f6"
+                                        TextColor="#374151"
+                                        FontSize="13" FontAttributes="Bold"
+                                        CornerRadius="6"
+                                        Padding="16,10"
+                                        Clicked="OnSkipReturn"/>
+                                <Label Text=""
+                                       FontSize="11" TextColor="#6b7280"
+                                       VerticalOptions="Center"
+                                       HorizontalOptions="EndAndExpand">
+                                    <Label.FormattedText>
+                                        <FormattedString>
+                                            <Span Text="Enter" FontAttributes="Bold" FontFamily="Consolas" BackgroundColor="#e5e7eb"/>
+                                            <Span Text=" confirm · "/>
+                                            <Span Text="Esc" FontAttributes="Bold" FontFamily="Consolas" BackgroundColor="#e5e7eb"/>
+                                            <Span Text=" skip"/>
+                                        </FormattedString>
+                                    </Label.FormattedText>
+                                </Label>
+                            </HorizontalStackLayout>
+
+                        </VerticalStackLayout>
+                    </Border>
+                </VerticalStackLayout>
+
             </VerticalStackLayout>
         </ScrollView>
 
@@ -2415,7 +2570,9 @@
                 StrokeThickness="1"
                 Padding="16,6">
             <Grid ColumnDefinitions="*, Auto, Auto">
-                <HorizontalStackLayout Grid.Column="0"
+                <!-- QC mode shortcuts -->
+                <HorizontalStackLayout x:Name="QcShortcuts"
+                                       Grid.Column="0"
                                        Spacing="20"
                                        VerticalOptions="Center">
                     <HorizontalStackLayout Spacing="4">
@@ -2537,6 +2694,55 @@
                                FontSize="10"
                                TextColor="#6b7280"
                                VerticalOptions="Center"/>
+                    </HorizontalStackLayout>
+                </HorizontalStackLayout>
+                <!-- Returns mode shortcuts -->
+                <HorizontalStackLayout x:Name="ReturnsShortcuts"
+                                       IsVisible="False"
+                                       Grid.Column="0"
+                                       Spacing="20"
+                                       VerticalOptions="Center">
+                    <HorizontalStackLayout Spacing="4">
+                        <Border BackgroundColor="#e5e7eb" StrokeShape="RoundRectangle 3" Padding="4,2" Stroke="Transparent">
+                            <Label Text="R" FontSize="10" FontAttributes="Bold" TextColor="#374151"/>
+                        </Border>
+                        <Label Text="return" FontSize="10" TextColor="#6b7280" VerticalOptions="Center"/>
+                    </HorizontalStackLayout>
+                    <HorizontalStackLayout Spacing="4">
+                        <Border BackgroundColor="#e5e7eb" StrokeShape="RoundRectangle 3" Padding="4,2" Stroke="Transparent">
+                            <Label Text="P" FontSize="10" FontAttributes="Bold" TextColor="#374151"/>
+                        </Border>
+                        <Label Text="pending pickup" FontSize="10" TextColor="#6b7280" VerticalOptions="Center"/>
+                    </HorizontalStackLayout>
+                    <HorizontalStackLayout Spacing="4">
+                        <Border BackgroundColor="#e5e7eb" StrokeShape="RoundRectangle 3" Padding="4,2" Stroke="Transparent">
+                            <Label Text="1-5" FontSize="10" FontAttributes="Bold" TextColor="#374151"/>
+                        </Border>
+                        <Label Text="select reason" FontSize="10" TextColor="#6b7280" VerticalOptions="Center"/>
+                    </HorizontalStackLayout>
+                    <HorizontalStackLayout Spacing="4">
+                        <Border BackgroundColor="#e5e7eb" StrokeShape="RoundRectangle 3" Padding="4,2" Stroke="Transparent">
+                            <Label Text="Enter" FontSize="10" FontAttributes="Bold" TextColor="#374151"/>
+                        </Border>
+                        <Label Text="confirm" FontSize="10" TextColor="#6b7280" VerticalOptions="Center"/>
+                    </HorizontalStackLayout>
+                    <HorizontalStackLayout Spacing="4">
+                        <Border BackgroundColor="#e5e7eb" StrokeShape="RoundRectangle 3" Padding="4,2" Stroke="Transparent">
+                            <Label Text="Esc" FontSize="10" FontAttributes="Bold" TextColor="#374151"/>
+                        </Border>
+                        <Label Text="skip" FontSize="10" TextColor="#6b7280" VerticalOptions="Center"/>
+                    </HorizontalStackLayout>
+                    <HorizontalStackLayout Spacing="4">
+                        <Border BackgroundColor="#e5e7eb" StrokeShape="RoundRectangle 3" Padding="4,2" Stroke="Transparent">
+                            <Label Text="&#x2190;&#x2192;" FontSize="10" FontAttributes="Bold" TextColor="#374151"/>
+                        </Border>
+                        <Label Text="history" FontSize="10" TextColor="#6b7280" VerticalOptions="Center"/>
+                    </HorizontalStackLayout>
+                    <HorizontalStackLayout Spacing="4">
+                        <Border BackgroundColor="#e5e7eb" StrokeShape="RoundRectangle 3" Padding="4,2" Stroke="Transparent">
+                            <Label Text="/" FontSize="10" FontAttributes="Bold" TextColor="#374151"/>
+                        </Border>
+                        <Label Text="search" FontSize="10" TextColor="#6b7280" VerticalOptions="Center"/>
                     </HorizontalStackLayout>
                 </HorizontalStackLayout>
                 <Label x:Name="StatusLabel"

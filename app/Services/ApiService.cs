@@ -64,6 +64,22 @@ public static class ApiService
         }
     }
 
+    public static async Task<(string? FirstName, int? Id)> GetOperatorInfoAsync(string staffCode)
+    {
+        try
+        {
+            var resp = await Http.GetAsync($"operator-lists/by-staff-code/{Uri.EscapeDataString(staffCode)}");
+            if (!resp.IsSuccessStatusCode) return (null, null);
+            var node = await resp.Content.ReadFromJsonAsync<JsonNode>(JsonOpts);
+            return (node?["firstName"]?.GetValue<string>(), node?["id"]?.GetValue<int>());
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.GetOperatorInfoAsync: {ex.Message}");
+            return (null, null);
+        }
+    }
+
     // ── Station resolution ────────────────────────────────────────────────────
 
     /// <summary>
@@ -467,6 +483,63 @@ public static class ApiService
         {
             Logger.Log($"ApiService.EnrichProductsAsync: {ex.Message}");
             return [];
+        }
+    }
+
+    // ── Returns ──────────────────────────────────────────────────────────────
+
+    public static async Task<bool> CreateReturnRecordAsync(
+        string trackingNumber, string recordType, string? reason,
+        string? notes, string? shippingOptions, string? platform,
+        int? operatorId, int? stationId)
+    {
+        try
+        {
+            var body = new { trackingNumber, recordType, reason, notes, shippingOptions, platform, operatorId, stationId };
+            var resp = await Http.PostAsJsonAsync("returns", body, JsonOpts);
+            if (!resp.IsSuccessStatusCode)
+                Logger.Log($"ApiService.CreateReturnRecordAsync: HTTP {(int)resp.StatusCode}");
+            return resp.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.CreateReturnRecordAsync: {ex.Message}");
+            return false;
+        }
+    }
+
+    public static async Task<bool> UpsertCarrierParcelCountAsync(string shippingOptions, int actualCount, int? operatorId)
+    {
+        try
+        {
+            var body = new { shippingOptions, actualCount, operatorId };
+            var json = JsonSerializer.Serialize(body, JsonOpts);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var resp = await Http.PutAsync("returns/carrier-counts", content);
+            if (!resp.IsSuccessStatusCode)
+                Logger.Log($"ApiService.UpsertCarrierParcelCountAsync: HTTP {(int)resp.StatusCode}");
+            return resp.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.UpsertCarrierParcelCountAsync: {ex.Message}");
+            return false;
+        }
+    }
+
+    public static async Task<bool> BackfillExpectedCarrierCountsAsync()
+    {
+        try
+        {
+            var resp = await Http.PostAsync("returns/carrier-counts/backfill", null);
+            if (!resp.IsSuccessStatusCode)
+                Logger.Log($"ApiService.BackfillExpectedCarrierCountsAsync: HTTP {(int)resp.StatusCode}");
+            return resp.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.BackfillExpectedCarrierCountsAsync: {ex.Message}");
+            return false;
         }
     }
 

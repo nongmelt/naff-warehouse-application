@@ -17,7 +17,7 @@ namespace app.Views;
 [SupportedOSPlatform("windows")]
 public partial class OrderSearchPage : ContentPage
 {
-    private enum AppMode { QC }
+    private enum AppMode { QC, Returns }
 
     private record ComPortEntry(string PortName, string DisplayName);
 
@@ -29,6 +29,13 @@ public partial class OrderSearchPage : ContentPage
     private IDispatcherTimer? _comHeartbeatTimer;
     private long _lastSerialDataTicks;
     private int _historyNavIndex = -1;
+
+    // Returns mode state
+    private string _returnsActionType = "return";
+    private string? _selectedReturnReason;
+    private int? _currentOperatorId;
+    private readonly string[] _returnReasons = ["Customer request", "Damaged package", "Duplicate order", "Wrong product", "Other"];
+    private readonly string[] _pickupReasons = ["Full capacity", "Carrier no-show", "Incomplete paperwork", "Other"];
 
     // Search-session navigation (back / forward through previous scans)
     private record SearchSession(string Query, List<PackingList> Data);
@@ -406,6 +413,7 @@ public partial class OrderSearchPage : ContentPage
                             var logoutName = _currentOperatorFirstName ?? line;
                             _currentOperator = null;
                             _currentOperatorFirstName = null;
+                            _currentOperatorId = null;
                             StopInactivityTimer();
                             Services.StationWsClient.SendOperatorLogout();
                             UpdateNavOperatorUI(null);
@@ -418,6 +426,7 @@ public partial class OrderSearchPage : ContentPage
                         {
                             _currentOperator = line;
                             _currentOperatorFirstName = null;
+                            _currentOperatorId = null;
                             StartInactivityTimer();
                             Services.StationWsClient.SendOperatorLogin(line, Services.SessionKind.QC);
                             UpdateNavOperatorUI(line);
@@ -426,13 +435,13 @@ public partial class OrderSearchPage : ContentPage
                             Logger.Log($"OrderSearch: Operator logged in — {line}");
                             _ = Task.Run(async () =>
                             {
-                                var firstName = await ApiService.GetOperatorFirstNameAsync(line);
+                                var (firstName, operatorId) = await ApiService.GetOperatorInfoAsync(line);
                                 if (firstName is null || _currentOperator != line) return;
                                 _currentOperatorFirstName = firstName;
+                                _currentOperatorId = operatorId;
                                 MainThread.BeginInvokeOnMainThread(() =>
                                 {
                                     UpdateNavOperatorUI(firstName);
-                                    // Update banner if animation still running
                                     if (WelcomeBanner.IsVisible)
                                         WelcomeLabel.Text = $"Welcome, {firstName}";
                                 });
@@ -3204,6 +3213,47 @@ public partial class OrderSearchPage : ContentPage
             return;
         }
 
+        // Returns mode keyboard shortcuts
+        if (_currentMode == AppMode.Returns)
+        {
+            if (e.Key == Windows.System.VirtualKey.R)
+            {
+                OnSelectReturnType(null, EventArgs.Empty);
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Windows.System.VirtualKey.P)
+            {
+                OnSelectPendingPickupType(null, EventArgs.Empty);
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Windows.System.VirtualKey.Enter && _selectedReturnReason is not null)
+            {
+                OnConfirmReturn(null, EventArgs.Empty);
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Windows.System.VirtualKey.Escape)
+            {
+                OnSkipReturn(null, EventArgs.Empty);
+                e.Handled = true;
+                return;
+            }
+            if (e.Key >= Windows.System.VirtualKey.Number1 && e.Key <= Windows.System.VirtualKey.Number5)
+            {
+                var idx = (int)e.Key - (int)Windows.System.VirtualKey.Number1;
+                var reasons = _returnsActionType == "return" ? _returnReasons : _pickupReasons;
+                if (idx < reasons.Length)
+                {
+                    _selectedReturnReason = reasons[idx];
+                    BuildReturnReasonChips();
+                }
+                e.Handled = true;
+                return;
+            }
+        }
+
         // Enter → apply pending qty (entry always shows target verified count)
         if (e.Key == Windows.System.VirtualKey.Enter)
         {
@@ -3803,9 +3853,16 @@ public partial class OrderSearchPage : ContentPage
         ModeDropdownBackdrop.IsVisible = false;
     }
 
+    private void OnModeSelectReturns(object? sender, EventArgs e)
+    {
+        ModeDropdownBackdrop.IsVisible = false;
+        ApplyMode(AppMode.Returns);
+    }
+
     private static string GetModeDisplayName(AppMode mode) => mode switch
     {
         AppMode.QC => "QC",
+        AppMode.Returns => "Returns",
         _ => mode.ToString(),
     };
 
@@ -3815,7 +3872,159 @@ public partial class OrderSearchPage : ContentPage
         MainThread.BeginInvokeOnMainThread(() =>
         {
             ModeLabel.Text = GetModeDisplayName(mode);
+
+            bool isReturns = mode == AppMode.Returns;
+            ReturnsActionForm.IsVisible = isReturns;
+            QcShortcuts.IsVisible = !isReturns;
+            ReturnsShortcuts.IsVisible = isReturns;
+
+            if (isReturns)
+                OnSelectReturnType(null, EventArgs.Empty);
         });
+    }
+
+    // ── Returns Mode ──────────────────────────────────────────────────────
+
+    private void OnSelectReturnType(object? sender, EventArgs e)
+    {
+        _returnsActionType = "return";
+        _selectedReturnReason = null;
+
+        BtnReturn.Stroke = Color.FromArgb("#dc2626");
+        BtnReturn.StrokeThickness = 2;
+        BtnReturn.BackgroundColor = Color.FromArgb("#fef2f2");
+        BtnPendingPickup.Stroke = Color.FromArgb("#e5e7eb");
+        BtnPendingPickup.StrokeThickness = 1;
+        BtnPendingPickup.BackgroundColor = Colors.Transparent;
+
+        ReturnsFormIcon.BackgroundColor = Color.FromArgb("#dc2626");
+        ReturnsFormIconLabel.Text = "✕";
+        ReturnsFormTitle.Text = "Return Details";
+        ConfirmReturnBtn.Text = "✕ Confirm Return";
+        ConfirmReturnBtn.BackgroundColor = Color.FromArgb("#dc2626");
+
+        ReturnReasonsSection.IsVisible = true;
+        PickupReasonsSection.IsVisible = false;
+        BuildReturnReasonChips();
+    }
+
+    private void OnSelectPendingPickupType(object? sender, EventArgs e)
+    {
+        _returnsActionType = "pending_pickup";
+        _selectedReturnReason = null;
+
+        BtnReturn.Stroke = Color.FromArgb("#e5e7eb");
+        BtnReturn.StrokeThickness = 1;
+        BtnReturn.BackgroundColor = Colors.Transparent;
+        BtnPendingPickup.Stroke = Color.FromArgb("#a21caf");
+        BtnPendingPickup.StrokeThickness = 2;
+        BtnPendingPickup.BackgroundColor = Color.FromArgb("#fdf4ff");
+
+        ReturnsFormIcon.BackgroundColor = Color.FromArgb("#a21caf");
+        ReturnsFormIconLabel.Text = "⏳";
+        ReturnsFormTitle.Text = "Pending Pickup";
+        ConfirmReturnBtn.Text = "⏳ Mark Pending Pickup";
+        ConfirmReturnBtn.BackgroundColor = Color.FromArgb("#a21caf");
+
+        ReturnReasonsSection.IsVisible = false;
+        PickupReasonsSection.IsVisible = true;
+        BuildReturnReasonChips();
+    }
+
+    private void BuildReturnReasonChips()
+    {
+        var container = _returnsActionType == "return" ? ReturnReasonChips : PickupReasonChips;
+        container.Children.Clear();
+        var reasons = _returnsActionType == "return" ? _returnReasons : _pickupReasons;
+
+        foreach (var reason in reasons)
+        {
+            var isSelected = reason == _selectedReturnReason;
+            var chip = new Border
+            {
+                BackgroundColor = isSelected
+                    ? (_returnsActionType == "return" ? Color.FromArgb("#fef2f2") : Color.FromArgb("#fdf4ff"))
+                    : Colors.White,
+                Stroke = isSelected
+                    ? (_returnsActionType == "return" ? Color.FromArgb("#dc2626") : Color.FromArgb("#a21caf"))
+                    : Color.FromArgb("#e5e7eb"),
+                StrokeThickness = isSelected ? 2 : 1,
+                StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(6) },
+                Padding = new Thickness(12, 8),
+                Margin = new Thickness(0, 0, 8, 8),
+            };
+
+            var label = new Label
+            {
+                Text = reason,
+                FontSize = 13,
+                FontAttributes = isSelected ? FontAttributes.Bold : FontAttributes.None,
+                TextColor = isSelected
+                    ? (_returnsActionType == "return" ? Color.FromArgb("#991b1b") : Color.FromArgb("#86198f"))
+                    : Color.FromArgb("#374151"),
+            };
+
+            chip.Content = label;
+            var capturedReason = reason;
+            chip.GestureRecognizers.Add(new TapGestureRecognizer
+            {
+                Command = new Command(() =>
+                {
+                    _selectedReturnReason = capturedReason;
+                    BuildReturnReasonChips();
+                }),
+            });
+
+            container.Children.Add(chip);
+        }
+    }
+
+    private async void OnConfirmReturn(object? sender, EventArgs e)
+    {
+        if (_selectedReturnReason is null) return;
+        var order = Results.FirstOrDefault();
+        if (order is null) return;
+        var trackingNumber = CurrentTrackingNumber;
+        if (trackingNumber is null) return;
+
+        ConfirmReturnBtn.IsEnabled = false;
+        var success = await ApiService.CreateReturnRecordAsync(
+            trackingNumber, _returnsActionType, _selectedReturnReason,
+            ReturnsNotesEditor.Text, order.ShippingOptions, order.Platform,
+            _currentOperatorId, AppSettings.ResolvedStationId);
+        ConfirmReturnBtn.IsEnabled = true;
+
+        if (success)
+        {
+            StationEvents.Emit(
+                workflowName: "Returns",
+                stepId: "return_recorded",
+                trigger: "confirm_button",
+                trackingNumber: trackingNumber,
+                fromState: "order-loaded",
+                toState: _returnsActionType == "return" ? "returned" : "pending-pickup",
+                stationId: AppSettings.ResolvedStationId,
+                @operator: EffectiveOperator,
+                sequenceInSession: 0,
+                payload: new Dictionary<string, object?>
+                {
+                    ["recordType"] = _returnsActionType,
+                    ["reason"] = _selectedReturnReason,
+                    ["shippingOptions"] = order.ShippingOptions,
+                    ["platform"] = order.Platform,
+                });
+
+            _selectedReturnReason = null;
+            ReturnsNotesEditor.Text = "";
+            BuildReturnReasonChips();
+        }
+    }
+
+    private void OnSkipReturn(object? sender, EventArgs e)
+    {
+        _selectedReturnReason = null;
+        ReturnsNotesEditor.Text = "";
+        BuildReturnReasonChips();
     }
 
     private void OnSearchBoxTapped(object? sender, TappedEventArgs e)
@@ -3956,6 +4165,7 @@ public partial class OrderSearchPage : ContentPage
         var displayName = _currentOperatorFirstName ?? _currentOperator;
         _currentOperator = null;
         _currentOperatorFirstName = null;
+        _currentOperatorId = null;
         StopInactivityTimer();
         Services.StationWsClient.SendOperatorLogout();
         UpdateNavOperatorUI(null);
