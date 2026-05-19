@@ -594,6 +594,60 @@
                                        VerticalOptions="Center"/>
                             </HorizontalStackLayout>
                         </Border>
+                        <!-- Red: Returned (Returns mode) -->
+                        <Border x:Name="ReturnsReturnedBadge"
+                                IsVisible="False"
+                                BackgroundColor="#fef2f2"
+                                Stroke="#fecaca"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 4"
+                                Padding="8,4">
+                            <HorizontalStackLayout Spacing="4"
+                                                   VerticalOptions="Center">
+                                <BoxView WidthRequest="6"
+                                         HeightRequest="6"
+                                         Color="#dc2626"
+                                         CornerRadius="3"
+                                         VerticalOptions="Center"/>
+                                <Label x:Name="ReturnsReturnedLabel"
+                                       Text="0"
+                                       FontSize="12"
+                                       FontAttributes="Bold"
+                                       TextColor="#991b1b"
+                                       VerticalOptions="Center"/>
+                                <Label Text="Returned"
+                                       FontSize="10"
+                                       TextColor="#6b7280"
+                                       VerticalOptions="Center"/>
+                            </HorizontalStackLayout>
+                        </Border>
+                        <!-- Purple: Pending Pickup (Returns mode) -->
+                        <Border x:Name="ReturnsPendingBadge"
+                                IsVisible="False"
+                                BackgroundColor="#fdf4ff"
+                                Stroke="#e9d5ff"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 4"
+                                Padding="8,4">
+                            <HorizontalStackLayout Spacing="4"
+                                                   VerticalOptions="Center">
+                                <BoxView WidthRequest="6"
+                                         HeightRequest="6"
+                                         Color="#a21caf"
+                                         CornerRadius="3"
+                                         VerticalOptions="Center"/>
+                                <Label x:Name="ReturnsPendingLabel"
+                                       Text="0"
+                                       FontSize="12"
+                                       FontAttributes="Bold"
+                                       TextColor="#86198f"
+                                       VerticalOptions="Center"/>
+                                <Label Text="Pending"
+                                       FontSize="10"
+                                       TextColor="#6b7280"
+                                       VerticalOptions="Center"/>
+                            </HorizontalStackLayout>
+                        </Border>
                     </HorizontalStackLayout>
 
                     <!-- Vertical divider -->
@@ -761,6 +815,33 @@
                                            Spacing="4"
                                            VerticalOptions="Center"
                                            HorizontalOptions="End">
+                        <!-- Carrier pill (Returns mode) -->
+                        <Border x:Name="TrackingCarrierPill"
+                                IsVisible="False"
+                                BackgroundColor="#fff7ed"
+                                Stroke="#fed7aa"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 4"
+                                Padding="10,3">
+                            <HorizontalStackLayout Spacing="5">
+                                <Border x:Name="TrackingCarrierDot"
+                                        BackgroundColor="#ea580c"
+                                        StrokeThickness="0"
+                                        StrokeShape="RoundRectangle 3"
+                                        WidthRequest="14" HeightRequest="14">
+                                    <Label x:Name="TrackingCarrierDotLabel"
+                                           Text="?" FontSize="8" FontAttributes="Bold"
+                                           TextColor="White"
+                                           HorizontalTextAlignment="Center"
+                                           VerticalTextAlignment="Center"/>
+                                </Border>
+                                <Label x:Name="TrackingCarrierLabel"
+                                       Text=""
+                                       FontSize="11" FontAttributes="Bold"
+                                       TextColor="#c2410c"
+                                       VerticalOptions="Center"/>
+                            </HorizontalStackLayout>
+                        </Border>
                         <Border BackgroundColor="{Binding CurrentOrder.StatusBgColor}"
                                 Stroke="Transparent"
                                 StrokeShape="RoundRectangle 4"

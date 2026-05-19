@@ -3877,9 +3877,21 @@ public partial class OrderSearchPage : ContentPage
             ReturnsActionForm.IsVisible = isReturns;
             QcShortcuts.IsVisible = !isReturns;
             ReturnsShortcuts.IsVisible = isReturns;
+            if (!isReturns)
+                TrackingCarrierPill.IsVisible = false;
+
+            // Toggle stat pills
+            SessionCompletedBadge.IsVisible = !isReturns;
+            SessionIncompleteBadge.IsVisible = !isReturns;
+            SessionIncomingBadge.IsVisible = !isReturns;
+            ReturnsReturnedBadge.IsVisible = isReturns;
+            ReturnsPendingBadge.IsVisible = isReturns;
 
             if (isReturns)
+            {
                 OnSelectReturnType(null, EventArgs.Empty);
+                UpdateHeaderOrderInfo();
+            }
         });
     }
 
@@ -4109,6 +4121,16 @@ public partial class OrderSearchPage : ContentPage
             var hasVerified = Results.Any(o => o.HasProducts && o.ParsedProducts.Any(p => p.Quantity != p.OriginalQuantity));
             var isHold = string.Equals(order.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase);
             ResetButton.IsVisible = !isQcPassed && (hasVerified || isHold);
+
+            // Carrier pill — visible in Returns mode when shipping_options exists
+            var carrier = order.ShippingOptions;
+            var showCarrier = _currentMode == AppMode.Returns && !string.IsNullOrWhiteSpace(carrier);
+            TrackingCarrierPill.IsVisible = showCarrier;
+            if (showCarrier)
+            {
+                TrackingCarrierLabel.Text = carrier;
+                TrackingCarrierDotLabel.Text = carrier![..1].ToUpperInvariant();
+            }
         });
     }
 
