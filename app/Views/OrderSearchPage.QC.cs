@@ -285,7 +285,7 @@ public partial class OrderSearchPage
 
         if (owner != null && string.IsNullOrWhiteSpace(owner.CheckedBy))
         {
-            owner.CheckedBy = EffectiveOperator;
+            owner.CheckedBy = _currentOperatorFirstName ?? EffectiveOperator;
             UpdateHeaderOrderInfo();
         }
 
@@ -345,7 +345,7 @@ public partial class OrderSearchPage
 
         if (owner != null && string.IsNullOrWhiteSpace(owner.CheckedBy))
         {
-            owner.CheckedBy = EffectiveOperator;
+            owner.CheckedBy = _currentOperatorFirstName ?? EffectiveOperator;
             UpdateHeaderOrderInfo();
         }
 
@@ -810,7 +810,7 @@ public partial class OrderSearchPage
             if (ok)
             {
                 order.PackingStatus = "QC Passed";
-                order.CheckedBy = EffectiveOperator;
+                order.CheckedBy = _currentOperatorFirstName ?? EffectiveOperator;
                 order.UpdatedAt = now;
                 order.CheckedAt = now;
                 foreach (var p in order.ParsedProducts)

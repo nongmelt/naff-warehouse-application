@@ -74,6 +74,8 @@ public partial class OrderSearchPage
         foreach (var r in rows) { Results.Add(r); ActiveResults.Add(r); }
         UpdateHeaderOrderInfo();
 
+        _ = ResolveOperatorNicknamesAsync(rows);
+
         // Returns mode: toggle empty → loaded state
         if (_currentMode == AppMode.Returns)
         {
@@ -646,6 +648,34 @@ public partial class OrderSearchPage
         if (CurrentOrder == null) return;
         var fakeEl = new Label { BindingContext = CurrentOrder };
         OnResetClicked(fakeEl, EventArgs.Empty);
+    }
+
+    // ── Operator nickname resolution ────────────────────────────────────────
+
+    private async Task ResolveOperatorNicknamesAsync(IReadOnlyList<PackingList> rows)
+    {
+        var codes = rows
+            .SelectMany(r => new[] { r.PackedBy, r.CheckedBy })
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        foreach (var code in codes)
+        {
+            var nickname = await ApiService.ResolveOperatorNicknameAsync(code);
+            if (nickname is null || nickname == code) continue;
+
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                foreach (var r in rows)
+                {
+                    if (string.Equals(r.PackedBy, code, StringComparison.OrdinalIgnoreCase))
+                        r.PackedBy = nickname;
+                    if (string.Equals(r.CheckedBy, code, StringComparison.OrdinalIgnoreCase))
+                        r.CheckedBy = nickname;
+                }
+            });
+        }
     }
 
     // ── Search status ─────────────────────────────────────────────────────────

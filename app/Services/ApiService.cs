@@ -55,7 +55,8 @@ public static class ApiService
             var resp = await Http.GetAsync($"operator-lists/by-staff-code/{Uri.EscapeDataString(staffCode)}");
             if (!resp.IsSuccessStatusCode) return null;
             var node = await resp.Content.ReadFromJsonAsync<JsonNode>(JsonOpts);
-            return node?["firstName"]?.GetValue<string>();
+            return node?["nickname"]?.GetValue<string>()
+                ?? node?["firstName"]?.GetValue<string>();
         }
         catch (Exception ex)
         {
@@ -71,13 +72,26 @@ public static class ApiService
             var resp = await Http.GetAsync($"operator-lists/by-staff-code/{Uri.EscapeDataString(staffCode)}");
             if (!resp.IsSuccessStatusCode) return (null, null);
             var node = await resp.Content.ReadFromJsonAsync<JsonNode>(JsonOpts);
-            return (node?["firstName"]?.GetValue<string>(), node?["id"]?.GetValue<int>());
+            var name = node?["nickname"]?.GetValue<string>()
+                    ?? node?["firstName"]?.GetValue<string>();
+            return (name, node?["id"]?.GetValue<int>());
         }
         catch (Exception ex)
         {
             Logger.Log($"ApiService.GetOperatorInfoAsync: {ex.Message}");
             return (null, null);
         }
+    }
+
+    private static readonly Dictionary<string, string?> _nicknameCache = new(StringComparer.OrdinalIgnoreCase);
+
+    public static async Task<string?> ResolveOperatorNicknameAsync(string? staffCode)
+    {
+        if (string.IsNullOrWhiteSpace(staffCode)) return null;
+        if (_nicknameCache.TryGetValue(staffCode, out var cached)) return cached;
+        var name = await GetOperatorFirstNameAsync(staffCode);
+        _nicknameCache[staffCode] = name;
+        return name;
     }
 
     // ── Station resolution ────────────────────────────────────────────────────
