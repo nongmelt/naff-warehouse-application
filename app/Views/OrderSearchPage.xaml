@@ -834,7 +834,7 @@
                                                  Margin="0,16,0,0">
 
                                 <!-- Table header (8-col: strip, #, img, product, variation, sku, note, qty) -->
-                                <Grid ColumnDefinitions="4, 50, 80, *, 120, 110, 160"
+                                <Grid ColumnDefinitions="4, 50, 120, *, 140, 160, 110"
                                       ColumnSpacing="0"
                                       Padding="0,8,20,4"
                                       Margin="0,8,0,0">
@@ -893,7 +893,7 @@
                                                     <TapGestureRecognizer Tapped="OnProductRowTapped"/>
                                                 </Border.GestureRecognizers>
 
-                                                <Grid ColumnDefinitions="4, 50, 80, *, 120, 110, 160"
+                                                <Grid ColumnDefinitions="4, 50, 120, *, 140, 160, 110"
                                                       MinimumHeightRequest="56"
                                                       Padding="0,4,16,4">
 
@@ -1024,6 +1024,12 @@
                                                                      CornerRadius="4"
                                                                      Color="{Binding SwatchColor}"
                                                                      VerticalOptions="Center"/>
+                                                            <BoxView IsVisible="{Binding HasSwatch2}"
+                                                                     WidthRequest="14"
+                                                                     HeightRequest="14"
+                                                                     CornerRadius="4"
+                                                                     Color="{Binding SwatchColor2}"
+                                                                     VerticalOptions="Center"/>
                                                             <Label Text="{Binding Variation}"
                                                                    TextColor="{Binding VariationBadgeTextColor}"
                                                                    FontSize="12"
@@ -1047,8 +1053,7 @@
                                                                FontSize="12"
                                                                FontAttributes="Bold"
                                                                TextColor="#c2410c"
-                                                               LineBreakMode="TailTruncation"
-                                                               MaximumWidthRequest="100"/>
+                                                               LineBreakMode="TailTruncation"/>
                                                     </Border>
                                                     <Label Grid.Column="5"
                                                            IsVisible="{Binding HasNoQcNotes}"
@@ -1106,7 +1111,7 @@
                                                 <Border.GestureRecognizers>
                                                     <TapGestureRecognizer Tapped="OnProductRowTapped"/>
                                                 </Border.GestureRecognizers>
-                                                <Grid ColumnDefinitions="4, 50, 80, *, 120, 110, 160"
+                                                <Grid ColumnDefinitions="4, 50, 120, *, 140, 160, 110"
                                                       MinimumHeightRequest="68"
                                                       Padding="0,4,16,4">
 
@@ -1255,6 +1260,12 @@
                                                                      CornerRadius="4"
                                                                      Color="{Binding SwatchColor}"
                                                                      VerticalOptions="Center"/>
+                                                            <BoxView IsVisible="{Binding HasSwatch2}"
+                                                                     WidthRequest="14"
+                                                                     HeightRequest="14"
+                                                                     CornerRadius="4"
+                                                                     Color="{Binding SwatchColor2}"
+                                                                     VerticalOptions="Center"/>
                                                             <Label Text="{Binding Variation}"
                                                                    TextColor="{Binding VariationBadgeTextColor}"
                                                                    FontSize="12"
@@ -1278,8 +1289,7 @@
                                                                FontSize="12"
                                                                FontAttributes="Bold"
                                                                TextColor="#c2410c"
-                                                               LineBreakMode="TailTruncation"
-                                                               MaximumWidthRequest="90"/>
+                                                               LineBreakMode="TailTruncation"/>
                                                     </Border>
                                                     <Label Grid.Column="5"
                                                            IsVisible="{Binding HasNoQcNotes}"
@@ -1338,7 +1348,7 @@
                                                             <Border.GestureRecognizers>
                                                                 <TapGestureRecognizer Tapped="OnComponentRowTapped"/>
                                                             </Border.GestureRecognizers>
-                                                            <Grid ColumnDefinitions="16, 38, 80, *, 120, 110, 160"
+                                                            <Grid ColumnDefinitions="16, 38, 120, *, 140, 160, 110"
                                                                   MinimumHeightRequest="56"
                                                                   Padding="0,4,16,4">
                                                                 <BoxView Grid.Column="0"
@@ -1429,6 +1439,12 @@
                                                                                  CornerRadius="4"
                                                                                  Color="{Binding SwatchColor}"
                                                                                  VerticalOptions="Center"/>
+                                                                        <BoxView IsVisible="{Binding HasSwatch2}"
+                                                                                 WidthRequest="14"
+                                                                                 HeightRequest="14"
+                                                                                 CornerRadius="4"
+                                                                                 Color="{Binding SwatchColor2}"
+                                                                                 VerticalOptions="Center"/>
                                                                         <Label Text="{Binding Variation}"
                                                                                TextColor="{Binding VariationBadgeTextColor}"
                                                                                FontSize="12"
@@ -1451,8 +1467,7 @@
                                                                            FontSize="12"
                                                                            FontAttributes="Bold"
                                                                            TextColor="#c2410c"
-                                                                           LineBreakMode="TailTruncation"
-                                                                           MaximumWidthRequest="90"/>
+                                                                           LineBreakMode="TailTruncation"/>
                                                                 </Border>
                                                                 <Label Grid.Column="5"
                                                                        IsVisible="{Binding HasNoQcNotes}"
@@ -1884,6 +1899,12 @@
                                              CornerRadius="5"
                                              VerticalOptions="Center"
                                              IsVisible="False"/>
+                                    <BoxView x:Name="OverlayVariationSwatch2"
+                                             WidthRequest="18"
+                                             HeightRequest="18"
+                                             CornerRadius="5"
+                                             VerticalOptions="Center"
+                                             IsVisible="False"/>
                                     <Label x:Name="OverlayVariationLabel"
                                            FontSize="15"
                                            FontAttributes="Bold"
@@ -1894,7 +1915,8 @@
                         </VerticalStackLayout>
 
                         <!-- QC Notes -->
-                        <VerticalStackLayout Spacing="4">
+                        <VerticalStackLayout Spacing="4"
+                                             VerticalOptions="FillAndExpand">
                             <Label Text="QC NOTES"
                                    FontSize="12"
                                    FontAttributes="Bold"
@@ -1906,12 +1928,17 @@
                                     StrokeThickness="0"
                                     StrokeShape="RoundRectangle 6"
                                     Padding="12,8"
-                                    HorizontalOptions="Fill">
+                                    HorizontalOptions="Fill"
+                                    VerticalOptions="FillAndExpand">
                                 <Label x:Name="OverlayNotesLabel"
                                        Text="no notes"
-                                       FontSize="15"
+                                       FontSize="28"
                                        TextColor="#d1d5db"
-                                       FontFamily="Consolas"/>
+                                       FontFamily="Consolas"
+                                       HorizontalTextAlignment="Center"
+                                       VerticalTextAlignment="Center"
+                                       HorizontalOptions="Fill"
+                                       VerticalOptions="FillAndExpand"/>
                             </Border>
                         </VerticalStackLayout>
 

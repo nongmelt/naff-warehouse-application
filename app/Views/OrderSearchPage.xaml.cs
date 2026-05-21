@@ -1212,8 +1212,6 @@ public partial class OrderSearchPage : ContentPage
             OverlayCard.Opacity = 1;
         }
 
-        if (bundleParent.IsBundleFullyVerified)
-            _ = ShowCompletionAndDismiss(bundleParent);
     }
 
     private void RebuildBundleStepDots(ProductItem bundleParent)
@@ -1301,6 +1299,9 @@ public partial class OrderSearchPage : ContentPage
                 }
                 else
                     OverlayVariationSwatch.IsVisible = false;
+                OverlayVariationSwatch2.IsVisible = comp.HasSwatch2;
+                if (comp.HasSwatch2)
+                    OverlayVariationSwatch2.Color = comp.SwatchColor2!;
             }
             else
                 OverlayVariationBorder.IsVisible = false;
@@ -1347,6 +1348,9 @@ public partial class OrderSearchPage : ContentPage
                 }
                 else
                     OverlayVariationSwatch.IsVisible = false;
+                OverlayVariationSwatch2.IsVisible = bundleParent.HasSwatch2;
+                if (bundleParent.HasSwatch2)
+                    OverlayVariationSwatch2.Color = bundleParent.SwatchColor2!;
             }
             else
                 OverlayVariationBorder.IsVisible = false;
@@ -1634,7 +1638,9 @@ public partial class OrderSearchPage : ContentPage
             item.QcNotes = e.QcNotes;
             item.Brand = e.Brand;
             item.AllSkus = e.AllSkus;
-            item.SwatchColor = ColorSwatchHelper.ParseSwatchColor(item.Variation);
+            var (sc1, sc2) = ColorSwatchHelper.ParseSwatchColors(item.Variation);
+            item.SwatchColor = sc1;
+            item.SwatchColor2 = sc2;
 
             if (e.Components.Count > 0)
             {
@@ -1650,7 +1656,8 @@ public partial class OrderSearchPage : ContentPage
                         AllSkus = c.AllSkus,
                         QcNotes = c.QcNotes,
                         SubRowNumber = $"{item.RowNumber}.{idx + 1}",
-                        SwatchColor = ColorSwatchHelper.ParseSwatchColor(c.ProductVariation),
+                        SwatchColor = ColorSwatchHelper.ParseSwatchColors(c.ProductVariation).Item1,
+                        SwatchColor2 = ColorSwatchHelper.ParseSwatchColors(c.ProductVariation).Item2,
                     }));
 
                 if (item.BundleComponentStates is { Count: > 0 })
@@ -1802,7 +1809,8 @@ public partial class OrderSearchPage : ContentPage
                 VerifiedQuantity = 0,
                 QcNotes = c.QcNotes,
                 SubRowNumber = $"{item.RowNumber}.{idx + 1}",
-                SwatchColor = ColorSwatchHelper.ParseSwatchColor(c.ProductVariation),
+                SwatchColor = ColorSwatchHelper.ParseSwatchColors(c.ProductVariation).Item1,
+                SwatchColor2 = ColorSwatchHelper.ParseSwatchColors(c.ProductVariation).Item2,
             }).ToList();
 
             item.BundleComponents = new ObservableCollection<BundleComponentItem>(componentItems);
@@ -1926,6 +1934,9 @@ public partial class OrderSearchPage : ContentPage
             }
             else
                 OverlayVariationSwatch.IsVisible = false;
+            OverlayVariationSwatch2.IsVisible = item.HasSwatch2;
+            if (item.HasSwatch2)
+                OverlayVariationSwatch2.Color = item.SwatchColor2!;
         }
         else
         {
