@@ -1193,101 +1193,6 @@ public partial class OrderSearchPage : ContentPage
             component, bundleParent, order, targetVerified);
     }
 
-    private void OnComponentPlusClicked(object sender, EventArgs e)
-    {
-        if (sender is not Button btn || btn.BindingContext is not BundleComponentItem comp) return;
-        if (comp.IsFullyVerified) return;
-
-        var parent = FindBundleParentForComponent(comp);
-        if (parent == null) return;
-        var order = FindOrderForItem(parent);
-        if (order == null) return;
-        if (IsOrderQcPassed(order)) { UpdateSearchStatus($"Order {order.TrackingNumber} is QC Passed — no changes allowed"); return; }
-
-        comp.VerifiedQuantity++;
-        parent.NotifyBundleProgressChanged();
-
-        if (parent.IsBundleFullyVerified && parent.Quantity > 0)
-            parent.Quantity = 0;
-
-        UpdateSearchStatus(comp.IsFullyVerified
-            ? $"✓ {comp.Name} fully verified ({comp.VerifiedQuantity}/{comp.RequiredQuantity})"
-            : $"{comp.Name} — {comp.VerifiedQuantity}/{comp.RequiredQuantity} verified");
-        Logger.Log($"OrderSearch: component+ '{comp.SellerSku}', now {comp.VerifiedQuantity}/{comp.RequiredQuantity}");
-
-        EmitQcEvent(
-            stepId: "component_card_clicked",
-            trigger: "card_tap_plus",
-            trackingNumber: order.TrackingNumber,
-            fromState: ConsumePickingFromState(),
-            toState: "picking",
-            payload: new Dictionary<string, object?>
-            {
-                ["sku"] = comp.SellerSku,
-                ["componentName"] = comp.Name,
-                ["verified"] = comp.VerifiedQuantity,
-                ["required"] = comp.RequiredQuantity,
-                ["bundleSku"] = parent.SellerSku,
-                ["bundleComplete"] = parent.IsBundleFullyVerified,
-            });
-
-        _ = CheckAndSaveQcStatusAsync();
-
-        if (ProductImageOverlay.IsVisible && _overlayItem == parent)
-        {
-            if (comp.IsFullyVerified)
-                _ = AnimateOverlayComponentCompletion(parent, comp);
-            else
-                ShowBundleOverlay(parent, comp);
-        }
-        else if (comp.IsFullyVerified && ProductImageOverlay.IsVisible)
-        {
-            ShowBundleOverlay(parent, comp);
-            _ = AnimateOverlayComponentCompletion(parent, comp);
-        }
-    }
-
-    private void OnComponentMinusClicked(object sender, EventArgs e)
-    {
-        if (sender is not Button btn || btn.BindingContext is not BundleComponentItem comp) return;
-        if (comp.IsFullyVerified || comp.VerifiedQuantity <= 0) return;
-
-        var parent = FindBundleParentForComponent(comp);
-        if (parent == null) return;
-        var order = FindOrderForItem(parent);
-        if (order == null) return;
-        if (IsOrderQcPassed(order)) { UpdateSearchStatus($"Order {order.TrackingNumber} is QC Passed — no changes allowed"); return; }
-
-        EmitQcEvent(
-            stepId: "component_card_unclicked",
-            trigger: "card_tap_minus",
-            trackingNumber: order.TrackingNumber,
-            fromState: ConsumePickingFromState(),
-            toState: "picking",
-            payload: new Dictionary<string, object?>
-            {
-                ["sku"] = comp.SellerSku,
-                ["componentName"] = comp.Name,
-                ["qtyBefore"] = comp.VerifiedQuantity,
-                ["qtyAfter"] = comp.VerifiedQuantity - 1,
-                ["bundleSku"] = parent.SellerSku,
-            });
-
-        comp.VerifiedQuantity--;
-        parent.NotifyBundleProgressChanged();
-
-        if (!parent.IsBundleFullyVerified && parent.Quantity <= 0)
-            parent.Quantity = parent.RequiredQuantity;
-
-        UpdateSearchStatus($"{comp.Name} — unverified, {comp.VerifiedQuantity}/{comp.RequiredQuantity}");
-        Logger.Log($"OrderSearch: component- '{comp.SellerSku}', now {comp.VerifiedQuantity}/{comp.RequiredQuantity}");
-
-        _ = CheckAndSaveQcStatusAsync();
-
-        if (_overlayItem == parent && ProductImageOverlay.IsVisible)
-            ShowBundleOverlay(parent, comp);
-    }
-
     private void OnComponentRowTapped(object sender, TappedEventArgs e)
     {
         if (sender is not VisualElement ve || ve.BindingContext is not BundleComponentItem comp) return;
@@ -1743,32 +1648,11 @@ public partial class OrderSearchPage : ContentPage
 
     private void OnQuantityTapped(object sender, TappedEventArgs e)
     {
-        if (sender is not VerticalStackLayout layout) return;
-        if (layout.BindingContext is not ProductItem item) return;
-
-        var order = FindOrderForItem(item);
-        if (order == null) return;
-
-        if (IsOrderQcPassed(order)) { UpdateSearchStatus($"Order {order.TrackingNumber} is QC Passed — no changes allowed"); return; }
-        if (item.Quantity <= 0) { UpdateSearchStatus($"{item.SellerSku} — already fully picked"); return; }
-
-        if (_pendingSkuProduct != null && _pendingSkuProduct != item)
-            FlushPendingDeduction();
-
-        SetActiveProduct(item);
-
-        if (item.Quantity == 1)
-        {
-            ApplySkuDeduction(item, "1", DeductionSource.CardTap);
-        }
-        else
-        {
-            item.PickQtyText = "0";
-            item.IsBeingPicked = true;
-            FocusItemEntry(item);
-            var label = item.Name + (item.HasVariation ? $" · {item.Variation}" : "");
-            UpdateSearchStatus($"Matched: {label} — enter qty and press Enter");
-        }
+        ProductItem? item = null;
+        if (sender is VisualElement ve)
+            item = ve.BindingContext as ProductItem;
+        if (item == null) return;
+        ShowProductImageOverlay(item, "qty_tap");
     }
 
     // ── Product enrichment ──────────────────────────────────────────────────
@@ -3991,22 +3875,6 @@ public partial class OrderSearchPage : ContentPage
             item = ve.BindingContext as ProductItem;
         if (item == null || !item.IsBundle) return;
         item.IsBundleExpanded = !item.IsBundleExpanded;
-    }
-
-    // ── +/- button handlers ──────────────────────────────────────────────────
-
-    private void OnPlusClicked(object sender, EventArgs e)
-    {
-        if (sender is not VisualElement el || el.BindingContext is not ProductItem item) return;
-        _ = AnimateCardButtonAsync(item, "+");
-        DoCardPlus(item, DeductionSource.CardTap);
-    }
-
-    private void OnMinusClicked(object sender, EventArgs e)
-    {
-        if (sender is not VisualElement el || el.BindingContext is not ProductItem item) return;
-        _ = AnimateCardButtonAsync(item, "-");
-        DoCardMinus(item, "card_tap_minus");
     }
 
     private void DoCardPlus(ProductItem item, DeductionSource source)
