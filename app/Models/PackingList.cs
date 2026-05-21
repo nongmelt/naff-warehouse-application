@@ -88,6 +88,8 @@ public class BundleComponentItem : INotifyPropertyChanged
         : IsPartiallyVerified ? Color.FromArgb("#f59e0b") : Color.FromArgb("#a78bfa");
     public Color? SwatchColor { get; set; }
     public bool HasSwatch => SwatchColor != null;
+    public Color? SwatchColor2 { get; set; }
+    public bool HasSwatch2 => SwatchColor2 != null;
     public bool HasNoImage => !HasImage;
 
     private ImageSource? _imageSource;
@@ -584,6 +586,15 @@ public class ProductItem : INotifyPropertyChanged
     }
 
     [JsonIgnore] public bool HasSwatch => SwatchColor != null;
+
+    private Color? _swatchColor2;
+    [JsonIgnore] public Color? SwatchColor2
+    {
+        get => _swatchColor2;
+        set { _swatchColor2 = value; OnPropertyChanged(); OnPropertyChanged(nameof(HasSwatch2)); }
+    }
+
+    [JsonIgnore] public bool HasSwatch2 => SwatchColor2 != null;
 
     private string? _localImagePath;
     [JsonIgnore]

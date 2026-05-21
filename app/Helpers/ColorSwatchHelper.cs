@@ -29,6 +29,12 @@ public static class ColorSwatchHelper
         ["ทอง"]       = "#FFD700", ["เงิน"]      = "#C0C0C0", ["กากี"]      = "#C3B091",
         ["มะนาว"]     = "#84CC16", ["พีช"]       = "#FFCBA4", ["แทน"]       = "#D2B48C",
         ["โอลด์โรส"]  = "#C08081", ["เขียวขี้ม้า"] = "#808000", ["บานเย็น"]   = "#FF69B4",
+        // Thai สี-prefixed (matches product variations like "สีดำ", "สีเขียวเข้ม")
+        ["สีดำ"]         = "#000000", ["สีแดง"]       = "#EF4444", ["สีน้ำเงิน"]   = "#0901C3",
+        ["สีชมพู"]       = "#EC4899", ["สีม่วง"]      = "#4C157E", ["สีส้ม"]       = "#F86736",
+        ["สีเหลือง"]     = "#EAB308", ["สีฟ้า"]       = "#139DDC",
+        ["สีเขียวเข้ม"]   = "#12763B", ["สีเขียวอ่อน"]  = "#38CD37",
+        ["สีน้ำตาลเข้ม"]  = "#623938", ["สีน้ำตาลอ่อน"] = "#9A3832",
     };
 
     public static Color? ParseSwatchColor(string? variation)
@@ -48,5 +54,16 @@ public static class ColorSwatchHelper
             return Color.FromArgb(fullHex);
 
         return null;
+    }
+
+    public static (Color?, Color?) ParseSwatchColors(string? variation)
+    {
+        if (string.IsNullOrWhiteSpace(variation)) return (null, null);
+
+        var parts = variation.Split('+');
+        if (parts.Length >= 2)
+            return (ParseSwatchColor(parts[0].Trim()), ParseSwatchColor(parts[1].Trim()));
+
+        return (ParseSwatchColor(variation), null);
     }
 }
