@@ -904,27 +904,6 @@ public partial class OrderSearchPage : ContentPage
         KeyboardPlus,  // user pressed + key on keyboard
     }
 
-    private void OnPickQtyEntryCompleted(object sender, EventArgs e)
-    {
-        if (sender is not Entry entry || entry.BindingContext is not ProductItem item) return;
-        ApplyVerifiedOverride(item, entry.Text);
-    }
-
-    private void OnPickQtyTextChanged(object sender, TextChangedEventArgs e)
-    {
-        if (sender is not Entry entry) return;
-        if (entry.BindingContext is not ProductItem item) return;
-
-        var raw = e.NewTextValue ?? "";
-        var digits = new string(raw.Where(char.IsDigit).ToArray());
-        if (digits != raw) { entry.Text = digits; return; }
-        if (digits.Length > 1 && digits[0] == '0') { entry.Text = digits.TrimStart('0'); return; }
-
-        if (string.IsNullOrEmpty(digits)) return;
-        if (int.TryParse(digits, out var qty) && qty > item.RequiredQuantity)
-            entry.Text = item.RequiredQuantity.ToString();
-    }
-
     private void ApplySkuDeduction(ProductItem item, string? qtyText, DeductionSource source)
     {
         if (!int.TryParse(qtyText?.Trim(), out var qty)) qty = 1;
@@ -1603,20 +1582,6 @@ public partial class OrderSearchPage : ContentPage
             }
             Logger.Log($"OrderSearch: {order.TrackingNumber} → QC Hold ({(ok ? "saved" : "DB failed")})");
         }
-    }
-
-    // ── Focus helper ─────────────────────────────────────────────────────────
-
-    private void FocusItemEntry(ProductItem item)
-    {
-        _ = Dispatcher.DispatchAsync(async () =>
-        {
-            await Task.Delay(80); // allow Entry to become visible after IsBeingPicked = true
-            var entry = FindDescendant<Entry>(this, e => e.BindingContext == item && e.IsVisible);
-            if (entry is null) return;
-            entry.Focus();
-            entry.CursorPosition = entry.Text?.Length ?? 0;
-        });
     }
 
     private static T? FindDescendant<T>(IVisualTreeElement root, Func<T, bool> predicate) where T : VisualElement
@@ -2384,32 +2349,7 @@ public partial class OrderSearchPage : ContentPage
         await AnimateOverlayBtnAsync(OverlayPlusBtn, "#7C5CF0", "#5B31E0");
     }
 
-    private CancellationTokenSource? _cardBtnAnimCts;
     private CancellationTokenSource? _completionDismissCts;
-
-    private async Task AnimateCardButtonAsync(ProductItem item, string buttonText)
-    {
-        _cardBtnAnimCts?.Cancel();
-        var cts = _cardBtnAnimCts = new CancellationTokenSource();
-
-        var btn = FindDescendant<Button>(this, b => b.BindingContext == item && b.Text == buttonText);
-        if (btn == null) return;
-
-        var flash = buttonText == "+" ? Color.FromArgb("#7C5CF0") : Color.FromArgb("#fca5a5");
-        btn.BackgroundColor = flash;
-        btn.Scale = 0.90;
-        try
-        {
-            await Task.Delay(100, cts.Token);
-            btn.Scale = 1.0;
-            btn.BackgroundColor = item.ButtonBgColor;
-        }
-        catch (TaskCanceledException)
-        {
-            btn.Scale = 1.0;
-            btn.BackgroundColor = item.ButtonBgColor;
-        }
-    }
 
     private async void OnOverlayCloseTapped(object sender, TappedEventArgs e)
     {
@@ -3750,73 +3690,6 @@ public partial class OrderSearchPage : ContentPage
         if (item == null || !item.IsBundle) return;
         item.IsBundleExpanded = !item.IsBundleExpanded;
     }
-
-    private void DoCardPlus(ProductItem item, DeductionSource source)
-    {
-        if (item.Quantity <= 0) return;
-
-        var order = FindOrderForItem(item);
-        if (order == null) return;
-        if (IsOrderQcPassed(order)) { UpdateSearchStatus($"Order {order.TrackingNumber} is QC Passed — no changes allowed"); return; }
-
-        if (_pendingSkuProduct != null && _pendingSkuProduct != item)
-            FlushPendingDeduction();
-
-        SetActiveProduct(item);
-        ApplySkuDeduction(item, "1", source);
-
-        if (item.IsFullyPicked && !ProductImageOverlay.IsVisible && !item.IsBundle)
-        {
-            ShowProductImageOverlay(item);
-            _ = ShowCompletionAndDismiss(item);
-        }
-    }
-
-    private void DoCardMinus(ProductItem item, string trigger)
-    {
-        if (item.IsFullyPicked) return;
-        if (item.Quantity >= item.RequiredQuantity) return;
-
-        var order = FindOrderForItem(item);
-        if (order == null) return;
-        if (IsOrderQcPassed(order)) { UpdateSearchStatus($"Order {order.TrackingNumber} is QC Passed — no changes allowed"); return; }
-
-        if (_pendingSkuProduct != null && _pendingSkuProduct != item)
-            FlushPendingDeduction();
-        SetActiveProduct(item);
-
-        EmitQcEvent(
-            stepId: "manual_card_unclicked",
-            trigger: trigger,
-            trackingNumber: order.TrackingNumber,
-            fromState: ConsumePickingFromState(),
-            toState: "picking",
-            payload: new Dictionary<string, object?>
-            {
-                ["sku"] = item.SellerSku,
-                ["qtyBefore"] = item.Quantity,
-                ["qtyAfter"] = item.Quantity + 1,
-            });
-
-        item.Quantity += 1;
-        item.OrderQcContext = item.VerifiedQuantity > 0 ? "QC Hold" : "";
-        UpdateSearchStatus($"{item.SellerSku} — unverified, {item.VerifiedQuantity}/{item.RequiredQuantity}");
-        _ = CheckAndSaveQcStatusAsync();
-    }
-
-    private void SimulatePlusOnActiveProduct()
-    {
-        if (_pendingSkuProduct == null) return;
-        DoCardPlus(_pendingSkuProduct, DeductionSource.CardTap);
-    }
-
-    private void SimulateMinusOnActiveProduct()
-    {
-        if (_pendingSkuProduct == null) return;
-        DoCardMinus(_pendingSkuProduct, "card_tap_minus");
-    }
-
-    // ── Helpers ──────────────────────────────────────────────────────────────
 
     // ── Operator UI ──────────────────────────────────────────────────────────
 
