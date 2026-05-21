@@ -393,8 +393,9 @@
                 </Border.Shadow>
                 <VerticalStackLayout Spacing="0"
                                      Padding="8">
-                    <!-- QC mode (active) -->
-                    <Border BackgroundColor="#f5f5ff"
+                    <!-- QC mode -->
+                    <Border x:Name="ModeOptionQC"
+                            BackgroundColor="#f5f5ff"
                             Stroke="Transparent"
                             StrokeShape="RoundRectangle 6"
                             Padding="16">
@@ -413,7 +414,8 @@
                                        FontSize="11"
                                        FontFamily="Consolas"/>
                             </VerticalStackLayout>
-                            <Label Grid.Column="1"
+                            <Label x:Name="ModeCheckQC"
+                                   Grid.Column="1"
                                    Text="✓"
                                    TextColor="#4338ca"
                                    FontSize="16"
@@ -421,7 +423,7 @@
                                    VerticalOptions="Center"/>
                         </Grid>
                     </Border>
-                    <!-- Returns Mode Option -->
+                    <!-- Returns mode -->
                     <Border x:Name="ModeOptionReturns"
                             BackgroundColor="Transparent"
                             StrokeThickness="0"
@@ -441,6 +443,14 @@
                                        FontFamily="Consolas"
                                        TextColor="#9ca3af"/>
                             </VerticalStackLayout>
+                            <Label x:Name="ModeCheckReturns"
+                                   Grid.Column="1"
+                                   Text="✓"
+                                   TextColor="#4338ca"
+                                   FontSize="16"
+                                   FontAttributes="Bold"
+                                   VerticalOptions="Center"
+                                   IsVisible="False"/>
                         </Grid>
                     </Border>
                 </VerticalStackLayout>
@@ -885,9 +895,15 @@
             </VerticalStackLayout>
         </Border>
 
+        <!-- Content row: main results + Returns side panel -->
+        <Grid Grid.Row="3"
+              ColumnDefinitions="*, Auto"
+              ColumnSpacing="0"
+              BackgroundColor="#f3f4f6">
+
         <!-- Scrollable results -->
         <ScrollView x:Name="ResultsScroll"
-                    Grid.Row="3"
+                    Grid.Column="0"
                     BackgroundColor="#f3f4f6">
             <VerticalStackLayout Padding="0"
                                  Spacing="0">
@@ -1888,6 +1904,84 @@
 
                 </CollectionView>
 
+                <!-- ═══ Returns Mode: Waiting state (no order scanned) ═══ -->
+                <VerticalStackLayout x:Name="ReturnsEmptyState"
+                                     IsVisible="False"
+                                     HorizontalOptions="Center"
+                                     VerticalOptions="Center"
+                                     Spacing="12"
+                                     Padding="0,60">
+                    <Border BackgroundColor="#EDE9FA"
+                            Stroke="#c4b5fd"
+                            StrokeThickness="2"
+                            StrokeShape="RoundRectangle 36"
+                            WidthRequest="72" HeightRequest="72"
+                            HorizontalOptions="Center">
+                        <Label Text="📦"
+                               FontSize="28"
+                               HorizontalTextAlignment="Center"
+                               VerticalTextAlignment="Center"/>
+                    </Border>
+                    <Label Text="Scan Parcel"
+                           FontSize="16" FontAttributes="Bold"
+                           TextColor="#111827"
+                           HorizontalTextAlignment="Center"/>
+                    <Label Text="Scan a tracking number to record a return&#10;or mark as pending pickup for next carrier collection"
+                           FontSize="13"
+                           TextColor="#6b7280"
+                           HorizontalTextAlignment="Center"
+                           MaximumWidthRequest="320"
+                           LineHeight="1.5"/>
+                </VerticalStackLayout>
+
+                <!-- ═══ Returns Mode: Inline success card (after confirm) ═══ -->
+                <Border x:Name="ReturnsSuccessCard"
+                        IsVisible="False"
+                        StrokeThickness="2"
+                        StrokeShape="RoundRectangle 8"
+                        Padding="24"
+                        Margin="24,40"
+                        HorizontalOptions="Center"
+                        MinimumWidthRequest="420">
+                    <VerticalStackLayout Spacing="10"
+                                         HorizontalOptions="Center">
+                        <!-- Checkmark -->
+                        <Border x:Name="InlineSuccessIcon"
+                                WidthRequest="48" HeightRequest="48"
+                                StrokeThickness="0"
+                                StrokeShape="RoundRectangle 24"
+                                HorizontalOptions="Center">
+                            <Label x:Name="InlineSuccessIconLabel"
+                                   Text="✓"
+                                   FontSize="22" FontAttributes="Bold"
+                                   TextColor="White"
+                                   HorizontalTextAlignment="Center"
+                                   VerticalTextAlignment="Center"/>
+                        </Border>
+                        <!-- Title: "Returned — TH..." -->
+                        <HorizontalStackLayout Spacing="8"
+                                               HorizontalOptions="Center">
+                            <Label x:Name="InlineSuccessTitle"
+                                   FontSize="16" FontAttributes="Bold"/>
+                            <Label Text="—" FontSize="16" TextColor="#9ca3af"/>
+                            <Label x:Name="InlineSuccessTracking"
+                                   FontSize="16" FontAttributes="Bold"
+                                   TextColor="#111827" FontFamily="Consolas"/>
+                        </HorizontalStackLayout>
+                        <!-- Tags -->
+                        <FlexLayout x:Name="InlineSuccessTags"
+                                    Wrap="Wrap"
+                                    JustifyContent="Center"
+                                    AlignItems="Center"
+                                    Direction="Row"/>
+                        <!-- Subtitle -->
+                        <Label x:Name="InlineSuccessSubtitle"
+                               FontSize="13" TextColor="#6b7280"
+                               HorizontalTextAlignment="Center"
+                               Margin="0,8,0,0"/>
+                    </VerticalStackLayout>
+                </Border>
+
                 <!-- ═══ Returns Mode: Action Form ═══ -->
                 <VerticalStackLayout x:Name="ReturnsActionForm"
                                      IsVisible="False"
@@ -1937,8 +2031,11 @@
                                         Padding="12,10">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Tapped="OnSelectReturnType"/>
+                                        <PointerGestureRecognizer PointerEntered="OnReturnBtnPointerEntered"
+                                                                  PointerExited="OnReturnBtnPointerExited"/>
                                     </Border.GestureRecognizers>
-                                    <HorizontalStackLayout Spacing="8" HorizontalOptions="Center">
+                                    <HorizontalStackLayout Spacing="8" HorizontalOptions="Center"
+                                                           InputTransparent="True">
                                         <Label Text="↩" FontSize="15" TextColor="#dc2626"
                                                VerticalTextAlignment="Center"/>
                                         <Label Text="Return" FontSize="15" FontAttributes="Bold"
@@ -1954,8 +2051,11 @@
                                         Padding="12,10">
                                     <Border.GestureRecognizers>
                                         <TapGestureRecognizer Tapped="OnSelectPendingPickupType"/>
+                                        <PointerGestureRecognizer PointerEntered="OnPickupBtnPointerEntered"
+                                                                  PointerExited="OnPickupBtnPointerExited"/>
                                     </Border.GestureRecognizers>
-                                    <HorizontalStackLayout Spacing="8" HorizontalOptions="Center">
+                                    <HorizontalStackLayout Spacing="8" HorizontalOptions="Center"
+                                                           InputTransparent="True">
                                         <Label Text="⏳" FontSize="15" TextColor="#a21caf"
                                                VerticalTextAlignment="Center"/>
                                         <Label Text="Pending Pickup" FontSize="15" FontAttributes="Bold"
@@ -2009,29 +2109,16 @@
                                         BackgroundColor="#dc2626"
                                         TextColor="White"
                                         FontSize="14" FontAttributes="Bold"
-                                        CornerRadius="6"
                                         Padding="16,10"
-                                        Clicked="OnConfirmReturn"/>
+                                        Clicked="OnConfirmReturn"
+                                        Style="{StaticResource HoverButton}"/>
                                 <Button Text="Skip →"
                                         BackgroundColor="#f3f4f6"
                                         TextColor="#374151"
                                         FontSize="13" FontAttributes="Bold"
-                                        CornerRadius="6"
                                         Padding="16,10"
-                                        Clicked="OnSkipReturn"/>
-                                <Label Text=""
-                                       FontSize="11" TextColor="#6b7280"
-                                       VerticalOptions="Center"
-                                       HorizontalOptions="EndAndExpand">
-                                    <Label.FormattedText>
-                                        <FormattedString>
-                                            <Span Text="Enter" FontAttributes="Bold" FontFamily="Consolas" BackgroundColor="#e5e7eb"/>
-                                            <Span Text=" confirm · "/>
-                                            <Span Text="Esc" FontAttributes="Bold" FontFamily="Consolas" BackgroundColor="#e5e7eb"/>
-                                            <Span Text=" skip"/>
-                                        </FormattedString>
-                                    </Label.FormattedText>
-                                </Label>
+                                        Clicked="OnSkipReturn"
+                                        Style="{StaticResource HoverButton}"/>
                             </HorizontalStackLayout>
 
                         </VerticalStackLayout>
@@ -2041,6 +2128,130 @@
             </VerticalStackLayout>
         </ScrollView>
 
+        <!-- ═══ Returns Side Panel ═══ -->
+        <ScrollView x:Name="ReturnsSidePanel"
+                    Grid.Column="1"
+                    IsVisible="False"
+                    WidthRequest="280"
+                    BackgroundColor="#f3f4f6">
+            <VerticalStackLayout Spacing="12"
+                                 Padding="0,12,12,12">
+
+                <!-- Today's Session -->
+                <Border BackgroundColor="White"
+                        Stroke="#e5e7eb"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 4">
+                    <VerticalStackLayout Spacing="0">
+                        <HorizontalStackLayout Spacing="6"
+                                               Padding="14,10"
+                                               BackgroundColor="White">
+                            <Label Text="⏱" FontSize="12"/>
+                            <Label Text="TODAY'S SESSION"
+                                   FontSize="11" FontAttributes="Bold"
+                                   TextColor="#374151"
+                                   CharacterSpacing="0.5"/>
+                        </HorizontalStackLayout>
+                        <BoxView HeightRequest="1" BackgroundColor="#f3f4f6"/>
+                        <Grid ColumnDefinitions="*, Auto, *"
+                              Padding="14,12">
+                            <VerticalStackLayout Grid.Column="0" HorizontalOptions="Center">
+                                <Label x:Name="SidePanelReturnedCount"
+                                       Text="0"
+                                       FontSize="32" FontAttributes="Bold"
+                                       TextColor="#dc2626"
+                                       FontFamily="Consolas"
+                                       HorizontalTextAlignment="Center"/>
+                                <Label Text="returned"
+                                       FontSize="10" TextColor="#6b7280"
+                                       HorizontalTextAlignment="Center"/>
+                            </VerticalStackLayout>
+                            <BoxView Grid.Column="1"
+                                     WidthRequest="1"
+                                     BackgroundColor="#f3f4f6"
+                                     VerticalOptions="Fill"/>
+                            <VerticalStackLayout Grid.Column="2" HorizontalOptions="Center">
+                                <Label x:Name="SidePanelPendingCount"
+                                       Text="0"
+                                       FontSize="32" FontAttributes="Bold"
+                                       TextColor="#a21caf"
+                                       FontFamily="Consolas"
+                                       HorizontalTextAlignment="Center"/>
+                                <Label Text="pending pickup"
+                                       FontSize="10" TextColor="#6b7280"
+                                       HorizontalTextAlignment="Center"/>
+                            </VerticalStackLayout>
+                        </Grid>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Parcels Sent to Carrier -->
+                <Border BackgroundColor="White"
+                        Stroke="#e5e7eb"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 4">
+                    <VerticalStackLayout Spacing="0">
+                        <HorizontalStackLayout Spacing="6"
+                                               Padding="14,10">
+                            <Label Text="🚛" FontSize="12"/>
+                            <Label Text="PARCELS SENT TO CARRIER"
+                                   FontSize="11" FontAttributes="Bold"
+                                   TextColor="#374151"
+                                   CharacterSpacing="0.5"/>
+                        </HorizontalStackLayout>
+                        <BoxView HeightRequest="1" BackgroundColor="#f3f4f6"/>
+                        <VerticalStackLayout x:Name="CarrierCountsPanel"
+                                             Spacing="0"
+                                             Padding="14,8"/>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- By Reason -->
+                <Border BackgroundColor="White"
+                        Stroke="#e5e7eb"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 4">
+                    <VerticalStackLayout Spacing="0">
+                        <HorizontalStackLayout Spacing="6"
+                                               Padding="14,10">
+                            <Label Text="💬" FontSize="12"/>
+                            <Label Text="BY REASON"
+                                   FontSize="11" FontAttributes="Bold"
+                                   TextColor="#374151"
+                                   CharacterSpacing="0.5"/>
+                        </HorizontalStackLayout>
+                        <BoxView HeightRequest="1" BackgroundColor="#f3f4f6"/>
+                        <VerticalStackLayout x:Name="ReasonBreakdownPanel"
+                                             Spacing="8"
+                                             Padding="14,10"/>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- By Platform -->
+                <Border BackgroundColor="White"
+                        Stroke="#e5e7eb"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 4">
+                    <VerticalStackLayout Spacing="0">
+                        <HorizontalStackLayout Spacing="6"
+                                               Padding="14,10">
+                            <Label Text="🖥" FontSize="12"/>
+                            <Label Text="BY PLATFORM"
+                                   FontSize="11" FontAttributes="Bold"
+                                   TextColor="#374151"
+                                   CharacterSpacing="0.5"/>
+                        </HorizontalStackLayout>
+                        <BoxView HeightRequest="1" BackgroundColor="#f3f4f6"/>
+                        <VerticalStackLayout x:Name="PlatformBreakdownPanel"
+                                             Spacing="6"
+                                             Padding="14,10"/>
+                    </VerticalStackLayout>
+                </Border>
+
+            </VerticalStackLayout>
+        </ScrollView>
+
+        </Grid><!-- end content row wrapper -->
 
         <!-- ── Product image overlay (full-bleed split-pane modal) ── -->
         <Grid x:Name="ProductImageOverlay"
@@ -2530,6 +2741,76 @@
                                  CornerRadius="3"
                                  HorizontalOptions="Start"
                                  WidthRequest="240"/>
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+        </Grid>
+
+        <!-- ── Returns success overlay ── -->
+        <Grid x:Name="ReturnSuccessOverlay"
+              Grid.Row="0"
+              Grid.RowSpan="5"
+              BackgroundColor="#99111827"
+              IsVisible="False"
+              ZIndex="9">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnReturnSuccessBackdropTapped"/>
+            </Grid.GestureRecognizers>
+            <Border HorizontalOptions="Center"
+                    VerticalOptions="Center"
+                    Stroke="Transparent"
+                    StrokeShape="RoundRectangle 12"
+                    Padding="40,32"
+                    WidthRequest="400"
+                    InputTransparent="False">
+                <Border.Shadow>
+                    <Shadow Brush="#30000000"
+                            Offset="0,12"
+                            Radius="32"/>
+                </Border.Shadow>
+                <VerticalStackLayout Spacing="10"
+                                     HorizontalOptions="Center">
+                    <!-- Checkmark circle -->
+                    <Border x:Name="ReturnSuccessIcon"
+                            WidthRequest="56" HeightRequest="56"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 28"
+                            HorizontalOptions="Center">
+                        <Label x:Name="ReturnSuccessIconLabel"
+                               Text="&#x2713;"
+                               FontSize="28" FontAttributes="Bold"
+                               TextColor="White"
+                               HorizontalTextAlignment="Center"
+                               VerticalTextAlignment="Center"/>
+                    </Border>
+                    <!-- Title row: "Returned — TH0198234567" -->
+                    <HorizontalStackLayout Spacing="8" HorizontalOptions="Center">
+                        <Label x:Name="ReturnSuccessTitle"
+                               FontSize="16" FontAttributes="Bold"/>
+                        <Label Text="—" FontSize="16" TextColor="#9ca3af"/>
+                        <Label x:Name="ReturnSuccessTracking"
+                               FontSize="16" FontAttributes="Bold"
+                               TextColor="#111827" FontFamily="Consolas"/>
+                    </HorizontalStackLayout>
+                    <!-- Tags row: platform + carrier + reason -->
+                    <FlexLayout x:Name="ReturnSuccessTags"
+                                Wrap="Wrap"
+                                JustifyContent="Center"
+                                AlignItems="Center"
+                                Direction="Row"/>
+                    <!-- Subtitle -->
+                    <Label x:Name="ReturnSuccessSubtitle"
+                           FontSize="13" TextColor="#6b7280"
+                           HorizontalTextAlignment="Center"
+                           Margin="0,6,0,0"/>
+                    <!-- Countdown bar -->
+                    <Grid HeightRequest="4" WidthRequest="200"
+                          HorizontalOptions="Center" Margin="0,4,0,0">
+                        <BoxView BackgroundColor="#e5e7eb" CornerRadius="2"/>
+                        <BoxView x:Name="ReturnSuccessBar"
+                                 CornerRadius="2"
+                                 HorizontalOptions="Start"
+                                 WidthRequest="200"/>
                     </Grid>
                 </VerticalStackLayout>
             </Border>
