@@ -852,30 +852,16 @@ public partial class OrderSearchPage : ContentPage
         // Auto-apply when scan already meets required qty (e.g. qty=1 products)
         if (int.TryParse(targetVerified, out var tv) && tv >= found.RequiredQuantity)
         {
-            if (AppSettings.AutoPopupImageOverlay)
-            {
-                ShowProductImageOverlay(found, "sku_scan");
-                _ = ApplyVerificationThenDismiss(found, targetVerified);
-            }
-            else
-            {
-                ApplyVerifiedOverride(found, targetVerified, "item_scanned_await_qty", "sku_scan");
-            }
+            ShowProductImageOverlay(found, "sku_scan");
+            _ = ApplyVerificationThenDismiss(found, targetVerified);
             ScrollToProduct(found);
             UpdateSearchStatus($"✓ {found.SellerSku} fully verified");
             Logger.Log($"OrderSearch: SKU '{barcode}' auto-verified (qty met on first scan)");
             return;
         }
 
-        if (AppSettings.AutoPopupImageOverlay)
-        {
-            ShowProductImageOverlay(found, "sku_scan");
-            ShowOverlayPickEntry(targetVerified);
-        }
-        else
-        {
-            FocusItemEntry(found);
-        }
+        ShowProductImageOverlay(found, "sku_scan");
+        ShowOverlayPickEntry(targetVerified);
 
         ScrollToProduct(found);
         UpdateSearchStatus($"Matched: {label} — enter qty and confirm");
@@ -3781,15 +3767,8 @@ public partial class OrderSearchPage : ContentPage
 
         if (item.IsFullyPicked && !ProductImageOverlay.IsVisible && !item.IsBundle)
         {
-            if (AppSettings.AutoPopupImageOverlay)
-            {
-                ShowProductImageOverlay(item);
-                _ = ShowCompletionAndDismiss(item);
-            }
-            else
-            {
-                ActivateNextUnfinishedProduct(item);
-            }
+            ShowProductImageOverlay(item);
+            _ = ShowCompletionAndDismiss(item);
         }
     }
 
