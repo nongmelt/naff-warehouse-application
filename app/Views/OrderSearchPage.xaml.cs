@@ -3216,12 +3216,6 @@ public partial class OrderSearchPage : ContentPage
                 e.Handled = true;
                 return;
             }
-            if (_pendingSkuProduct != null && _pendingSkuProduct.IsBeingPicked)
-            {
-                ApplyVerifiedOverride(_pendingSkuProduct, _pendingSkuProduct.PickQtyText);
-                e.Handled = true;
-                return;
-            }
         }
 
         // Number keys → activate qty field on active product (or active component in bundle overlay)
@@ -3249,26 +3243,6 @@ public partial class OrderSearchPage : ContentPage
                 else if (_overlayItem.Quantity > 0)
                 {
                     ShowOverlayPickEntry(digit.ToString());
-                    e.Handled = true;
-                    return;
-                }
-            }
-            else
-            {
-                var target = _pendingSkuProduct;
-                if (target != null && target.Quantity > 0)
-                {
-                    target.PickQtyText = digit.ToString();
-                    target.IsBeingPicked = true;
-                    SetActiveProduct(target);
-                    _ = Dispatcher.DispatchAsync(async () =>
-                    {
-                        await Task.Delay(80);
-                        var entry = FindDescendant<Entry>(this, en =>
-                            en.IsVisible && en.BindingContext == target
-                            && en.ReturnType == ReturnType.Done);
-                        entry?.Focus();
-                    });
                     e.Handled = true;
                     return;
                 }
@@ -3324,83 +3298,7 @@ public partial class OrderSearchPage : ContentPage
         // +/- keys verify/unverify active product card
         const Windows.System.VirtualKey VkPlus = (Windows.System.VirtualKey)187;  // = / + key
         const Windows.System.VirtualKey VkMinus = (Windows.System.VirtualKey)189; // - / _ key
-        if (_activeComponent != null && !ProductImageOverlay.IsVisible)
-        {
-            var comp = _activeComponent;
-            var parent = FindBundleParentForComponent(comp);
-            var order = parent != null ? FindOrderForItem(parent) : null;
-
-            if (e.Key == VkPlus || e.Key == Windows.System.VirtualKey.Add)
-            {
-                if (comp.VerifiedQuantity < comp.RequiredQuantity && parent != null && order != null && !IsOrderQcPassed(order))
-                {
-                    comp.VerifiedQuantity++;
-                    parent.NotifyBundleProgressChanged();
-
-                    if (parent.IsBundleFullyVerified && parent.Quantity > 0)
-                        parent.Quantity = 0;
-
-                    UpdateSearchStatus(comp.IsFullyVerified
-                        ? $"✓ {comp.Name} fully verified ({comp.VerifiedQuantity}/{comp.RequiredQuantity})"
-                        : $"{comp.Name} — {comp.VerifiedQuantity}/{comp.RequiredQuantity} verified");
-                    Logger.Log($"OrderSearch: kb component+ '{comp.SellerSku}', now {comp.VerifiedQuantity}/{comp.RequiredQuantity}");
-
-                    EmitQcEvent(
-                        stepId: "component_card_clicked",
-                        trigger: "keyboard_plus",
-                        trackingNumber: order.TrackingNumber,
-                        fromState: ConsumePickingFromState(),
-                        toState: "picking",
-                        payload: new Dictionary<string, object?>
-                        {
-                            ["sku"] = comp.SellerSku,
-                            ["componentName"] = comp.Name,
-                            ["verified"] = comp.VerifiedQuantity,
-                            ["required"] = comp.RequiredQuantity,
-                            ["bundleSku"] = parent.SellerSku,
-                            ["bundleComplete"] = parent.IsBundleFullyVerified,
-                        });
-
-                    _ = CheckAndSaveQcStatusAsync();
-                }
-                e.Handled = true;
-                return;
-            }
-            if (e.Key == VkMinus || e.Key == Windows.System.VirtualKey.Subtract)
-            {
-                if (!comp.IsFullyVerified && comp.VerifiedQuantity > 0 && parent != null && order != null && !IsOrderQcPassed(order))
-                {
-                    EmitQcEvent(
-                        stepId: "component_card_unclicked",
-                        trigger: "keyboard_minus",
-                        trackingNumber: order.TrackingNumber,
-                        fromState: ConsumePickingFromState(),
-                        toState: "picking",
-                        payload: new Dictionary<string, object?>
-                        {
-                            ["sku"] = comp.SellerSku,
-                            ["componentName"] = comp.Name,
-                            ["qtyBefore"] = comp.VerifiedQuantity,
-                            ["qtyAfter"] = comp.VerifiedQuantity - 1,
-                            ["bundleSku"] = parent.SellerSku,
-                        });
-
-                    comp.VerifiedQuantity--;
-                    parent.NotifyBundleProgressChanged();
-
-                    if (!parent.IsBundleFullyVerified && parent.Quantity <= 0)
-                        parent.Quantity = parent.RequiredQuantity;
-
-                    UpdateSearchStatus($"{comp.Name} — unverified, {comp.VerifiedQuantity}/{comp.RequiredQuantity}");
-                    Logger.Log($"OrderSearch: kb component- '{comp.SellerSku}', now {comp.VerifiedQuantity}/{comp.RequiredQuantity}");
-
-                    _ = CheckAndSaveQcStatusAsync();
-                }
-                e.Handled = true;
-                return;
-            }
-        }
-        var plusTarget = ProductImageOverlay.IsVisible ? _overlayItem : _pendingSkuProduct;
+        var plusTarget = ProductImageOverlay.IsVisible ? _overlayItem : null;
         if ((e.Key == VkPlus || e.Key == Windows.System.VirtualKey.Add) && plusTarget != null)
         {
             if (ProductImageOverlay.IsVisible)
@@ -3449,11 +3347,6 @@ public partial class OrderSearchPage : ContentPage
                     DoOverlayPlus(DeductionSource.KeyboardPlus);
                 }
             }
-            else
-            {
-                _ = AnimateCardButtonAsync(plusTarget, "+");
-                DoCardPlus(plusTarget, DeductionSource.KeyboardPlus);
-            }
             e.Handled = true;
             return;
         }
@@ -3499,11 +3392,6 @@ public partial class OrderSearchPage : ContentPage
                 {
                     DoOverlayMinus("keyboard_minus");
                 }
-            }
-            else
-            {
-                _ = AnimateCardButtonAsync(plusTarget, "-");
-                DoCardMinus(plusTarget, "keyboard_minus");
             }
             e.Handled = true;
             return;
