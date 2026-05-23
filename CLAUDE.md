@@ -161,3 +161,17 @@ Frontend (Next.js App Router)
 - Backend uses SQLx compile-time query checking — `DATABASE_URL` must be set or use `SQLX_OFFLINE=true` with a cached query file.
 - Next.js 16 has breaking changes vs 15; see `frontend/AGENTS.md` before upgrading dependencies.
 - The `backend/` and `frontend/` directories are git submodules — changes there need their own commits/pushes.
+
+## Agent skills
+
+### Issue tracker
+
+Issues tracked in GitHub Issues at `nongmelt/naff-warehouse-application`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default label vocabulary (needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Multi-context layout — per-submodule CONTEXT.md files mapped via root-level conventions. See `docs/agents/domain.md`.
