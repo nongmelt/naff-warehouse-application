@@ -36,7 +36,7 @@ public static class ProductImageCache
 
     public static string? GetCachedPath(string sku, string? version)
     {
-        if (version != null)
+        if (!string.IsNullOrEmpty(version))
         {
             var versionedPattern = $"{sku}_v{version}.*";
             var versionedFiles = Directory.GetFiles(CacheDir, versionedPattern);
@@ -104,7 +104,7 @@ public static class ProductImageCache
                 _            => "jpg",
             };
 
-            var filename = version != null ? $"{sku}_v{version}.{ext}" : $"{sku}.{ext}";
+            var filename = !string.IsNullOrEmpty(version) ? $"{sku}_v{version}.{ext}" : $"{sku}.{ext}";
             var localPath = Path.Combine(CacheDir, filename);
             var bytes = await imgResp.Content.ReadAsByteArrayAsync();
             await File.WriteAllBytesAsync(localPath, bytes);
