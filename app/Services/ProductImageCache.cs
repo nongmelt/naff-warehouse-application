@@ -34,19 +34,38 @@ public static class ProductImageCache
         catch { }
     }
 
-    public static string? GetCachedPath(string sku)
+    public static string? GetCachedPath(string sku, string? version)
     {
+        if (version != null)
+        {
+            var versionedPattern = $"{sku}_v{version}.*";
+            var versionedFiles = Directory.GetFiles(CacheDir, versionedPattern);
+            if (versionedFiles.Length > 0) return versionedFiles[0];
+
+            PurgeSkuFiles(sku);
+            return null;
+        }
+
         var pattern = $"{sku}.*";
         var files = Directory.GetFiles(CacheDir, pattern);
         return files.Length > 0 ? files[0] : null;
     }
 
-    public static async Task<string?> EnsureAsync(string sku, string apiBaseUrl)
-        => await EnsureAsync(sku, apiBaseUrl, productId: null);
-
-    public static async Task<string?> EnsureAsync(string sku, string apiBaseUrl, int? productId)
+    private static void PurgeSkuFiles(string sku)
     {
-        var existing = GetCachedPath(sku);
+        try
+        {
+            foreach (var f in Directory.GetFiles(CacheDir, $"{sku}.*"))
+                File.Delete(f);
+            foreach (var f in Directory.GetFiles(CacheDir, $"{sku}_v*.*"))
+                File.Delete(f);
+        }
+        catch { }
+    }
+
+    public static async Task<string?> EnsureAsync(string sku, string apiBaseUrl, int? productId = null, string? version = null)
+    {
+        var existing = GetCachedPath(sku, version);
         if (existing != null) return existing;
 
         lock (InFlight)
@@ -85,7 +104,8 @@ public static class ProductImageCache
                 _            => "jpg",
             };
 
-            var localPath = Path.Combine(CacheDir, $"{sku}.{ext}");
+            var filename = version != null ? $"{sku}_v{version}.{ext}" : $"{sku}.{ext}";
+            var localPath = Path.Combine(CacheDir, filename);
             var bytes = await imgResp.Content.ReadAsByteArrayAsync();
             await File.WriteAllBytesAsync(localPath, bytes);
             return localPath;
