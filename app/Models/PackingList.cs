@@ -26,6 +26,7 @@ public class BundleComponentItem : INotifyPropertyChanged
     public bool HasQcNotes => !string.IsNullOrWhiteSpace(QcNotes);
     public bool HasNoQcNotes => !HasQcNotes;
     public string SellerSku { get; set; } = "";
+    public string ProductVersion { get; set; } = "";
 
     public string SubRowNumber { get; set; } = "";
 
@@ -537,6 +538,7 @@ public class ProductItem : INotifyPropertyChanged
     [JsonIgnore] public string? CategoryName { get; set; }
     [JsonIgnore] public int? CategoryId { get; set; }
     [JsonIgnore] public string? ImagePath { get; set; }
+    [JsonIgnore] public string? ProductVersion { get; set; }
     private string? _qcNotes;
     [JsonIgnore] public string? QcNotes
     {
