@@ -573,6 +573,7 @@ public class ProductItem : INotifyPropertyChanged
 
     /// <summary>Category badge text like "TEE-01".</summary>
     [JsonIgnore] public string CategoryBadge { get; set; } = "";
+    [JsonIgnore] public bool HasCategoryBadge => !string.IsNullOrWhiteSpace(CategoryBadge);
 
     /// <summary>Category badge background color.</summary>
     [JsonIgnore] public Color CategoryBadgeBg { get; set; } = Colors.Transparent;
@@ -603,10 +604,11 @@ public class ProductItem : INotifyPropertyChanged
     public string? LocalImagePath
     {
         get => _localImagePath;
-        set { _localImagePath = value; OnPropertyChanged(); OnPropertyChanged(nameof(HasLocalImage)); }
+        set { _localImagePath = value; OnPropertyChanged(); OnPropertyChanged(nameof(HasLocalImage)); OnPropertyChanged(nameof(HasNoLocalImage)); }
     }
 
     [JsonIgnore] public bool HasLocalImage => !string.IsNullOrWhiteSpace(_localImagePath);
+    [JsonIgnore] public bool HasNoLocalImage => !HasLocalImage;
 
     [JsonIgnore] public int RowNumber { get; set; }
 
@@ -791,7 +793,7 @@ public class PackingList : INotifyPropertyChanged
     private ObservableCollection<ProductItem> ParseProductsCore()
     {
         var isQcPassed = string.Equals(_packingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase);
-        var useUpdated = (IsQcHold || isQcPassed || (IsPacked && !IsPackedComplete))
+        var useUpdated = (IsQcHold || isQcPassed || IsPacked)
                          && UpdatedProductLists?.Items is { Count: > 0 };
         var sourceItems = (useUpdated ? UpdatedProductLists : ProductLists)?.Items;
         if (sourceItems is null or { Count: 0 }) return [];
