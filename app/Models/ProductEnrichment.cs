@@ -13,6 +13,7 @@ public class ProductEnrichment
     [JsonPropertyName("brand")]        public string? Brand        { get; set; }
     [JsonPropertyName("productType")]  public string ProductType   { get; set; } = "single";
     [JsonPropertyName("allSkus")]      public List<string> AllSkus  { get; set; } = [];
+    [JsonPropertyName("version")]      public string Version        { get; set; } = "";
     [JsonPropertyName("components")]   public List<EnrichmentComponent> Components { get; set; } = [];
 }
 
@@ -26,4 +27,5 @@ public class EnrichmentComponent
     [JsonPropertyName("imagePath")]          public string? ImagePath       { get; set; }
     [JsonPropertyName("allSkus")]            public List<string> AllSkus    { get; set; } = [];
     [JsonPropertyName("qcNotes")]            public string? QcNotes         { get; set; }
+    [JsonPropertyName("version")]            public string Version          { get; set; } = "";
 }

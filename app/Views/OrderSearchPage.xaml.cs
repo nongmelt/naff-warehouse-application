@@ -1635,6 +1635,7 @@ public partial class OrderSearchPage : ContentPage
             item.CategoryName = e.CategoryName;
             item.CategoryId = e.CategoryId;
             item.ImagePath = e.ImagePath;
+            item.ProductVersion = e.Version;
             item.QcNotes = e.QcNotes;
             item.Brand = e.Brand;
             item.AllSkus = e.AllSkus;
@@ -1651,6 +1652,7 @@ public partial class OrderSearchPage : ContentPage
                         Name = c.ProductName,
                         Variation = c.ProductVariation,
                         SellerSku = c.SellerSku,
+                        ProductVersion = c.Version,
                         RequiredQuantity = c.Quantity * item.RequiredQuantity,
                         VerifiedQuantity = 0,
                         AllSkus = c.AllSkus,
@@ -1721,7 +1723,7 @@ public partial class OrderSearchPage : ContentPage
                 try
                 {
                     var path = await ProductImageCache.EnsureAsync(
-                        captured.SellerSku, apiBase, captured.ProductId);
+                        captured.SellerSku, apiBase, captured.ProductId, captured.ProductVersion);
                     if (path != null)
                         MainThread.BeginInvokeOnMainThread(() => captured.LocalImagePath = path);
                 }
@@ -1744,7 +1746,7 @@ public partial class OrderSearchPage : ContentPage
                     try
                     {
                         var path = await ProductImageCache.EnsureAsync(
-                            captured.SellerSku, apiBase, captured.ComponentProductId);
+                            captured.SellerSku, apiBase, captured.ComponentProductId, captured.ProductVersion);
                         if (path != null)
                         {
                             var bytes = await File.ReadAllBytesAsync(path);
