@@ -3518,7 +3518,7 @@ public partial class OrderSearchPage : ContentPage
         // Short delay so the green CardBgColor renders before we grab the element
         await Task.Delay(40);
 
-        var completedBorder = FindDescendant<Border>(this, b => b.BindingContext == item);
+        var completedBorder = FindDescendant<Border>(this, b => b.BindingContext == item && b.IsVisible);
         if (completedBorder == null) { MoveCompletedItemToBottom(item); return; }
 
         // Locate owner order and item index
@@ -3547,7 +3547,7 @@ public partial class OrderSearchPage : ContentPage
         for (int i = itemIndex + 1; i < ownerOrder.ParsedProducts.Count; i++)
         {
             var sibling = ownerOrder.ParsedProducts[i];
-            var b = FindDescendant<Border>(this, x => x.BindingContext == sibling);
+            var b = FindDescendant<Border>(this, x => x.BindingContext == sibling && x.IsVisible);
             if (b != null) bordersBelow.Add(b);
         }
 

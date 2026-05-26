@@ -1246,7 +1246,7 @@
                                                                                IsVisible="{Binding HasBundleComponents}"
                                                                                BindableLayout.ItemsSource="{Binding BundleComponentDotColors}">
                                                             <BindableLayout.ItemTemplate>
-                                                                <DataTemplate x:DataType="x:String">
+                                                                <DataTemplate x:DataType="Color">
                                                                     <BoxView WidthRequest="10"
                                                                              HeightRequest="10"
                                                                              CornerRadius="5"
