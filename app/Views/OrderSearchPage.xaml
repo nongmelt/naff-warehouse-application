@@ -833,44 +833,6 @@
                             <VerticalStackLayout Spacing="6"
                                                  Margin="0,16,0,0">
 
-                                <!-- Table header (8-col: strip, #, img, product, variation, sku, note, qty) -->
-                                <Grid ColumnDefinitions="4, 50, 120, *, 140, 160, 110"
-                                      ColumnSpacing="0"
-                                      Padding="0,8,20,4"
-                                      Margin="0,8,0,0">
-                                    <Label Grid.Column="1"
-                                           Text="#"
-                                           FontSize="11"
-                                           FontAttributes="Bold"
-                                           TextColor="#9ca3af"
-                                           FontFamily="Consolas"
-                                           HorizontalTextAlignment="Center"/>
-                                    <Label Grid.Column="3"
-                                           Text="PRODUCT"
-                                           FontSize="11"
-                                           FontAttributes="Bold"
-                                           TextColor="#9ca3af"
-                                           Padding="12,0"/>
-                                    <Label Grid.Column="4"
-                                           Text="VARIATION"
-                                           FontSize="11"
-                                           FontAttributes="Bold"
-                                           TextColor="#9ca3af"
-                                           HorizontalTextAlignment="Start"/>
-                                    <Label Grid.Column="5"
-                                           Text="NOTE"
-                                           FontSize="11"
-                                           FontAttributes="Bold"
-                                           TextColor="#9ca3af"/>
-                                    <Label Grid.Column="6"
-                                           Text="QTY"
-                                           FontSize="11"
-                                           FontAttributes="Bold"
-                                           TextColor="#9ca3af"
-                                           HorizontalOptions="End"
-                                           Margin="0,0,12,0"/>
-                                </Grid>
-
                                 <!-- Individual product rows -->
                                 <VerticalStackLayout IsVisible="{Binding HasProducts}"
                                                      BindableLayout.ItemsSource="{Binding ParsedProducts}"
