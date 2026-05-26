@@ -502,6 +502,10 @@ public class ProductItem : INotifyPropertyChanged
         OnPropertyChanged(nameof(VariationBadgeTextColor));
         OnPropertyChanged(nameof(VariationBorderColor));
         OnPropertyChanged(nameof(BundleComponentDotColors));
+        OnPropertyChanged(nameof(ShowBundleExpandArrow));
+
+        if (IsBundleFullyVerified && _isBundleExpanded)
+            IsBundleExpanded = false;
     }
 
     public void PopulateBundleComponentStates()
@@ -528,10 +532,11 @@ public class ProductItem : INotifyPropertyChanged
     public bool IsBundleExpanded
     {
         get => _isBundleExpanded;
-        set { _isBundleExpanded = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsBundleCollapsed)); OnPropertyChanged(nameof(BundleChevron)); }
+        set { _isBundleExpanded = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsBundleCollapsed)); OnPropertyChanged(nameof(BundleChevron)); OnPropertyChanged(nameof(ShowBundleExpandArrow)); }
     }
     [JsonIgnore] public bool IsBundleCollapsed => !_isBundleExpanded;
     [JsonIgnore] public string BundleChevron => _isBundleExpanded ? "▾" : "▸";
+    [JsonIgnore] public bool ShowBundleExpandArrow => IsBundle && IsBundleCollapsed;
 
     // ── Enrichment (populated after search via EnrichProductsAsync) ──────────
 
