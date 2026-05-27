@@ -1148,7 +1148,7 @@
                                                                               PointerExited="OnProductCardExited"/>
                                                 </Border.GestureRecognizers>
 
-                                                <Grid RowDefinitions="Auto, Auto, Auto">
+                                                <Grid RowDefinitions="Auto, 1, Auto, Auto">
 
                                                     <!-- Row 0: Parent header row -->
                                                     <Grid Grid.Row="0"
@@ -1327,8 +1327,14 @@
                                                         </Border>
                                                     </Grid>
 
-                                                    <!-- Row 1: Child rows (indented with tree-branch connectors) -->
-                                                    <VerticalStackLayout Grid.Row="1"
+                                                    <!-- Row 1: Separator between parent and children -->
+                                                    <BoxView Grid.Row="1"
+                                                             HeightRequest="1"
+                                                             BackgroundColor="#e2e8f0"
+                                                             IsVisible="{Binding IsBundleExpanded}"/>
+
+                                                    <!-- Row 2: Child rows (indented with tree-branch connectors) -->
+                                                    <VerticalStackLayout Grid.Row="2"
                                                                          IsVisible="{Binding IsBundleExpanded}"
                                                                          BindableLayout.ItemsSource="{Binding BundleComponents}"
                                                                          Spacing="0"
@@ -1340,11 +1346,6 @@
                                                                 <Setter Property="IsVisible" Value="False"/>
                                                             </DataTrigger>
                                                         </VerticalStackLayout.Triggers>
-
-                                                        <!-- Dashed separator -->
-                                                        <BoxView HeightRequest="1"
-                                                                 BackgroundColor="#e2e8f0"
-                                                                 Margin="0"/>
 
                                                         <BindableLayout.ItemTemplate>
                                                             <DataTemplate x:DataType="models:BundleComponentItem">
@@ -1534,8 +1535,8 @@
                                                         </BindableLayout.ItemTemplate>
                                                     </VerticalStackLayout>
 
-                                                    <!-- Row 2: Aggregated QC notes bar -->
-                                                    <Border Grid.Row="2"
+                                                    <!-- Row 3: Aggregated QC notes bar -->
+                                                    <Border Grid.Row="3"
                                                             IsVisible="{Binding HasAggregatedQcNotes}"
                                                             BackgroundColor="#FFF7ED"
                                                             Stroke="Transparent"
