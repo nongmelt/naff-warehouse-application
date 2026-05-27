@@ -503,6 +503,8 @@ public class ProductItem : INotifyPropertyChanged
         OnPropertyChanged(nameof(VariationBorderColor));
         OnPropertyChanged(nameof(BundleComponentDotColors));
         OnPropertyChanged(nameof(ShowBundleExpandArrow));
+        OnPropertyChanged(nameof(AggregatedQcNotes));
+        OnPropertyChanged(nameof(HasAggregatedQcNotes));
 
         if (IsBundleFullyVerified && _isBundleExpanded)
             IsBundleExpanded = false;
@@ -574,6 +576,20 @@ public class ProductItem : INotifyPropertyChanged
 
     [JsonIgnore] public bool HasQcNotes => !string.IsNullOrWhiteSpace(QcNotes);
     [JsonIgnore] public bool HasNoQcNotes => string.IsNullOrWhiteSpace(QcNotes);
+    [JsonIgnore] public string AggregatedQcNotes
+    {
+        get
+        {
+            if (!IsBundle || BundleComponents is not { Count: > 0 })
+                return QcNotes ?? "";
+            var notes = new List<string>();
+            if (HasQcNotes) notes.Add(QcNotes!);
+            foreach (var c in BundleComponents.Where(c => c.HasQcNotes))
+                notes.Add($"[{c.SubRowNumber}] {c.QcNotes}");
+            return string.Join("\n", notes);
+        }
+    }
+    [JsonIgnore] public bool HasAggregatedQcNotes => !string.IsNullOrWhiteSpace(AggregatedQcNotes);
     [JsonIgnore] public bool HasImagePath => !string.IsNullOrWhiteSpace(ImagePath);
 
     /// <summary>Category badge text like "TEE-01".</summary>
