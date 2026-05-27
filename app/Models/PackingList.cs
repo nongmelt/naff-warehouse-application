@@ -61,9 +61,8 @@ public class BundleComponentItem : INotifyPropertyChanged
         : IsPartiallyVerified ? Color.FromArgb("#FFF7ED") : Colors.White;
     public Color ComponentBorderColor => _isActiveComponent ? Color.FromArgb("#a78bfa")
         : IsFullyVerified ? Color.FromArgb("#86efac")
-        : IsPartiallyVerified ? Color.FromArgb("#fdba74") : Colors.Transparent;
-    public int ComponentBorderWidth => _isActiveComponent ? 2
-        : (IsFullyVerified || IsPartiallyVerified) ? 1 : 0;
+        : IsPartiallyVerified ? Color.FromArgb("#fdba74") : Color.FromArgb("#e2e8f0");
+    public int ComponentBorderWidth => _isActiveComponent ? 2 : 1;
     public Color QtyBadgeBg => IsFullyVerified ? Color.FromArgb("#dcfce7")
         : IsPartiallyVerified ? Color.FromArgb("#ffedd5") : Color.FromArgb("#f3f4f6");
     public Color QtyTextColor => IsFullyVerified ? Color.FromArgb("#166534")
@@ -281,12 +280,13 @@ public class ProductItem : INotifyPropertyChanged
         get
         {
             if (_isActive) return Color.FromArgb("#a78bfa");
-            if (IsBundle && !IsCompleted) return Color.FromArgb("#e0daf7");
-            return Colors.Transparent;
+            if (IsCompleted) return Color.FromArgb("#86efac");
+            if (IsPartiallyVerified) return Color.FromArgb("#fdba74");
+            return Color.FromArgb("#e2e8f0");
         }
     }
 
-    [JsonIgnore] public int CardBorderWidth => _isActive ? 2 : (IsBundle && !IsCompleted) ? 1 : 0;
+    [JsonIgnore] public int CardBorderWidth => _isActive ? 2 : 1;
 
     [JsonIgnore] public Color ButtonBgColor
     {
