@@ -122,17 +122,10 @@ public static class VideoWorkflowManager
 
         var fileNames = localFiles.Select(Path.GetFileName).Where(n => n is not null).Cast<string>().ToList();
         var resolved = new List<ApiService.VideoDetail>();
-        var unresolvedBatchFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var batch in fileNames.Chunk(ResolveBatchSize))
         {
             var batchList = batch.ToList();
             var partial = await ApiService.ResolveVideosByFileNamesAsync(stationId.Value, batchList);
-            if (partial.Count == 0 && batchList.Count > 0)
-            {
-                Logger.LogWarn($"[VideoWorkflowManager] recovery: batch of {batchList.Count} returned 0 results — skipping (possible API failure)");
-                foreach (var fn in batchList) unresolvedBatchFiles.Add(fn);
-                continue;
-            }
             resolved.AddRange(partial);
         }
 
@@ -152,11 +145,6 @@ public static class VideoWorkflowManager
             {
                 var fileName = Path.GetFileName(filePath);
                 if (string.IsNullOrEmpty(fileName)) continue;
-                if (unresolvedBatchFiles.Contains(fileName))
-                {
-                    skipped++;
-                    continue;
-                }
 
                 if (byFileName.TryGetValue(fileName, out var record))
                 {
@@ -207,15 +195,33 @@ public static class VideoWorkflowManager
                 }
                 else
                 {
-                    var trackingNumber = ParseTrackingFromFileName(Path.GetFileNameWithoutExtension(filePath));
-                    Logger.Log($"[VideoWorkflowManager] recovery: no backend record — creating for: {filePath}");
+                    var stem = Path.GetFileNameWithoutExtension(filePath);
+                    var trackingNumber = ParseTrackingFromFileName(stem);
+
+                    // Hotfix 1.4.4.1: only recover an orphan local file (no packing_videos
+                    // record) when its tracking number matches an existing packing_lists row.
+                    // SearchAsync is a fuzzy q-search, so require an exact case-insensitive
+                    // TrackingNumber match. This also guards against duplicate records during
+                    // an API outage: backend down → SearchAsync returns empty → no match → skip.
+                    var matches = await ApiService.SearchAsync(trackingNumber);
+                    var packingListExists = matches.Any(p =>
+                        string.Equals(p.TrackingNumber, trackingNumber, StringComparison.OrdinalIgnoreCase));
+                    if (!packingListExists)
+                    {
+                        Logger.Log($"[VideoWorkflowManager] recovery: tracking '{trackingNumber}' not found in packing_lists — skipping orphan: {filePath}");
+                        skipped++;
+                        continue;
+                    }
+
+                    var operatorName = ParseStationNameFromFileName(stem);
+                    Logger.Log($"[VideoWorkflowManager] recovery: no backend record but packing list found — creating for: {filePath}");
 
                     var videoId = await ApiService.CreateVideoRecordAsync(
-                        trackingNumber, filePath, stationId, "recovery");
+                        trackingNumber, filePath, stationId, operatorName);
 
                     if (videoId > 0)
                     {
-                        Start(videoId, filePath, trackingNumber, null, stationId, isRecovery: true);
+                        Start(videoId, filePath, trackingNumber, operatorName, stationId, isRecovery: true);
                         recovered++;
                     }
                     else
@@ -275,6 +281,19 @@ public static class VideoWorkflowManager
         var parts = fileNameWithoutExt.Split('_');
         // Expected: date_time_machine_station_tracking (5+ parts, tracking is last)
         return parts.Length >= 5 ? parts[^1] : fileNameWithoutExt;
+    }
+
+    /// <summary>
+    /// Extracts the recording machine/station name from filename format:
+    /// {yyyyMMdd}_{HHmmss}_{Machine}_{Station}_{Tracking}. Index 2 is the machine name
+    /// (Environment.MachineName at record time). Sanitized to match the operator format
+    /// used elsewhere (spaces → dashes). Falls back to "recovery" if the pattern doesn't match.
+    /// </summary>
+    private static string ParseStationNameFromFileName(string fileNameWithoutExt)
+    {
+        var parts = fileNameWithoutExt.Split('_');
+        // Expected: date_time_machine_station_tracking (5+ parts, machine is index 2)
+        return parts.Length >= 5 ? parts[2].Replace(' ', '-') : "recovery";
     }
 
     private static void Prune(int videoId)
