@@ -29,8 +29,8 @@
 		<ApplicationId>com.nafstationery.app</ApplicationId>
 
 		<!-- Versions -->
-		<ApplicationDisplayVersion>1.4.4</ApplicationDisplayVersion>
-		<ApplicationVersion>2</ApplicationVersion>
+		<ApplicationDisplayVersion>1.4.4.1</ApplicationDisplayVersion>
+		<ApplicationVersion>3</ApplicationVersion>
 
 		<!-- To develop, package, and publish an app to the Microsoft Store, see:
 		https://aka.ms/MauiTemplateUnpackaged -->
