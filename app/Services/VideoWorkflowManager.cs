@@ -224,12 +224,15 @@ public static class VideoWorkflowManager
                         Start(videoId, filePath, trackingNumber, operatorName, stationId, isRecovery: true);
                         recovered++;
 
-                        // Hotfix 1.4.4.1: mirror the normal scan-stop flow — advance a still-unpacked
-                        // packing list to "Packed" when its video is recovered. Only upgrade from the
-                        // pre-packed states; never overwrite Packed / QC Hold / QC passed / Completed.
+                        // Hotfix 1.4.4.1: mirror the normal scan-stop flow — advance the packing list
+                        // to "Packed" when its video is recovered. Workflow order is
+                        // To be packed → QC Hold/QC Passed → Packing → Packed, so upgrade from any
+                        // pre-Packed state; never overwrite a list already at "Packed".
                         var status = match.PackingStatus?.Trim();
                         if (string.Equals(status, "To be packed", StringComparison.OrdinalIgnoreCase) ||
-                            string.Equals(status, "Packing", StringComparison.OrdinalIgnoreCase))
+                            string.Equals(status, "QC Hold",      StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(status, "QC Passed",    StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(status, "Packing",      StringComparison.OrdinalIgnoreCase))
                         {
                             var packedOk = await ApiService.UpdatePackingStatusByScanAsync(
                                 trackingNumber, "Packed", operatorName,
