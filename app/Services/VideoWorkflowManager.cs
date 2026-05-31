@@ -204,9 +204,9 @@ public static class VideoWorkflowManager
                     // TrackingNumber match. This also guards against duplicate records during
                     // an API outage: backend down → SearchAsync returns empty → no match → skip.
                     var matches = await ApiService.SearchAsync(trackingNumber);
-                    var packingListExists = matches.Any(p =>
+                    var match = matches.FirstOrDefault(p =>
                         string.Equals(p.TrackingNumber, trackingNumber, StringComparison.OrdinalIgnoreCase));
-                    if (!packingListExists)
+                    if (match is null)
                     {
                         Logger.Log($"[VideoWorkflowManager] recovery: tracking '{trackingNumber}' not found in packing_lists — skipping orphan: {filePath}");
                         skipped++;
@@ -223,6 +223,19 @@ public static class VideoWorkflowManager
                     {
                         Start(videoId, filePath, trackingNumber, operatorName, stationId, isRecovery: true);
                         recovered++;
+
+                        // Hotfix 1.4.4.1: mirror the normal scan-stop flow — advance a still-unpacked
+                        // packing list to "Packed" when its video is recovered. Only upgrade from the
+                        // pre-packed states; never overwrite Packed / QC Hold / QC passed / Completed.
+                        var status = match.PackingStatus?.Trim();
+                        if (string.Equals(status, "To be packed", StringComparison.OrdinalIgnoreCase) ||
+                            string.Equals(status, "Packing", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var packedOk = await ApiService.UpdatePackingStatusByScanAsync(
+                                trackingNumber, "Packed", operatorName,
+                                packingStationId: AppSettings.ResolvedStationId);
+                            Logger.Log($"[VideoWorkflowManager] recovery: packing list '{trackingNumber}' {status} → Packed ({(packedOk ? "ok" : "failed")})");
+                        }
                     }
                     else
                     {
