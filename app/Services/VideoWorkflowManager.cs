@@ -122,17 +122,10 @@ public static class VideoWorkflowManager
 
         var fileNames = localFiles.Select(Path.GetFileName).Where(n => n is not null).Cast<string>().ToList();
         var resolved = new List<ApiService.VideoDetail>();
-        var unresolvedBatchFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var batch in fileNames.Chunk(ResolveBatchSize))
         {
             var batchList = batch.ToList();
             var partial = await ApiService.ResolveVideosByFileNamesAsync(stationId.Value, batchList);
-            if (partial.Count == 0 && batchList.Count > 0)
-            {
-                Logger.LogWarn($"[VideoWorkflowManager] recovery: batch of {batchList.Count} returned 0 results — skipping (possible API failure)");
-                foreach (var fn in batchList) unresolvedBatchFiles.Add(fn);
-                continue;
-            }
             resolved.AddRange(partial);
         }
 
@@ -152,11 +145,6 @@ public static class VideoWorkflowManager
             {
                 var fileName = Path.GetFileName(filePath);
                 if (string.IsNullOrEmpty(fileName)) continue;
-                if (unresolvedBatchFiles.Contains(fileName))
-                {
-                    skipped++;
-                    continue;
-                }
 
                 if (byFileName.TryGetValue(fileName, out var record))
                 {
@@ -178,6 +166,10 @@ public static class VideoWorkflowManager
                             recovered++;
                             continue;
                         }
+
+                        // Hotfix 1.4.4.1: video already Completed + remote verified — sync a
+                        // pre-Packed list to "Packed" (no re-upload; the video is already done).
+                        await MarkPackedIfEligibleAsync(record.TrackingNumber, filePath, stationId);
 
                         if (AppSettings.AutoDeleteCompletedVideos)
                         {
@@ -207,15 +199,34 @@ public static class VideoWorkflowManager
                 }
                 else
                 {
-                    var trackingNumber = ParseTrackingFromFileName(Path.GetFileNameWithoutExtension(filePath));
-                    Logger.Log($"[VideoWorkflowManager] recovery: no backend record — creating for: {filePath}");
+                    var stem = Path.GetFileNameWithoutExtension(filePath);
+                    var trackingNumber = ParseTrackingFromFileName(stem);
+
+                    // Hotfix 1.4.4.1: only recover an orphan local file (no packing_videos
+                    // record) when its tracking number matches an existing packing_lists row.
+                    // SearchAsync is a fuzzy q-search, so require an exact case-insensitive
+                    // TrackingNumber match. This also guards against duplicate records during
+                    // an API outage: backend down → SearchAsync returns empty → no match → skip.
+                    var matches = await ApiService.SearchAsync(trackingNumber);
+                    var packingListExists = matches.Any(p =>
+                        string.Equals(p.TrackingNumber, trackingNumber, StringComparison.OrdinalIgnoreCase));
+                    if (!packingListExists)
+                    {
+                        Logger.Log($"[VideoWorkflowManager] recovery: tracking '{trackingNumber}' not found in packing_lists — skipping orphan: {filePath}");
+                        skipped++;
+                        continue;
+                    }
+
+                    var operatorLabel = ParseStationLabelFromFileName(stem);
+                    Logger.Log($"[VideoWorkflowManager] recovery: no backend record but packing list found — creating for: {filePath}");
 
                     var videoId = await ApiService.CreateVideoRecordAsync(
-                        trackingNumber, filePath, stationId, "recovery");
+                        trackingNumber, filePath, stationId, operatorLabel);
 
                     if (videoId > 0)
                     {
-                        Start(videoId, filePath, trackingNumber, null, stationId, isRecovery: true);
+                        // packing_lists status is synced to Packed on completion (VideoWorkflowRunner).
+                        Start(videoId, filePath, trackingNumber, operatorLabel, stationId, isRecovery: true);
                         recovered++;
                     }
                     else
@@ -275,6 +286,52 @@ public static class VideoWorkflowManager
         var parts = fileNameWithoutExt.Split('_');
         // Expected: date_time_machine_station_tracking (5+ parts, tracking is last)
         return parts.Length >= 5 ? parts[^1] : fileNameWithoutExt;
+    }
+
+    /// <summary>
+    /// Extracts the station label from filename format:
+    /// {yyyyMMdd}_{HHmmss}_{Machine}_{Station}_{Tracking}. Index 3 is the station label
+    /// (e.g. "Station-1"), already sanitized at record time. Used as the operator / packed_by
+    /// for recovered videos. Falls back to "recovery" if the pattern doesn't match.
+    /// </summary>
+    private static string ParseStationLabelFromFileName(string fileNameWithoutExt)
+    {
+        var parts = fileNameWithoutExt.Split('_');
+        // Expected: date_time_machine_station_tracking (5+ parts, station label is index 3)
+        return parts.Length >= 5 ? parts[3] : "recovery";
+    }
+
+    /// <summary>
+    /// If the video's tracking number exists in packing_lists and the list is still pre-Packed
+    /// (To be packed / QC Hold / QC Passed / Packing), advance it to "Packed". Called once a
+    /// recovered video is confirmed Completed (remote verified). No-op for unknown tracking or a
+    /// list already past packing. packed_by / station come from the recovery file's station label.
+    /// </summary>
+    public static async Task MarkPackedIfEligibleAsync(string? trackingNumber, string? localFilePath, int? stationId)
+    {
+        if (string.IsNullOrWhiteSpace(trackingNumber)) return;
+
+        var matches = await ApiService.SearchAsync(trackingNumber);
+        var match = matches.FirstOrDefault(p =>
+            string.Equals(p.TrackingNumber, trackingNumber, StringComparison.OrdinalIgnoreCase));
+        if (match is null) return;
+
+        var status = match.PackingStatus?.Trim();
+        var eligible =
+            string.Equals(status, "To be packed", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(status, "QC Hold",      StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(status, "QC Passed",    StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(status, "Packing",      StringComparison.OrdinalIgnoreCase);
+        if (!eligible)
+        {
+            Logger.Log($"[VideoWorkflowManager] recovery: packing list '{trackingNumber}' status '{status}' not eligible for Packed — leaving as-is");
+            return;
+        }
+
+        var operatorLabel = ParseStationLabelFromFileName(Path.GetFileNameWithoutExtension(localFilePath ?? ""));
+        var ok = await ApiService.UpdatePackingStatusByScanAsync(
+            trackingNumber, "Packed", operatorLabel, packingStationId: stationId);
+        Logger.Log($"[VideoWorkflowManager] recovery: packing list '{trackingNumber}' {status} → Packed ({(ok ? "ok" : "failed")})");
     }
 
     private static void Prune(int videoId)

@@ -161,6 +161,11 @@ public sealed class VideoWorkflowRunner
         if (_engine.CurrentState == "completed")
         {
             VideoWorkflowManager.ReportProgress(_ctx.VideoId!.Value, fileName, "Completed", _ctx.UploadAttempt);
+            // Hotfix 1.4.4.1: a recovered upload that verifies Completed advances its packing
+            // list to "Packed" (when still pre-Packed and present in packing_lists).
+            if (_isRecovery)
+                await VideoWorkflowManager.MarkPackedIfEligibleAsync(
+                    _ctx.ActiveBarcode, _ctx.LocalFilePath, _ctx.StationId);
             if (AppSettings.AutoDeleteCompletedVideos)
                 TryDeleteLocalFile();
             VideoWorkflowManager.RemoveProgress(_ctx.VideoId!.Value);
