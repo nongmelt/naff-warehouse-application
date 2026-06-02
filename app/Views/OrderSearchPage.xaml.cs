@@ -685,6 +685,13 @@ public partial class OrderSearchPage : ContentPage
         UpdateHistoryHeader();
         SetSearchLoading(false);
 
+        // Auto-open the image overlay when the whole result set is a single
+        // non-bundle product that still needs picking (spec: one single product).
+        var soleProduct = SingleProductOverlayPolicy.PickSoleProduct(
+            Results, _pendingScanQueue.Count > 0);
+        if (soleProduct != null)
+            ShowProductImageOverlay(soleProduct, "auto_single_product");
+
         // Drain queued scans
         if (_pendingScanQueue.Count > 0)
         {
