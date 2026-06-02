@@ -690,7 +690,7 @@ public partial class OrderSearchPage : ContentPage
         var soleProduct = SingleProductOverlayPolicy.PickSoleProduct(
             Results, _pendingScanQueue.Count > 0);
         if (soleProduct != null)
-            ShowProductImageOverlay(soleProduct, "auto_single_product");
+            await AutoOpenSingleProductOverlayAsync(soleProduct);
 
         // Drain queued scans
         if (_pendingScanQueue.Count > 0)
@@ -1285,8 +1285,7 @@ public partial class OrderSearchPage : ContentPage
         {
             OverlayVerifiedQty.Text = comp.VerifiedQuantity.ToString();
             OverlayReqQty.Text = comp.RequiredQuantity.ToString();
-            OverlayVerifiedQty.TextColor = comp.IsFullyVerified
-                ? Color.FromArgb("#10B981") : Color.FromArgb("#111827");
+            OverlayVerifiedQty.TextColor = OverlayCountColor(comp.VerifiedQuantity, comp.RequiredQuantity);
 
             OverlayProductName.Text = comp.Name;
             RefreshOverlaySkuPills();
@@ -1315,11 +1314,11 @@ public partial class OrderSearchPage : ContentPage
 
             if (comp.HasQcNotes)
             {
-                OverlayNotesLabel.Text = comp.QcNotes!;
-                OverlayNotesLabel.TextColor = Color.FromArgb("#991b1b");
-                OverlayNotesBorder.BackgroundColor = Color.FromArgb("#fef2f2");
-                OverlayNotesBorder.Stroke = Color.FromArgb("#fca5a5");
-                OverlayNotesBorder.StrokeThickness = 1.5;
+                OverlayNotesLabel.Text = $"📢 QC: {comp.QcNotes}";
+                OverlayNotesLabel.TextColor = Color.FromArgb("#b45309");
+                OverlayNotesBorder.BackgroundColor = Color.FromArgb("#fffbeb");
+                OverlayNotesBorder.Stroke = Color.FromArgb("#fbbf24");
+                OverlayNotesBorder.StrokeThickness = 1;
             }
             else
             {
@@ -1335,7 +1334,10 @@ public partial class OrderSearchPage : ContentPage
             OverlayVerifiedQty.Text = bundleParent.VerifiedQuantity.ToString();
             OverlayReqQty.Text = bundleParent.RequiredQuantity.ToString();
             OverlayVerifiedQty.TextColor = bundleParent.IsBundleFullyVerified
-                ? Color.FromArgb("#10B981") : Color.FromArgb("#111827");
+                ? Color.FromArgb("#10B981")
+                : bundleParent.BundleVerifiedCount > 0
+                    ? Color.FromArgb("#c2410c")
+                    : Color.FromArgb("#111827");
 
             OverlayProductName.Text = bundleParent.BaseName;
             RefreshOverlaySkuPills();
@@ -1364,11 +1366,11 @@ public partial class OrderSearchPage : ContentPage
 
             if (bundleParent.HasQcNotes)
             {
-                OverlayNotesLabel.Text = bundleParent.QcNotes!;
-                OverlayNotesLabel.TextColor = Color.FromArgb("#991b1b");
-                OverlayNotesBorder.BackgroundColor = Color.FromArgb("#fef2f2");
-                OverlayNotesBorder.Stroke = Color.FromArgb("#fca5a5");
-                OverlayNotesBorder.StrokeThickness = 1.5;
+                OverlayNotesLabel.Text = $"📢 QC: {bundleParent.QcNotes}";
+                OverlayNotesLabel.TextColor = Color.FromArgb("#b45309");
+                OverlayNotesBorder.BackgroundColor = Color.FromArgb("#fffbeb");
+                OverlayNotesBorder.Stroke = Color.FromArgb("#fbbf24");
+                OverlayNotesBorder.StrokeThickness = 1;
             }
             else
             {
@@ -1919,9 +1921,7 @@ public partial class OrderSearchPage : ContentPage
         // Counter — show verified / required, green when complete
         OverlayVerifiedQty.Text = item.VerifiedQuantity.ToString();
         OverlayReqQty.Text = item.RequiredQuantity.ToString();
-        OverlayVerifiedQty.TextColor = item.VerifiedQuantity >= item.RequiredQuantity
-            ? Color.FromArgb("#10B981")
-            : Color.FromArgb("#111827");
+        OverlayVerifiedQty.TextColor = OverlayCountColor(item.VerifiedQuantity, item.RequiredQuantity);
 
         // Product info
         OverlayProductName.Text = item.BaseName;
@@ -1954,11 +1954,11 @@ public partial class OrderSearchPage : ContentPage
 
         if (item.HasQcNotes)
         {
-            OverlayNotesLabel.Text = item.QcNotes!;
-            OverlayNotesLabel.TextColor = Color.FromArgb("#991b1b");
-            OverlayNotesBorder.BackgroundColor = Color.FromArgb("#fef2f2");
-            OverlayNotesBorder.Stroke = Color.FromArgb("#fca5a5");
-            OverlayNotesBorder.StrokeThickness = 1.5;
+            OverlayNotesLabel.Text = $"📢 QC: {item.QcNotes}";
+            OverlayNotesLabel.TextColor = Color.FromArgb("#b45309");
+            OverlayNotesBorder.BackgroundColor = Color.FromArgb("#fffbeb");
+            OverlayNotesBorder.Stroke = Color.FromArgb("#fbbf24");
+            OverlayNotesBorder.StrokeThickness = 1;
         }
         else
         {
@@ -2002,14 +2002,69 @@ public partial class OrderSearchPage : ContentPage
 
     }
 
+    /// <summary>
+    /// Opens the overlay for the auto-selected sole product, but only once its
+    /// image is ready. Product images download in the background after
+    /// enrichment, so opening immediately would show a blank image. Wait for the
+    /// download to complete; if no image becomes available, skip the auto-open
+    /// rather than presenting an empty overlay. When it does open, fade/scale in
+    /// so the appearance is not abrupt.
+    /// </summary>
+    private async Task AutoOpenSingleProductOverlayAsync(ProductItem item)
+    {
+        if (!item.HasLocalImage && !item.HasImage && item.HasImagePath)
+        {
+            try
+            {
+                var apiBase = AppSettings.ApiUrl ?? "http://localhost:8080";
+                var path = await ProductImageCache.EnsureAsync(
+                    item.SellerSku, apiBase, item.ProductId, item.ProductVersion);
+                if (path != null)
+                    item.LocalImagePath = path;
+            }
+            catch (Exception ex)
+            {
+                Logger.Log($"Auto-open image preload failed ({item.SellerSku}): {ex.Message}");
+            }
+        }
+
+        // Only auto-open once the image is actually available.
+        if (!item.HasLocalImage && !item.HasImage)
+            return;
+
+        bool wasHidden = !ProductImageOverlay.IsVisible;
+        ShowProductImageOverlay(item, "auto_single_product");
+
+        if (wasHidden)
+        {
+            // ShowProductImageOverlay snaps the overlay to fully visible; reset and
+            // animate in to mirror the dismiss transition (fade + scale).
+            ProductImageOverlay.Opacity = 0;
+            OverlayCard.Scale = 0.85;
+            await Task.WhenAll(
+                ProductImageOverlay.FadeToAsync(1, 180, Easing.CubicOut),
+                OverlayCard.ScaleToAsync(1, 180, Easing.CubicOut));
+        }
+    }
+
+    /// <summary>
+    /// Color for the large overlay verified/required counter, matching the
+    /// normal product card: green when complete, orange when partially
+    /// verified, neutral dark when nothing scanned yet.
+    /// </summary>
+    private static Color OverlayCountColor(int verified, int required)
+    {
+        if (required > 0 && verified >= required) return Color.FromArgb("#10B981"); // complete
+        if (verified > 0) return Color.FromArgb("#c2410c");                          // partial (matches card)
+        return Color.FromArgb("#111827");                                            // none scanned
+    }
+
     private void RefreshOverlayQuantity()
     {
         if (_overlayItem == null) return;
         OverlayVerifiedQty.Text = _overlayItem.VerifiedQuantity.ToString();
         OverlayReqQty.Text = _overlayItem.RequiredQuantity.ToString();
-        OverlayVerifiedQty.TextColor = _overlayItem.VerifiedQuantity >= _overlayItem.RequiredQuantity
-            ? Color.FromArgb("#10B981")
-            : Color.FromArgb("#111827");
+        OverlayVerifiedQty.TextColor = OverlayCountColor(_overlayItem.VerifiedQuantity, _overlayItem.RequiredQuantity);
         RefreshOverlaySkuPills();
     }
 
@@ -2029,7 +2084,7 @@ public partial class OrderSearchPage : ContentPage
                 Content = new Label
                 {
                     Text = sku,
-                    FontSize = 13,
+                    FontSize = 20,
                     FontFamily = "Consolas",
                     FontAttributes = FontAttributes.Bold,
                     TextColor = text,
@@ -2285,6 +2340,11 @@ public partial class OrderSearchPage : ContentPage
             OverlayCard.StrokeThickness = 0;
             if (ProductImageOverlay.IsVisible)
                 await DismissImageOverlayAsync("auto_complete");
+            // Slide the completed item (incl. bundle parent) to the bottom, matching the
+            // list-card completion path. Overlay completions previously skipped the reorder,
+            // so verified bundles collapsed in place instead of moving below the open items.
+            // Self-gates to a no-op when the item is already last (standard-via-overlay case).
+            _ = AnimateAndMoveItemToBottomAsync(item);
         }
         catch (TaskCanceledException)
         {
@@ -2419,9 +2479,7 @@ public partial class OrderSearchPage : ContentPage
     private void SyncOverlayAfterDeduction(ProductItem item)
     {
         OverlayVerifiedQty.Text = item.VerifiedQuantity.ToString();
-        OverlayVerifiedQty.TextColor = item.VerifiedQuantity >= item.RequiredQuantity
-            ? Color.FromArgb("#10B981")
-            : Color.FromArgb("#111827");
+        OverlayVerifiedQty.TextColor = OverlayCountColor(item.VerifiedQuantity, item.RequiredQuantity);
         RefreshOverlaySkuPills();
 
         if (item.IsFullyPicked)
@@ -3085,14 +3143,17 @@ public partial class OrderSearchPage : ContentPage
     {
         if (Application.Current?.Windows is { Count: > 0 } wins &&
             wins[0].Handler?.PlatformView is Microsoft.UI.Xaml.Window w)
-            w.Content.KeyDown += OnWindowKeyDown;
+            // PreviewKeyDown (tunneling) fires before the ScrollViewer acts on arrow keys,
+            // so e.Handled=true in the bundle-component nav block suppresses list scrolling.
+            // Bubbling KeyDown ran too late (ScrollView already scrolled / marked handled).
+            w.Content.PreviewKeyDown += OnWindowKeyDown;
     }
 
     private void UnregisterKeyboardHandler()
     {
         if (Application.Current?.Windows is { Count: > 0 } wins &&
             wins[0].Handler?.PlatformView is Microsoft.UI.Xaml.Window w)
-            w.Content.KeyDown -= OnWindowKeyDown;
+            w.Content.PreviewKeyDown -= OnWindowKeyDown;
     }
 
     private void OnWindowKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)

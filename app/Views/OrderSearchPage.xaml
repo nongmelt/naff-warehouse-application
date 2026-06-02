@@ -864,11 +864,8 @@
                                                     <TapGestureRecognizer Tapped="OnProductRowTapped"/>
                                                 </Border.GestureRecognizers>
 
-                                                <Grid RowDefinitions="*, Auto">
-                                                    <!-- Main content row -->
-                                                    <Grid Grid.Row="0"
-                                                          ColumnDefinitions="4, Auto, *, Auto"
-                                                          Padding="0,16,24,16">
+                                                <Grid ColumnDefinitions="4, Auto, *, Auto"
+                                                      Padding="0,16,24,16">
 
                                                         <!-- Col 0: Status strip -->
                                                         <BoxView Grid.Column="0" Grid.RowSpan="2"
@@ -878,29 +875,30 @@
 
                                                         <!-- Col 1: 300x300 image with index badge overlay -->
                                                         <Grid Grid.Column="1"
-                                                              Padding="16,0,20,0"
-                                                              WidthRequest="340" HeightRequest="316"
+                                                              Margin="16,0,20,0"
                                                               VerticalOptions="Center">
                                                             <Border StrokeShape="RoundRectangle 8"
                                                                     Stroke="{Binding CardBorderColor}"
-                                                                    StrokeThickness="1"
+                                                                    StrokeThickness="0"
                                                                     BackgroundColor="#f3f4f6"
-                                                                    Padding="8">
+                                                                    Padding="0"
+                                                                    WidthRequest="250" HeightRequest="250">
                                                                 <Image Source="{Binding LocalImagePath}"
                                                                        IsVisible="{Binding HasLocalImage}"
-                                                                       HeightRequest="300" WidthRequest="300"
-                                                                       Aspect="AspectFit"/>
+                                                                       HeightRequest="250" WidthRequest="250"
+                                                                       Aspect="AspectFill"/>
                                                             </Border>
                                                             <Border StrokeShape="RoundRectangle 8"
                                                                     Stroke="{Binding CardBorderColor}"
-                                                                    StrokeThickness="1"
+                                                                    StrokeThickness="0"
                                                                     BackgroundColor="#f3f4f6"
-                                                                    Padding="8"
+                                                                    Padding="0"
+                                                                    WidthRequest="250" HeightRequest="250"
                                                                     IsVisible="{Binding HasNoLocalImage}">
                                                                 <Image Source="{Binding ImageSource}"
                                                                        IsVisible="{Binding HasImage}"
-                                                                       HeightRequest="300" WidthRequest="300"
-                                                                       Aspect="AspectFit"/>
+                                                                       HeightRequest="250" WidthRequest="250"
+                                                                       Aspect="AspectFill"/>
                                                             </Border>
 
                                                             <!-- Index badge (top-left) -->
@@ -918,31 +916,16 @@
                                                                        FontFamily="Consolas"/>
                                                             </Border>
 
-                                                            <!-- Category badge (top-right) -->
-                                                            <Border HorizontalOptions="End"
-                                                                    VerticalOptions="Start"
-                                                                    BackgroundColor="{Binding CategoryBadgeBg}"
-                                                                    Stroke="Transparent"
-                                                                    StrokeShape="RoundRectangle 6"
-                                                                    Padding="6,2"
-                                                                    Margin="12,4"
-                                                                    IsVisible="{Binding HasCategoryBadge}">
-                                                                <Label Text="{Binding CategoryBadge}"
-                                                                       FontSize="8"
-                                                                       FontAttributes="Bold"
-                                                                       TextColor="{Binding CategoryBadgeFg}"
-                                                                       CharacterSpacing="0.5"/>
-                                                            </Border>
                                                         </Grid>
 
                                                         <!-- Col 2: Info column -->
                                                         <VerticalStackLayout Grid.Column="2"
-                                                                             Spacing="8"
+                                                                             Spacing="12"
                                                                              VerticalOptions="Center"
                                                                              Padding="0,0,16,0">
                                                             <!-- Product name (single line, ellipsis) -->
                                                             <Label Text="{Binding BaseName}"
-                                                                   FontSize="15"
+                                                                   FontSize="22"
                                                                    FontAttributes="Bold"
                                                                    TextColor="{Binding CardTextColor}"
                                                                    LineBreakMode="TailTruncation"
@@ -955,14 +938,14 @@
                                                                         BindableLayout.ItemsSource="{Binding SkuPillSkus}">
                                                                 <BindableLayout.ItemTemplate>
                                                                     <DataTemplate x:DataType="x:String">
-                                                                        <Border Padding="6,2"
-                                                                                Margin="0,0,4,4"
-                                                                                StrokeShape="RoundRectangle 4"
+                                                                        <Border Padding="10,4"
+                                                                                Margin="0,0,6,6"
+                                                                                StrokeShape="RoundRectangle 6"
                                                                                 StrokeThickness="1"
                                                                                 BackgroundColor="{Binding Source={RelativeSource AncestorType={x:Type models:ProductItem}}, Path=SkuPillBg}"
                                                                                 Stroke="{Binding Source={RelativeSource AncestorType={x:Type models:ProductItem}}, Path=SkuPillBorder}">
                                                                             <Label Text="{Binding .}"
-                                                                                   FontSize="12"
+                                                                                   FontSize="16"
                                                                                    FontFamily="Consolas"
                                                                                    FontAttributes="Bold"
                                                                                    TextColor="{Binding Source={RelativeSource AncestorType={x:Type models:ProductItem}}, Path=SkuPillText}"/>
@@ -972,7 +955,7 @@
                                                             </FlexLayout>
                                                             <Label Text="{Binding SellerSku}"
                                                                    IsVisible="{Binding HasNoSkuPills}"
-                                                                   FontSize="12"
+                                                                   FontSize="16"
                                                                    FontFamily="Consolas"
                                                                    TextColor="#9ca3af"/>
 
@@ -981,29 +964,54 @@
                                                                     BackgroundColor="{Binding VariationBadgeBg}"
                                                                     Stroke="{Binding VariationBorderColor}"
                                                                     StrokeThickness="1.5"
-                                                                    StrokeShape="RoundRectangle 7"
-                                                                    Padding="8,4"
+                                                                    StrokeShape="RoundRectangle 8"
+                                                                    Padding="12,6"
                                                                     HorizontalOptions="Start">
-                                                                <HorizontalStackLayout Spacing="5">
+                                                                <HorizontalStackLayout Spacing="6">
                                                                     <BoxView IsVisible="{Binding HasSwatch}"
                                                                              Color="{Binding SwatchColor}"
-                                                                             WidthRequest="14"
-                                                                             HeightRequest="14"
+                                                                             WidthRequest="18"
+                                                                             HeightRequest="18"
                                                                              CornerRadius="4"
                                                                              VerticalOptions="Center"/>
                                                                     <BoxView IsVisible="{Binding HasSwatch2}"
                                                                              Color="{Binding SwatchColor2}"
-                                                                             WidthRequest="14"
-                                                                             HeightRequest="14"
+                                                                             WidthRequest="18"
+                                                                             HeightRequest="18"
                                                                              CornerRadius="4"
                                                                              VerticalOptions="Center"/>
                                                                     <Label Text="{Binding Variation}"
-                                                                           FontSize="12"
+                                                                           FontSize="16"
                                                                            TextColor="{Binding VariationBadgeTextColor}"
                                                                            VerticalOptions="Center"
                                                                            LineBreakMode="TailTruncation"
                                                                            MaxLines="1"/>
                                                                 </HorizontalStackLayout>
+                                                            </Border>
+
+                                                            <!-- QC Notes (inline) -->
+                                                            <Border IsVisible="{Binding HasQcNotes}"
+                                                                    BackgroundColor="#fffbeb"
+                                                                    Stroke="#fbbf24"
+                                                                    StrokeThickness="1"
+                                                                    StrokeShape="RoundRectangle 8"
+                                                                    Padding="12,8"
+                                                                    HorizontalOptions="Start">
+                                                                <Label TextColor="#b45309"
+                                                                       FontSize="15"
+                                                                       LineBreakMode="WordWrap"
+                                                                       MaxLines="3">
+                                                                    <Label.FormattedText>
+                                                                        <FormattedString>
+                                                                            <Span Text="📢 QC: "
+                                                                                  FontAttributes="Bold"
+                                                                                  FontSize="15"/>
+                                                                            <Span Text="{Binding QcNotes}"
+                                                                                  FontSize="15"
+                                                                                  FontAttributes="Bold"/>
+                                                                        </FormattedString>
+                                                                    </Label.FormattedText>
+                                                                </Label>
                                                             </Border>
                                                         </VerticalStackLayout>
 
@@ -1011,50 +1019,34 @@
                                                         <Border Grid.Column="3"
                                                                 BackgroundColor="{Binding ButtonBgColor}"
                                                                 Stroke="{Binding CardBorderColor}"
-                                                                StrokeThickness="1"
-                                                                StrokeShape="RoundRectangle 8"
-                                                                Padding="16,8"
+                                                                StrokeThickness="2"
+                                                                StrokeShape="RoundRectangle 12"
+                                                                Padding="24,16"
                                                                 VerticalOptions="Center"
-                                                                MinimumWidthRequest="70">
+                                                                MinimumWidthRequest="100">
                                                             <Border.GestureRecognizers>
                                                                 <TapGestureRecognizer Tapped="OnQuantityTapped"/>
                                                             </Border.GestureRecognizers>
                                                             <HorizontalStackLayout HorizontalOptions="Center"
-                                                                                   Spacing="2">
+                                                                                   Spacing="4">
                                                                 <Label Text="{Binding VerifiedQuantity}"
-                                                                       FontSize="18"
+                                                                       FontSize="32"
                                                                        FontAttributes="Bold"
                                                                        TextColor="{Binding ButtonTextColor}"
                                                                        FontFamily="Consolas"/>
                                                                 <Label Text="/"
-                                                                       FontSize="14"
+                                                                       FontSize="22"
                                                                        TextColor="#d1d5db"
                                                                        FontFamily="Consolas"
                                                                        VerticalOptions="Center"/>
                                                                 <Label Text="{Binding RequiredQuantity}"
-                                                                       FontSize="14"
+                                                                       FontSize="22"
                                                                        TextColor="#9ca3af"
                                                                        FontFamily="Consolas"
                                                                        VerticalOptions="Center"/>
                                                             </HorizontalStackLayout>
                                                         </Border>
                                                     </Grid>
-
-                                                    <!-- QC Notes bar (bottom) -->
-                                                    <Border Grid.Row="1"
-                                                            IsVisible="{Binding HasQcNotes}"
-                                                            BackgroundColor="#FFF7ED"
-                                                            Stroke="Transparent"
-                                                            StrokeShape="RoundRectangle 0,0,12,12"
-                                                            Padding="24,8,24,10">
-                                                        <Label Text="{Binding QcNotes}"
-                                                               FontSize="13"
-                                                               FontAttributes="Bold"
-                                                               TextColor="#c2410c"
-                                                               LineBreakMode="TailTruncation"
-                                                               MaxLines="2"/>
-                                                    </Border>
-                                                </Grid>
                                             </Border>
 
                                             <!-- === STANDARD COMPACT ROW (Verified/Completed) === -->
@@ -1062,14 +1054,21 @@
                                                     BackgroundColor="#ECFDF5"
                                                     Stroke="#86efac"
                                                     StrokeThickness="1"
-                                                    StrokeShape="RoundRectangle 4"
-                                                    Padding="0"
-                                                    HeightRequest="52">
+                                                    StrokeShape="RoundRectangle 8"
+                                                    Padding="0">
                                                 <Border.Triggers>
                                                     <DataTrigger TargetType="Border"
                                                                  Binding="{Binding ShowRowNumber}"
                                                                  Value="True">
                                                         <Setter Property="IsVisible" Value="False"/>
+                                                    </DataTrigger>
+                                                    <!-- Active (scan/nav) overrides the verified-green border with purple -->
+                                                    <DataTrigger TargetType="Border"
+                                                                 Binding="{Binding IsActive}"
+                                                                 Value="True">
+                                                        <Setter Property="Stroke" Value="#a78bfa"/>
+                                                        <Setter Property="StrokeThickness" Value="3"/>
+                                                        <Setter Property="BackgroundColor" Value="#F5F3FF"/>
                                                     </DataTrigger>
                                                 </Border.Triggers>
                                                 <Border.GestureRecognizers>
@@ -1077,48 +1076,82 @@
                                                                               PointerExited="OnProductCardExited"/>
                                                     <TapGestureRecognizer Tapped="OnProductRowTapped"/>
                                                 </Border.GestureRecognizers>
-                                                <Grid ColumnDefinitions="4, 56, *, Auto"
-                                                      Padding="0,4,12,4">
+                                                <Grid ColumnDefinitions="4, 145, *, Auto"
+                                                      Padding="0,8,16,8">
                                                     <BoxView Grid.Column="0"
                                                              WidthRequest="4"
                                                              BackgroundColor="#86efac"
                                                              VerticalOptions="Fill"/>
-                                                    <Grid Grid.Column="1" Padding="8,0">
+                                                    <Grid Grid.Column="1" Padding="10,0">
                                                         <Image Source="{Binding LocalImagePath}"
                                                                IsVisible="{Binding HasLocalImage}"
-                                                               HeightRequest="40"
-                                                               WidthRequest="40"
+                                                               HeightRequest="125"
+                                                               WidthRequest="125"
                                                                Aspect="AspectFill"/>
                                                         <Image Source="{Binding ImageSource}"
                                                                IsVisible="{Binding HasNoLocalImage}"
-                                                               HeightRequest="40"
-                                                               WidthRequest="40"
+                                                               HeightRequest="125"
+                                                               WidthRequest="125"
                                                                Aspect="AspectFill"/>
                                                         <Label Text="✓"
-                                                               FontSize="18"
+                                                               FontSize="20"
                                                                FontAttributes="Bold"
                                                                TextColor="#16a34a"
                                                                HorizontalOptions="End"
                                                                VerticalOptions="End"
                                                                Margin="0,0,2,0"/>
                                                     </Grid>
-                                                    <Label Grid.Column="2"
-                                                           Text="{Binding BaseName}"
-                                                           FontSize="13"
-                                                           TextColor="#166534"
-                                                           VerticalOptions="Center"
-                                                           LineBreakMode="TailTruncation"
-                                                           MaxLines="1"
-                                                           Padding="4,0"/>
+                                                    <VerticalStackLayout Grid.Column="2"
+                                                                         VerticalOptions="Center"
+                                                                         Spacing="4"
+                                                                         Padding="4,0">
+                                                        <Label Text="{Binding BaseName}"
+                                                               FontSize="15"
+                                                               FontAttributes="Bold"
+                                                               TextColor="#166534"
+                                                               LineBreakMode="TailTruncation"
+                                                               MaxLines="1"/>
+                                                        <HorizontalStackLayout Spacing="8">
+                                                            <Border IsVisible="{Binding HasVariation}"
+                                                                    BackgroundColor="#d1fae5"
+                                                                    Stroke="#86efac"
+                                                                    StrokeThickness="1"
+                                                                    StrokeShape="RoundRectangle 6"
+                                                                    Padding="8,3"
+                                                                    VerticalOptions="Center">
+                                                                <Label Text="{Binding Variation}"
+                                                                       FontSize="12"
+                                                                       FontAttributes="Bold"
+                                                                       TextColor="#166534"/>
+                                                            </Border>
+                                                        </HorizontalStackLayout>
+                                                        <Border IsVisible="{Binding HasQcNotes}"
+                                                                BackgroundColor="#fffbeb"
+                                                                Stroke="#fbbf24"
+                                                                StrokeThickness="1"
+                                                                StrokeShape="RoundRectangle 6"
+                                                                Padding="8,3"
+                                                                HorizontalOptions="Start">
+                                                            <Label TextColor="#b45309" FontSize="12" FontAttributes="Bold"
+                                                                   LineBreakMode="TailTruncation" MaxLines="1">
+                                                                <Label.FormattedText>
+                                                                    <FormattedString>
+                                                                        <Span Text="📢 QC: " FontAttributes="Bold" FontSize="12"/>
+                                                                        <Span Text="{Binding QcNotes}" FontAttributes="Bold" FontSize="12"/>
+                                                                    </FormattedString>
+                                                                </Label.FormattedText>
+                                                            </Label>
+                                                        </Border>
+                                                    </VerticalStackLayout>
                                                     <Border Grid.Column="3"
                                                             BackgroundColor="#dcfce7"
                                                             Stroke="#86efac"
                                                             StrokeThickness="1"
-                                                            StrokeShape="RoundRectangle 4"
-                                                            Padding="8,2"
+                                                            StrokeShape="RoundRectangle 6"
+                                                            Padding="12,6"
                                                             VerticalOptions="Center">
                                                         <Label Text="{Binding CompletedQtyText}"
-                                                               FontSize="12"
+                                                               FontSize="15"
                                                                FontAttributes="Bold"
                                                                TextColor="#166534"
                                                                FontFamily="Consolas"/>
@@ -1126,7 +1159,7 @@
                                                 </Grid>
                                             </Border>
 
-                                            <!-- === BUNDLE COMPOUND GROUP (Active/Unverified) === -->
+                                            <!-- === BUNDLE PARENT ROW (Active/Unverified) === -->
                                             <Border IsVisible="{Binding IsBundle}"
                                                     BackgroundColor="{Binding CardBgColor}"
                                                     Stroke="{Binding CardBorderColor}"
@@ -1146,425 +1179,528 @@
                                                 <Border.GestureRecognizers>
                                                     <PointerGestureRecognizer PointerEntered="OnProductCardEntered"
                                                                               PointerExited="OnProductCardExited"/>
+                                                    <TapGestureRecognizer Tapped="OnProductRowTapped"/>
                                                 </Border.GestureRecognizers>
 
-                                                <Grid RowDefinitions="Auto, 1, Auto, Auto">
+                                                <Grid ColumnDefinitions="4, Auto, *, Auto"
+                                                      Padding="0,16,24,16">
 
-                                                    <!-- Row 0: Parent header row -->
-                                                    <Grid Grid.Row="0"
-                                                          ColumnDefinitions="4, Auto, *, Auto"
-                                                          Padding="0,16,24,16">
-                                                        <Grid.GestureRecognizers>
-                                                            <TapGestureRecognizer Tapped="OnProductRowTapped"/>
-                                                        </Grid.GestureRecognizers>
+                                                    <!-- Col 0: Status strip -->
+                                                    <BoxView Grid.Column="0"
+                                                             WidthRequest="4"
+                                                             BackgroundColor="{Binding StripColor}"
+                                                             VerticalOptions="Fill"/>
 
-                                                        <!-- Col 0: Status strip -->
-                                                        <BoxView Grid.Column="0"
-                                                                 WidthRequest="4"
-                                                                 BackgroundColor="{Binding StripColor}"
-                                                                 VerticalOptions="Fill"/>
-
-                                                        <!-- Col 1: 300x300 image with badges -->
-                                                        <Grid Grid.Column="1"
-                                                              Padding="16,0,20,0"
-                                                              WidthRequest="340" HeightRequest="316"
-                                                              VerticalOptions="Center">
-                                                            <Border StrokeShape="RoundRectangle 8"
-                                                                    Stroke="{Binding CardBorderColor}"
-                                                                    StrokeThickness="1"
-                                                                    BackgroundColor="#f3f4f6"
-                                                                    Padding="8">
-                                                                <Image Source="{Binding LocalImagePath}"
-                                                                       IsVisible="{Binding HasLocalImage}"
-                                                                       HeightRequest="300" WidthRequest="300"
-                                                                       Aspect="AspectFit"/>
-                                                            </Border>
-                                                            <Border StrokeShape="RoundRectangle 8"
-                                                                    Stroke="{Binding CardBorderColor}"
-                                                                    StrokeThickness="1"
-                                                                    BackgroundColor="#f3f4f6"
-                                                                    Padding="8"
-                                                                    IsVisible="{Binding HasNoLocalImage}">
-                                                                <Image Source="{Binding ImageSource}"
-                                                                       IsVisible="{Binding HasImage}"
-                                                                       HeightRequest="300" WidthRequest="300"
-                                                                       Aspect="AspectFit"/>
-                                                            </Border>
-
-                                                            <!-- Index badge + chevron (top-left) -->
-                                                            <Border HorizontalOptions="Start"
-                                                                    VerticalOptions="Start"
-                                                                    BackgroundColor="#334155"
-                                                                    Stroke="Transparent"
-                                                                    StrokeShape="RoundRectangle 6"
-                                                                    Padding="6,3,8,3"
-                                                                    Margin="12,4">
-                                                                <Border.GestureRecognizers>
-                                                                    <TapGestureRecognizer Tapped="OnBundleChevronTapped"/>
-                                                                </Border.GestureRecognizers>
-                                                                <HorizontalStackLayout Spacing="3">
-                                                                    <Label Text="{Binding RowNumber, StringFormat='#{0}'}"
-                                                                           FontSize="13"
-                                                                           FontAttributes="Bold"
-                                                                           TextColor="White"
-                                                                           FontFamily="Consolas"/>
-                                                                    <Label Text="{Binding BundleChevron}"
-                                                                           FontSize="10"
-                                                                           TextColor="White"
-                                                                           VerticalOptions="Center"/>
-                                                                </HorizontalStackLayout>
-                                                            </Border>
-                                                        </Grid>
-
-                                                        <!-- Col 2: Info column -->
-                                                        <VerticalStackLayout Grid.Column="2"
-                                                                             Spacing="8"
-                                                                             VerticalOptions="Center"
-                                                                             Padding="0,0,16,0">
-                                                            <!-- Product name -->
-                                                            <Label Text="{Binding BaseName}"
-                                                                   FontSize="15"
-                                                                   FontAttributes="Bold"
-                                                                   TextColor="{Binding CardTextColor}"
-                                                                   LineBreakMode="TailTruncation"
-                                                                   MaxLines="1"/>
-
-                                                            <!-- Bundle progress dots -->
-                                                            <HorizontalStackLayout Spacing="4"
-                                                                                   IsVisible="{Binding HasBundleComponents}"
-                                                                                   BindableLayout.ItemsSource="{Binding BundleComponentDotColors}">
-                                                                <BindableLayout.ItemTemplate>
-                                                                    <DataTemplate x:DataType="Color">
-                                                                        <BoxView WidthRequest="10"
-                                                                                 HeightRequest="10"
-                                                                                 CornerRadius="5"
-                                                                                 Color="{Binding .}"/>
-                                                                    </DataTemplate>
-                                                                </BindableLayout.ItemTemplate>
-                                                            </HorizontalStackLayout>
-
-                                                            <!-- SKU pills -->
-                                                            <FlexLayout Direction="Row" Wrap="Wrap"
-                                                                        AlignItems="Center"
-                                                                        IsVisible="{Binding HasSkuPills}"
-                                                                        BindableLayout.ItemsSource="{Binding SkuPillSkus}">
-                                                                <BindableLayout.ItemTemplate>
-                                                                    <DataTemplate x:DataType="x:String">
-                                                                        <Border Padding="6,2"
-                                                                                Margin="0,0,4,4"
-                                                                                StrokeShape="RoundRectangle 4"
-                                                                                StrokeThickness="1"
-                                                                                BackgroundColor="{Binding Source={RelativeSource AncestorType={x:Type models:ProductItem}}, Path=SkuPillBg}"
-                                                                                Stroke="{Binding Source={RelativeSource AncestorType={x:Type models:ProductItem}}, Path=SkuPillBorder}">
-                                                                            <Label Text="{Binding .}"
-                                                                                   FontSize="12"
-                                                                                   FontFamily="Consolas"
-                                                                                   FontAttributes="Bold"
-                                                                                   TextColor="{Binding Source={RelativeSource AncestorType={x:Type models:ProductItem}}, Path=SkuPillText}"/>
-                                                                        </Border>
-                                                                    </DataTemplate>
-                                                                </BindableLayout.ItemTemplate>
-                                                            </FlexLayout>
-
-                                                            <!-- Variation badge -->
-                                                            <Border IsVisible="{Binding HasVariation}"
-                                                                    BackgroundColor="{Binding VariationBadgeBg}"
-                                                                    Stroke="{Binding VariationBorderColor}"
-                                                                    StrokeThickness="1.5"
-                                                                    StrokeShape="RoundRectangle 7"
-                                                                    Padding="8,4"
-                                                                    HorizontalOptions="Start">
-                                                                <HorizontalStackLayout Spacing="5">
-                                                                    <BoxView IsVisible="{Binding HasSwatch}"
-                                                                             Color="{Binding SwatchColor}"
-                                                                             WidthRequest="14"
-                                                                             HeightRequest="14"
-                                                                             CornerRadius="4"
-                                                                             VerticalOptions="Center"/>
-                                                                    <BoxView IsVisible="{Binding HasSwatch2}"
-                                                                             Color="{Binding SwatchColor2}"
-                                                                             WidthRequest="14"
-                                                                             HeightRequest="14"
-                                                                             CornerRadius="4"
-                                                                             VerticalOptions="Center"/>
-                                                                    <Label Text="{Binding Variation}"
-                                                                           FontSize="12"
-                                                                           TextColor="{Binding VariationBadgeTextColor}"
-                                                                           VerticalOptions="Center"
-                                                                           LineBreakMode="TailTruncation"
-                                                                           MaxLines="1"/>
-                                                                </HorizontalStackLayout>
-                                                            </Border>
-                                                        </VerticalStackLayout>
-
-                                                        <!-- Col 3: Qty counter pinned right -->
-                                                        <Border Grid.Column="3"
-                                                                BackgroundColor="{Binding ButtonBgColor}"
+                                                    <!-- Col 1: 300x300 image with badges -->
+                                                    <Grid Grid.Column="1"
+                                                          Margin="16,0,20,0"
+                                                          VerticalOptions="Center">
+                                                        <Border StrokeShape="RoundRectangle 8"
                                                                 Stroke="{Binding CardBorderColor}"
-                                                                StrokeThickness="1"
-                                                                StrokeShape="RoundRectangle 8"
-                                                                Padding="16,8"
-                                                                VerticalOptions="Center"
-                                                                MinimumWidthRequest="70">
-                                                            <HorizontalStackLayout HorizontalOptions="Center"
-                                                                                   Spacing="2">
-                                                                <Label Text="{Binding VerifiedQuantity}"
-                                                                       FontSize="18"
+                                                                StrokeThickness="0"
+                                                                BackgroundColor="#f3f4f6"
+                                                                Padding="0"
+                                                                WidthRequest="250" HeightRequest="250">
+                                                            <Image Source="{Binding LocalImagePath}"
+                                                                   IsVisible="{Binding HasLocalImage}"
+                                                                   HeightRequest="250" WidthRequest="250"
+                                                                   Aspect="AspectFill"/>
+                                                        </Border>
+                                                        <Border StrokeShape="RoundRectangle 8"
+                                                                Stroke="{Binding CardBorderColor}"
+                                                                StrokeThickness="0"
+                                                                BackgroundColor="#f3f4f6"
+                                                                Padding="0"
+                                                                WidthRequest="250" HeightRequest="250"
+                                                                IsVisible="{Binding HasNoLocalImage}">
+                                                            <Image Source="{Binding ImageSource}"
+                                                                   IsVisible="{Binding HasImage}"
+                                                                   HeightRequest="250" WidthRequest="250"
+                                                                   Aspect="AspectFill"/>
+                                                        </Border>
+
+                                                        <!-- Index badge + chevron (top-left) -->
+                                                        <Border HorizontalOptions="Start"
+                                                                VerticalOptions="Start"
+                                                                BackgroundColor="#334155"
+                                                                Stroke="Transparent"
+                                                                StrokeShape="RoundRectangle 6"
+                                                                Padding="6,3,8,3"
+                                                                Margin="12,4">
+                                                            <Border.GestureRecognizers>
+                                                                <TapGestureRecognizer Tapped="OnBundleChevronTapped"/>
+                                                            </Border.GestureRecognizers>
+                                                            <HorizontalStackLayout Spacing="3">
+                                                                <Label Text="{Binding RowNumber, StringFormat='#{0}'}"
+                                                                       FontSize="13"
                                                                        FontAttributes="Bold"
-                                                                       TextColor="{Binding ButtonTextColor}"
+                                                                       TextColor="White"
                                                                        FontFamily="Consolas"/>
-                                                                <Label Text="/"
-                                                                       FontSize="14"
-                                                                       TextColor="#d1d5db"
-                                                                       FontFamily="Consolas"
-                                                                       VerticalOptions="Center"/>
-                                                                <Label Text="{Binding RequiredQuantity}"
-                                                                       FontSize="14"
-                                                                       TextColor="#9ca3af"
-                                                                       FontFamily="Consolas"
+                                                                <Label Text="{Binding BundleChevron}"
+                                                                       FontSize="10"
+                                                                       TextColor="White"
                                                                        VerticalOptions="Center"/>
                                                             </HorizontalStackLayout>
                                                         </Border>
                                                     </Grid>
 
-                                                    <!-- Row 1: Separator between parent and children -->
-                                                    <BoxView Grid.Row="1"
-                                                             HeightRequest="1"
-                                                             BackgroundColor="#e2e8f0"
-                                                             IsVisible="{Binding IsBundleExpanded}"/>
+                                                    <!-- Col 2: Info column -->
+                                                    <VerticalStackLayout Grid.Column="2"
+                                                                         Spacing="12"
+                                                                         VerticalOptions="Center"
+                                                                         Padding="0,0,16,0">
+                                                        <!-- Product name -->
+                                                        <Label Text="{Binding BaseName}"
+                                                               FontSize="22"
+                                                               FontAttributes="Bold"
+                                                               TextColor="{Binding CardTextColor}"
+                                                               LineBreakMode="TailTruncation"
+                                                               MaxLines="1"/>
 
-                                                    <!-- Row 2: Child rows (indented with tree-branch connectors) -->
-                                                    <VerticalStackLayout Grid.Row="2"
-                                                                         IsVisible="{Binding IsBundleExpanded}"
-                                                                         BindableLayout.ItemsSource="{Binding BundleComponents}"
-                                                                         Spacing="0"
-                                                                         BackgroundColor="#fafafa">
-                                                        <VerticalStackLayout.Triggers>
-                                                            <DataTrigger TargetType="VerticalStackLayout"
-                                                                         Binding="{Binding HasBundleComponents}"
-                                                                         Value="False">
-                                                                <Setter Property="IsVisible" Value="False"/>
-                                                            </DataTrigger>
-                                                        </VerticalStackLayout.Triggers>
+                                                        <!-- Bundle progress dots -->
+                                                        <HorizontalStackLayout Spacing="6"
+                                                                               IsVisible="{Binding HasBundleComponents}"
+                                                                               BindableLayout.ItemsSource="{Binding BundleComponentDotColors}">
+                                                            <BindableLayout.ItemTemplate>
+                                                                <DataTemplate x:DataType="Color">
+                                                                    <BoxView WidthRequest="14"
+                                                                             HeightRequest="14"
+                                                                             CornerRadius="7"
+                                                                             Color="{Binding .}"/>
+                                                                </DataTemplate>
+                                                            </BindableLayout.ItemTemplate>
+                                                        </HorizontalStackLayout>
 
-                                                        <BindableLayout.ItemTemplate>
-                                                            <DataTemplate x:DataType="models:BundleComponentItem">
-                                                                <Border BackgroundColor="{Binding ComponentCardBg}"
-                                                                        Stroke="Transparent"
-                                                                        Padding="0"
-                                                                        Margin="0">
-                                                                    <Border.GestureRecognizers>
-                                                                        <TapGestureRecognizer Tapped="OnComponentRowTapped"/>
-                                                                    </Border.GestureRecognizers>
+                                                        <!-- SKU pills -->
+                                                        <FlexLayout Direction="Row" Wrap="Wrap"
+                                                                    AlignItems="Center"
+                                                                    IsVisible="{Binding HasSkuPills}"
+                                                                    BindableLayout.ItemsSource="{Binding SkuPillSkus}">
+                                                            <BindableLayout.ItemTemplate>
+                                                                <DataTemplate x:DataType="x:String">
+                                                                    <Border Padding="10,4"
+                                                                            Margin="0,0,6,6"
+                                                                            StrokeShape="RoundRectangle 6"
+                                                                            StrokeThickness="1"
+                                                                            BackgroundColor="{Binding Source={RelativeSource AncestorType={x:Type models:ProductItem}}, Path=SkuPillBg}"
+                                                                            Stroke="{Binding Source={RelativeSource AncestorType={x:Type models:ProductItem}}, Path=SkuPillBorder}">
+                                                                        <Label Text="{Binding .}"
+                                                                               FontSize="16"
+                                                                               FontFamily="Consolas"
+                                                                               FontAttributes="Bold"
+                                                                               TextColor="{Binding Source={RelativeSource AncestorType={x:Type models:ProductItem}}, Path=SkuPillText}"/>
+                                                                    </Border>
+                                                                </DataTemplate>
+                                                            </BindableLayout.ItemTemplate>
+                                                        </FlexLayout>
 
-                                                                    <Grid ColumnDefinitions="44, 20, Auto, *, Auto"
-                                                                          Padding="0,12,24,12">
+                                                        <!-- Variation badge -->
+                                                        <Border IsVisible="{Binding HasVariation}"
+                                                                BackgroundColor="{Binding VariationBadgeBg}"
+                                                                Stroke="{Binding VariationBorderColor}"
+                                                                StrokeThickness="1.5"
+                                                                StrokeShape="RoundRectangle 8"
+                                                                Padding="12,6"
+                                                                HorizontalOptions="Start">
+                                                            <HorizontalStackLayout Spacing="6">
+                                                                <BoxView IsVisible="{Binding HasSwatch}"
+                                                                         Color="{Binding SwatchColor}"
+                                                                         WidthRequest="18"
+                                                                         HeightRequest="18"
+                                                                         CornerRadius="4"
+                                                                         VerticalOptions="Center"/>
+                                                                <BoxView IsVisible="{Binding HasSwatch2}"
+                                                                         Color="{Binding SwatchColor2}"
+                                                                         WidthRequest="18"
+                                                                         HeightRequest="18"
+                                                                         CornerRadius="4"
+                                                                         VerticalOptions="Center"/>
+                                                                <Label Text="{Binding Variation}"
+                                                                       FontSize="16"
+                                                                       TextColor="{Binding VariationBadgeTextColor}"
+                                                                       VerticalOptions="Center"
+                                                                       LineBreakMode="TailTruncation"
+                                                                       MaxLines="1"/>
+                                                            </HorizontalStackLayout>
+                                                        </Border>
 
-                                                                        <!-- Col 0: Vertical tree line -->
-                                                                        <BoxView Grid.Column="0"
-                                                                                 WidthRequest="2"
-                                                                                 BackgroundColor="#e2e8f0"
-                                                                                 HorizontalOptions="End"
-                                                                                 VerticalOptions="Fill"/>
-
-                                                                        <!-- Col 1: Horizontal connector -->
-                                                                        <BoxView Grid.Column="1"
-                                                                                 HeightRequest="2"
-                                                                                 BackgroundColor="#e2e8f0"
-                                                                                 VerticalOptions="Center"
-                                                                                 HorizontalOptions="Fill"/>
-
-                                                                        <!-- Col 2: Child image (300x300) -->
-                                                                        <Grid Grid.Column="2"
-                                                                              Padding="8,0,16,0"
-                                                                              WidthRequest="340" HeightRequest="316"
-                                                                              VerticalOptions="Center">
-                                                                            <Border StrokeShape="RoundRectangle 8"
-                                                                                    Stroke="{Binding ComponentBorderColor}"
-                                                                                    StrokeThickness="1"
-                                                                                    BackgroundColor="#f3f4f6"
-                                                                                    Padding="8">
-                                                                                <Image Source="{Binding ImageSource}"
-                                                                                       IsVisible="{Binding HasImage}"
-                                                                                       HeightRequest="300" WidthRequest="300"
-                                                                                       Aspect="AspectFit"/>
-                                                                            </Border>
-                                                                            <Border StrokeShape="RoundRectangle 8"
-                                                                                    Stroke="{Binding ComponentBorderColor}"
-                                                                                    StrokeThickness="1"
-                                                                                    BackgroundColor="#f3f4f6"
-                                                                                    Padding="8"
-                                                                                    IsVisible="{Binding HasNoImage}">
-                                                                                <Label Text="No Image" FontSize="14"
-                                                                                       TextColor="#94a3b8"
-                                                                                       HorizontalOptions="Center"
-                                                                                       VerticalOptions="Center"/>
-                                                                            </Border>
-
-                                                                            <!-- Sub-row badge (top-left) -->
-                                                                            <Border HorizontalOptions="Start"
-                                                                                    VerticalOptions="Start"
-                                                                                    BackgroundColor="#6d28d9"
-                                                                                    Stroke="Transparent"
-                                                                                    StrokeShape="RoundRectangle 6"
-                                                                                    Padding="6,3,8,3"
-                                                                                    Margin="12,4">
-                                                                                <Label Text="{Binding SubRowNumber, StringFormat='#{0}'}"
-                                                                                       FontSize="13"
-                                                                                       FontAttributes="Bold"
-                                                                                       TextColor="White"
-                                                                                       FontFamily="Consolas"/>
-                                                                            </Border>
-                                                                        </Grid>
-
-                                                                        <!-- Col 3: Child info column -->
-                                                                        <VerticalStackLayout Grid.Column="3"
-                                                                                             Spacing="8"
-                                                                                             VerticalOptions="Center"
-                                                                                             Padding="0,0,16,0">
-                                                                            <!-- Name -->
-                                                                            <Label Text="{Binding Name}"
-                                                                                   FontSize="15"
-                                                                                   FontAttributes="Bold"
-                                                                                   TextColor="#1f2937"
-                                                                                   LineBreakMode="TailTruncation"
-                                                                                   MaxLines="1">
-                                                                                <Label.Triggers>
-                                                                                    <DataTrigger TargetType="Label"
-                                                                                                 Binding="{Binding IsFullyVerified}" Value="True">
-                                                                                        <Setter Property="TextColor" Value="#166534"/>
-                                                                                    </DataTrigger>
-                                                                                </Label.Triggers>
-                                                                            </Label>
-
-                                                                            <!-- SKU pills -->
-                                                                            <FlexLayout Direction="Row" Wrap="Wrap"
-                                                                                        AlignItems="Center"
-                                                                                        IsVisible="{Binding HasSkuPills}"
-                                                                                        BindableLayout.ItemsSource="{Binding SkuPillSkus}">
-                                                                                <BindableLayout.ItemTemplate>
-                                                                                    <DataTemplate x:DataType="x:String">
-                                                                                        <Border Padding="6,2"
-                                                                                                Margin="0,0,4,4"
-                                                                                                StrokeShape="RoundRectangle 4"
-                                                                                                StrokeThickness="1"
-                                                                                                BackgroundColor="{Binding Source={RelativeSource AncestorType={x:Type models:BundleComponentItem}}, Path=SkuPillBg}"
-                                                                                                Stroke="{Binding Source={RelativeSource AncestorType={x:Type models:BundleComponentItem}}, Path=SkuPillBorder}">
-                                                                                            <Label Text="{Binding .}"
-                                                                                                   FontSize="12"
-                                                                                                   FontFamily="Consolas"
-                                                                                                   FontAttributes="Bold"
-                                                                                                   TextColor="{Binding Source={RelativeSource AncestorType={x:Type models:BundleComponentItem}}, Path=SkuPillText}"/>
-                                                                                        </Border>
-                                                                                    </DataTemplate>
-                                                                                </BindableLayout.ItemTemplate>
-                                                                            </FlexLayout>
-                                                                            <Label Text="{Binding SellerSku}"
-                                                                                   IsVisible="{Binding HasNoSkuPills}"
-                                                                                   FontSize="12"
-                                                                                   FontFamily="Consolas"
-                                                                                   TextColor="#9ca3af"/>
-
-                                                                            <!-- Variation badge -->
-                                                                            <Border IsVisible="{Binding HasVariation}"
-                                                                                    BackgroundColor="{Binding VariationBadgeBg}"
-                                                                                    Stroke="{Binding VariationBorderColor}"
-                                                                                    StrokeThickness="1.5"
-                                                                                    StrokeShape="RoundRectangle 7"
-                                                                                    Padding="8,4"
-                                                                                    HorizontalOptions="Start">
-                                                                                <HorizontalStackLayout Spacing="5">
-                                                                                    <BoxView IsVisible="{Binding HasSwatch}"
-                                                                                             Color="{Binding SwatchColor}"
-                                                                                             WidthRequest="14"
-                                                                                             HeightRequest="14"
-                                                                                             CornerRadius="4"
-                                                                                             VerticalOptions="Center"/>
-                                                                                    <BoxView IsVisible="{Binding HasSwatch2}"
-                                                                                             Color="{Binding SwatchColor2}"
-                                                                                             WidthRequest="14"
-                                                                                             HeightRequest="14"
-                                                                                             CornerRadius="4"
-                                                                                             VerticalOptions="Center"/>
-                                                                                    <Label Text="{Binding Variation}"
-                                                                                           FontSize="12"
-                                                                                           TextColor="{Binding VariationBadgeTextColor}"
-                                                                                           VerticalOptions="Center"
-                                                                                           LineBreakMode="TailTruncation"
-                                                                                           MaxLines="1"/>
-                                                                                </HorizontalStackLayout>
-                                                                            </Border>
-                                                                        </VerticalStackLayout>
-
-                                                                        <!-- Col 4: Child qty counter -->
-                                                                        <Border Grid.Column="4"
-                                                                                BackgroundColor="{Binding QtyBadgeBg}"
-                                                                                Stroke="{Binding ComponentBorderColor}"
-                                                                                StrokeThickness="1"
-                                                                                StrokeShape="RoundRectangle 8"
-                                                                                Padding="16,8"
-                                                                                VerticalOptions="Center"
-                                                                                MinimumWidthRequest="70">
-                                                                            <HorizontalStackLayout HorizontalOptions="Center"
-                                                                                                   Spacing="2">
-                                                                                <Label Text="{Binding VerifiedQuantity}"
-                                                                                       FontSize="18"
-                                                                                       FontAttributes="Bold"
-                                                                                       TextColor="{Binding QtyTextColor}"
-                                                                                       FontFamily="Consolas"/>
-                                                                                <Label Text="/"
-                                                                                       FontSize="14"
-                                                                                       TextColor="#d1d5db"
-                                                                                       FontFamily="Consolas"
-                                                                                       VerticalOptions="Center"/>
-                                                                                <Label Text="{Binding RequiredQuantity}"
-                                                                                       FontSize="14"
-                                                                                       TextColor="#9ca3af"
-                                                                                       FontFamily="Consolas"
-                                                                                       VerticalOptions="Center"/>
-                                                                            </HorizontalStackLayout>
-                                                                        </Border>
-                                                                    </Grid>
-
-                                                                    <!-- Child separator line -->
-                                                                    <BoxView HeightRequest="1"
-                                                                             BackgroundColor="#f1f5f9"
-                                                                             Margin="80,0,0,0"/>
-                                                                </Border>
-                                                            </DataTemplate>
-                                                        </BindableLayout.ItemTemplate>
+                                                        <!-- Aggregated QC Notes (inline) -->
+                                                        <Border IsVisible="{Binding HasAggregatedQcNotes}"
+                                                                BackgroundColor="#fffbeb"
+                                                                Stroke="#fbbf24"
+                                                                StrokeThickness="1"
+                                                                StrokeShape="RoundRectangle 8"
+                                                                Padding="12,8"
+                                                                HorizontalOptions="Start">
+                                                            <Label TextColor="#b45309"
+                                                                   FontSize="15"
+                                                                   LineBreakMode="WordWrap"
+                                                                   MaxLines="5">
+                                                                <Label.FormattedText>
+                                                                    <FormattedString>
+                                                                        <Span Text="📢 QC: "
+                                                                              FontAttributes="Bold"
+                                                                              FontSize="15"/>
+                                                                        <Span Text="{Binding AggregatedQcNotes}"
+                                                                              FontSize="15"
+                                                                              FontAttributes="Bold"/>
+                                                                    </FormattedString>
+                                                                </Label.FormattedText>
+                                                            </Label>
+                                                        </Border>
                                                     </VerticalStackLayout>
 
-                                                    <!-- Row 3: Aggregated QC notes bar -->
-                                                    <Border Grid.Row="3"
-                                                            IsVisible="{Binding HasAggregatedQcNotes}"
-                                                            BackgroundColor="#FFF7ED"
-                                                            Stroke="Transparent"
-                                                            StrokeShape="RoundRectangle 0,0,12,12"
-                                                            Padding="24,8,24,10">
-                                                        <Label Text="{Binding AggregatedQcNotes}"
-                                                               FontSize="13"
-                                                               FontAttributes="Bold"
-                                                               TextColor="#c2410c"
-                                                               LineBreakMode="WordWrap"
-                                                               MaxLines="5"/>
+                                                    <!-- Col 3: Qty counter pinned right -->
+                                                    <Border Grid.Column="3"
+                                                            BackgroundColor="{Binding ButtonBgColor}"
+                                                            Stroke="{Binding CardBorderColor}"
+                                                            StrokeThickness="2"
+                                                            StrokeShape="RoundRectangle 12"
+                                                            Padding="24,16"
+                                                            VerticalOptions="Center"
+                                                            MinimumWidthRequest="100">
+                                                        <HorizontalStackLayout HorizontalOptions="Center"
+                                                                               Spacing="4">
+                                                            <Label Text="{Binding VerifiedQuantity}"
+                                                                   FontSize="32"
+                                                                   FontAttributes="Bold"
+                                                                   TextColor="{Binding ButtonTextColor}"
+                                                                   FontFamily="Consolas"/>
+                                                            <Label Text="/"
+                                                                   FontSize="22"
+                                                                   TextColor="#d1d5db"
+                                                                   FontFamily="Consolas"
+                                                                   VerticalOptions="Center"/>
+                                                            <Label Text="{Binding RequiredQuantity}"
+                                                                   FontSize="22"
+                                                                   TextColor="#9ca3af"
+                                                                   FontFamily="Consolas"
+                                                                   VerticalOptions="Center"/>
+                                                        </HorizontalStackLayout>
                                                     </Border>
                                                 </Grid>
                                             </Border>
+
+                                            <!-- === BUNDLE CHILD ROWS (sibling, not nested) === -->
+                                            <VerticalStackLayout IsVisible="{Binding IsBundleExpanded}"
+                                                                 BindableLayout.ItemsSource="{Binding BundleComponents}"
+                                                                 Spacing="0"
+                                                                 Margin="0,2,0,0">
+                                                <BindableLayout.ItemTemplate>
+                                                    <DataTemplate x:DataType="models:BundleComponentItem">
+                                                      <VerticalStackLayout Spacing="0">
+
+                                                        <!-- Full hero child (active/unverified) -->
+                                                        <Border BackgroundColor="{Binding ComponentCardBg}"
+                                                                Stroke="{Binding ComponentBorderColor}"
+                                                                StrokeThickness="{Binding ComponentBorderWidth}"
+                                                                StrokeShape="RoundRectangle 8"
+                                                                Padding="0"
+                                                                Margin="0,2,0,0">
+                                                            <Border.Triggers>
+                                                                <DataTrigger TargetType="Border"
+                                                                             Binding="{Binding IsFullyVerified}"
+                                                                             Value="True">
+                                                                    <Setter Property="IsVisible" Value="False"/>
+                                                                </DataTrigger>
+                                                            </Border.Triggers>
+                                                            <Border.GestureRecognizers>
+                                                                <TapGestureRecognizer Tapped="OnComponentRowTapped"/>
+                                                            </Border.GestureRecognizers>
+
+                                                            <Grid ColumnDefinitions="44, 20, Auto, *, Auto"
+                                                                  Padding="0,12,24,12">
+
+                                                                <!-- Col 0: Vertical tree line -->
+                                                                <BoxView Grid.Column="0"
+                                                                         WidthRequest="2"
+                                                                         BackgroundColor="#94a3b8"
+                                                                         HorizontalOptions="End"
+                                                                         VerticalOptions="Fill"/>
+
+                                                                <!-- Col 1: Horizontal connector -->
+                                                                <BoxView Grid.Column="1"
+                                                                         HeightRequest="2"
+                                                                         BackgroundColor="#94a3b8"
+                                                                         VerticalOptions="Center"
+                                                                         HorizontalOptions="Fill"/>
+
+                                                                <!-- Col 2: Child image (200x200, 0.8x of parent 250) -->
+                                                                <Grid Grid.Column="2"
+                                                                      Margin="8,0,16,0"
+                                                                      VerticalOptions="Center">
+                                                                    <Border StrokeShape="RoundRectangle 8"
+                                                                            Stroke="{Binding ComponentBorderColor}"
+                                                                            StrokeThickness="0"
+                                                                            BackgroundColor="#f3f4f6"
+                                                                            Padding="0"
+                                                                            WidthRequest="200" HeightRequest="200">
+                                                                        <Image Source="{Binding ImageSource}"
+                                                                               IsVisible="{Binding HasImage}"
+                                                                               HeightRequest="200" WidthRequest="200"
+                                                                               Aspect="AspectFill"/>
+                                                                    </Border>
+                                                                    <Border StrokeShape="RoundRectangle 8"
+                                                                            Stroke="{Binding ComponentBorderColor}"
+                                                                            StrokeThickness="0"
+                                                                            BackgroundColor="#f3f4f6"
+                                                                            Padding="0"
+                                                                            WidthRequest="200" HeightRequest="200"
+                                                                            IsVisible="{Binding HasNoImage}">
+                                                                        <Label Text="No Image" FontSize="14"
+                                                                               TextColor="#94a3b8"
+                                                                               HorizontalOptions="Center"
+                                                                               VerticalOptions="Center"/>
+                                                                    </Border>
+
+                                                                    <!-- Sub-row badge (top-left) -->
+                                                                    <Border HorizontalOptions="Start"
+                                                                            VerticalOptions="Start"
+                                                                            BackgroundColor="#6d28d9"
+                                                                            Stroke="Transparent"
+                                                                            StrokeShape="RoundRectangle 6"
+                                                                            Padding="6,3,8,3"
+                                                                            Margin="12,4">
+                                                                        <Label Text="{Binding SubRowNumber, StringFormat='#{0}'}"
+                                                                               FontSize="13"
+                                                                               FontAttributes="Bold"
+                                                                               TextColor="White"
+                                                                               FontFamily="Consolas"/>
+                                                                    </Border>
+                                                                </Grid>
+
+                                                                <!-- Col 3: Child info column -->
+                                                                <VerticalStackLayout Grid.Column="3"
+                                                                                     Spacing="12"
+                                                                                     VerticalOptions="Center"
+                                                                                     Padding="0,0,16,0">
+                                                                    <Label Text="{Binding Name}"
+                                                                           FontSize="22"
+                                                                           FontAttributes="Bold"
+                                                                           TextColor="#1f2937"
+                                                                           LineBreakMode="TailTruncation"
+                                                                           MaxLines="1">
+                                                                        <Label.Triggers>
+                                                                            <DataTrigger TargetType="Label"
+                                                                                         Binding="{Binding IsFullyVerified}" Value="True">
+                                                                                <Setter Property="TextColor" Value="#166534"/>
+                                                                            </DataTrigger>
+                                                                        </Label.Triggers>
+                                                                    </Label>
+
+                                                                    <FlexLayout Direction="Row" Wrap="Wrap"
+                                                                                AlignItems="Center"
+                                                                                IsVisible="{Binding HasSkuPills}"
+                                                                                BindableLayout.ItemsSource="{Binding SkuPillSkus}">
+                                                                        <BindableLayout.ItemTemplate>
+                                                                            <DataTemplate x:DataType="x:String">
+                                                                                <Border Padding="10,4"
+                                                                                        Margin="0,0,6,6"
+                                                                                        StrokeShape="RoundRectangle 6"
+                                                                                        StrokeThickness="1"
+                                                                                        BackgroundColor="{Binding Source={RelativeSource AncestorType={x:Type models:BundleComponentItem}}, Path=SkuPillBg}"
+                                                                                        Stroke="{Binding Source={RelativeSource AncestorType={x:Type models:BundleComponentItem}}, Path=SkuPillBorder}">
+                                                                                    <Label Text="{Binding .}"
+                                                                                           FontSize="16"
+                                                                                           FontFamily="Consolas"
+                                                                                           FontAttributes="Bold"
+                                                                                           TextColor="{Binding Source={RelativeSource AncestorType={x:Type models:BundleComponentItem}}, Path=SkuPillText}"/>
+                                                                                </Border>
+                                                                            </DataTemplate>
+                                                                        </BindableLayout.ItemTemplate>
+                                                                    </FlexLayout>
+                                                                    <Label Text="{Binding SellerSku}"
+                                                                           IsVisible="{Binding HasNoSkuPills}"
+                                                                           FontSize="16"
+                                                                           FontFamily="Consolas"
+                                                                           TextColor="#9ca3af"/>
+
+                                                                    <Border IsVisible="{Binding HasVariation}"
+                                                                            BackgroundColor="{Binding VariationBadgeBg}"
+                                                                            Stroke="{Binding VariationBorderColor}"
+                                                                            StrokeThickness="1.5"
+                                                                            StrokeShape="RoundRectangle 8"
+                                                                            Padding="12,6"
+                                                                            HorizontalOptions="Start">
+                                                                        <HorizontalStackLayout Spacing="6">
+                                                                            <BoxView IsVisible="{Binding HasSwatch}"
+                                                                                     Color="{Binding SwatchColor}"
+                                                                                     WidthRequest="18"
+                                                                                     HeightRequest="18"
+                                                                                     CornerRadius="4"
+                                                                                     VerticalOptions="Center"/>
+                                                                            <BoxView IsVisible="{Binding HasSwatch2}"
+                                                                                     Color="{Binding SwatchColor2}"
+                                                                                     WidthRequest="18"
+                                                                                     HeightRequest="18"
+                                                                                     CornerRadius="4"
+                                                                                     VerticalOptions="Center"/>
+                                                                            <Label Text="{Binding Variation}"
+                                                                                   FontSize="16"
+                                                                                   TextColor="{Binding VariationBadgeTextColor}"
+                                                                                   VerticalOptions="Center"
+                                                                                   LineBreakMode="TailTruncation"
+                                                                                   MaxLines="1"/>
+                                                                        </HorizontalStackLayout>
+                                                                    </Border>
+
+                                                                    <!-- Child QC Notes (inline) -->
+                                                                    <Border IsVisible="{Binding HasQcNotes}"
+                                                                            BackgroundColor="#fffbeb"
+                                                                            Stroke="#fbbf24"
+                                                                            StrokeThickness="1"
+                                                                            StrokeShape="RoundRectangle 8"
+                                                                            Padding="12,8"
+                                                                            HorizontalOptions="Start">
+                                                                        <Label TextColor="#b45309"
+                                                                               FontSize="15"
+                                                                               LineBreakMode="WordWrap"
+                                                                               MaxLines="3">
+                                                                            <Label.FormattedText>
+                                                                                <FormattedString>
+                                                                                    <Span Text="📢 QC: "
+                                                                                          FontAttributes="Bold"
+                                                                                          FontSize="15"/>
+                                                                                    <Span Text="{Binding QcNotes}"
+                                                                                          FontSize="15"
+                                                                                          FontAttributes="Bold"/>
+                                                                                </FormattedString>
+                                                                            </Label.FormattedText>
+                                                                        </Label>
+                                                                    </Border>
+                                                                </VerticalStackLayout>
+
+                                                                <!-- Col 4: Child qty counter -->
+                                                                <Border Grid.Column="4"
+                                                                        BackgroundColor="{Binding QtyBadgeBg}"
+                                                                        Stroke="{Binding ComponentBorderColor}"
+                                                                        StrokeThickness="2"
+                                                                        StrokeShape="RoundRectangle 12"
+                                                                        Padding="24,16"
+                                                                        VerticalOptions="Center"
+                                                                        MinimumWidthRequest="100">
+                                                                    <HorizontalStackLayout HorizontalOptions="Center"
+                                                                                           Spacing="4">
+                                                                        <Label Text="{Binding VerifiedQuantity}"
+                                                                               FontSize="32"
+                                                                               FontAttributes="Bold"
+                                                                               TextColor="{Binding QtyTextColor}"
+                                                                               FontFamily="Consolas"/>
+                                                                        <Label Text="/"
+                                                                               FontSize="22"
+                                                                               TextColor="#d1d5db"
+                                                                               FontFamily="Consolas"
+                                                                               VerticalOptions="Center"/>
+                                                                        <Label Text="{Binding RequiredQuantity}"
+                                                                               FontSize="22"
+                                                                               TextColor="#9ca3af"
+                                                                               FontFamily="Consolas"
+                                                                               VerticalOptions="Center"/>
+                                                                    </HorizontalStackLayout>
+                                                                </Border>
+                                                            </Grid>
+                                                        </Border>
+
+                                                        <!-- Compact child (verified) — mirrors parent compact, keeps tree line, purple when active -->
+                                                        <Border IsVisible="False"
+                                                                BackgroundColor="{Binding ComponentCardBg}"
+                                                                Stroke="{Binding ComponentBorderColor}"
+                                                                StrokeThickness="{Binding ComponentBorderWidth}"
+                                                                StrokeShape="RoundRectangle 8"
+                                                                Padding="0"
+                                                                Margin="0,2,0,0">
+                                                            <Border.Triggers>
+                                                                <DataTrigger TargetType="Border"
+                                                                             Binding="{Binding IsFullyVerified}"
+                                                                             Value="True">
+                                                                    <Setter Property="IsVisible" Value="True"/>
+                                                                </DataTrigger>
+                                                                <!-- Active (UP/DOWN nav) overrides the verified-green border with purple -->
+                                                                <DataTrigger TargetType="Border"
+                                                                             Binding="{Binding IsActiveComponent}"
+                                                                             Value="True">
+                                                                    <Setter Property="Stroke" Value="#a78bfa"/>
+                                                                    <Setter Property="StrokeThickness" Value="3"/>
+                                                                    <Setter Property="BackgroundColor" Value="#F5F3FF"/>
+                                                                </DataTrigger>
+                                                            </Border.Triggers>
+                                                            <Border.GestureRecognizers>
+                                                                <TapGestureRecognizer Tapped="OnComponentRowTapped"/>
+                                                            </Border.GestureRecognizers>
+                                                            <Grid ColumnDefinitions="44, 20, 145, *, Auto"
+                                                                  Padding="0,8,16,8">
+                                                                <BoxView Grid.Column="0" WidthRequest="2"
+                                                                         BackgroundColor="{Binding ComponentBorderColor}"
+                                                                         HorizontalOptions="End" VerticalOptions="Fill"/>
+                                                                <BoxView Grid.Column="1" HeightRequest="2"
+                                                                         BackgroundColor="{Binding ComponentBorderColor}"
+                                                                         VerticalOptions="Center" HorizontalOptions="Fill"/>
+                                                                <Grid Grid.Column="2" Padding="10,0">
+                                                                    <Image Source="{Binding ImageSource}"
+                                                                           IsVisible="{Binding HasImage}"
+                                                                           HeightRequest="125" WidthRequest="125"
+                                                                           Aspect="AspectFill"/>
+                                                                    <Label Text="✓" FontSize="20" FontAttributes="Bold"
+                                                                           TextColor="#16a34a"
+                                                                           HorizontalOptions="End" VerticalOptions="End"
+                                                                           Margin="0,0,2,0"/>
+                                                                </Grid>
+                                                                <VerticalStackLayout Grid.Column="3"
+                                                                                     VerticalOptions="Center"
+                                                                                     Spacing="4" Padding="4,0">
+                                                                    <Label Text="{Binding Name}"
+                                                                           FontSize="15" FontAttributes="Bold"
+                                                                           TextColor="#166534"
+                                                                           LineBreakMode="TailTruncation" MaxLines="1"/>
+                                                                    <HorizontalStackLayout Spacing="8"
+                                                                                           IsVisible="{Binding HasVariation}">
+                                                                        <Border BackgroundColor="#d1fae5"
+                                                                                Stroke="#86efac" StrokeThickness="1"
+                                                                                StrokeShape="RoundRectangle 6"
+                                                                                Padding="8,3" VerticalOptions="Center">
+                                                                            <Label Text="{Binding Variation}"
+                                                                                   FontSize="12" FontAttributes="Bold"
+                                                                                   TextColor="#166534"/>
+                                                                        </Border>
+                                                                    </HorizontalStackLayout>
+                                                                </VerticalStackLayout>
+                                                                <Border Grid.Column="4"
+                                                                        BackgroundColor="#dcfce7"
+                                                                        Stroke="#86efac" StrokeThickness="1"
+                                                                        StrokeShape="RoundRectangle 6"
+                                                                        Padding="12,6" VerticalOptions="Center">
+                                                                    <Label Text="{Binding ProgressText}"
+                                                                           FontSize="15" FontAttributes="Bold"
+                                                                           TextColor="#166534" FontFamily="Consolas"/>
+                                                                </Border>
+                                                            </Grid>
+                                                        </Border>
+
+                                                      </VerticalStackLayout>
+                                                    </DataTemplate>
+                                                </BindableLayout.ItemTemplate>
+                                            </VerticalStackLayout>
 
                                             <!-- === BUNDLE COMPACT ROW (Verified/Completed) === -->
                                             <Border IsVisible="{Binding IsBundle}"
                                                     BackgroundColor="#ECFDF5"
                                                     Stroke="#86efac"
                                                     StrokeThickness="1"
-                                                    StrokeShape="RoundRectangle 4"
-                                                    Padding="0"
-                                                    HeightRequest="52">
+                                                    StrokeShape="RoundRectangle 8"
+                                                    Padding="0">
                                                 <Border.Triggers>
                                                     <DataTrigger TargetType="Border"
                                                                  Binding="{Binding ShowRowNumber}"
                                                                  Value="True">
                                                         <Setter Property="IsVisible" Value="False"/>
+                                                    </DataTrigger>
+                                                    <!-- Active (scan/nav) overrides the verified-green border with purple -->
+                                                    <DataTrigger TargetType="Border"
+                                                                 Binding="{Binding IsActive}"
+                                                                 Value="True">
+                                                        <Setter Property="Stroke" Value="#a78bfa"/>
+                                                        <Setter Property="StrokeThickness" Value="3"/>
+                                                        <Setter Property="BackgroundColor" Value="#F5F3FF"/>
                                                     </DataTrigger>
                                                 </Border.Triggers>
                                                 <Border.GestureRecognizers>
@@ -1572,48 +1708,82 @@
                                                                               PointerExited="OnProductCardExited"/>
                                                     <TapGestureRecognizer Tapped="OnProductRowTapped"/>
                                                 </Border.GestureRecognizers>
-                                                <Grid ColumnDefinitions="4, 56, *, Auto"
-                                                      Padding="0,4,12,4">
+                                                <Grid ColumnDefinitions="4, 145, *, Auto"
+                                                      Padding="0,8,16,8">
                                                     <BoxView Grid.Column="0"
                                                              WidthRequest="4"
                                                              BackgroundColor="#a78bfa"
                                                              VerticalOptions="Fill"/>
-                                                    <Grid Grid.Column="1" Padding="8,0">
+                                                    <Grid Grid.Column="1" Padding="10,0">
                                                         <Image Source="{Binding LocalImagePath}"
                                                                IsVisible="{Binding HasLocalImage}"
-                                                               HeightRequest="40"
-                                                               WidthRequest="40"
+                                                               HeightRequest="125"
+                                                               WidthRequest="125"
                                                                Aspect="AspectFill"/>
                                                         <Image Source="{Binding ImageSource}"
                                                                IsVisible="{Binding HasNoLocalImage}"
-                                                               HeightRequest="40"
-                                                               WidthRequest="40"
+                                                               HeightRequest="125"
+                                                               WidthRequest="125"
                                                                Aspect="AspectFill"/>
                                                         <Label Text="✓"
-                                                               FontSize="18"
+                                                               FontSize="20"
                                                                FontAttributes="Bold"
                                                                TextColor="#16a34a"
                                                                HorizontalOptions="End"
                                                                VerticalOptions="End"
                                                                Margin="0,0,2,0"/>
                                                     </Grid>
-                                                    <Label Grid.Column="2"
-                                                           Text="{Binding BaseName}"
-                                                           FontSize="13"
-                                                           TextColor="#166534"
-                                                           VerticalOptions="Center"
-                                                           LineBreakMode="TailTruncation"
-                                                           MaxLines="1"
-                                                           Padding="4,0"/>
+                                                    <VerticalStackLayout Grid.Column="2"
+                                                                         VerticalOptions="Center"
+                                                                         Spacing="4"
+                                                                         Padding="4,0">
+                                                        <Label Text="{Binding BaseName}"
+                                                               FontSize="15"
+                                                               FontAttributes="Bold"
+                                                               TextColor="#166534"
+                                                               LineBreakMode="TailTruncation"
+                                                               MaxLines="1"/>
+                                                        <HorizontalStackLayout Spacing="8">
+                                                            <Border IsVisible="{Binding HasVariation}"
+                                                                    BackgroundColor="#d1fae5"
+                                                                    Stroke="#86efac"
+                                                                    StrokeThickness="1"
+                                                                    StrokeShape="RoundRectangle 6"
+                                                                    Padding="8,3"
+                                                                    VerticalOptions="Center">
+                                                                <Label Text="{Binding Variation}"
+                                                                       FontSize="12"
+                                                                       FontAttributes="Bold"
+                                                                       TextColor="#166534"/>
+                                                            </Border>
+                                                        </HorizontalStackLayout>
+                                                        <Border IsVisible="{Binding HasQcNotes}"
+                                                                BackgroundColor="#fffbeb"
+                                                                Stroke="#fbbf24"
+                                                                StrokeThickness="1"
+                                                                StrokeShape="RoundRectangle 6"
+                                                                Padding="8,3"
+                                                                HorizontalOptions="Start">
+                                                            <Label TextColor="#b45309" FontSize="12" FontAttributes="Bold"
+                                                                   LineBreakMode="TailTruncation" MaxLines="1">
+                                                                <Label.FormattedText>
+                                                                    <FormattedString>
+                                                                        <Span Text="📢 QC: " FontAttributes="Bold" FontSize="12"/>
+                                                                        <Span Text="{Binding QcNotes}" FontAttributes="Bold" FontSize="12"/>
+                                                                    </FormattedString>
+                                                                </Label.FormattedText>
+                                                            </Label>
+                                                        </Border>
+                                                    </VerticalStackLayout>
                                                     <Border Grid.Column="3"
                                                             BackgroundColor="#dcfce7"
                                                             Stroke="#86efac"
                                                             StrokeThickness="1"
-                                                            StrokeShape="RoundRectangle 4"
-                                                            Padding="8,2"
+                                                            StrokeShape="RoundRectangle 6"
+                                                            Padding="12,6"
                                                             VerticalOptions="Center">
                                                         <Label Text="{Binding CompletedQtyText}"
-                                                               FontSize="12"
+                                                               FontSize="15"
                                                                FontAttributes="Bold"
                                                                TextColor="#166534"
                                                                FontFamily="Consolas"/>
@@ -1689,7 +1859,7 @@
                                     <TapGestureRecognizer Tapped="OnOverlayPrevTapped"/>
                                 </Border.GestureRecognizers>
                                 <Label Text="&#x2190;"
-                                       FontSize="12"
+                                       FontSize="16"
                                        FontAttributes="Bold"
                                        TextColor="#6b7280"/>
                             </Border>
@@ -1702,7 +1872,7 @@
                                     <TapGestureRecognizer Tapped="OnOverlayNextTapped"/>
                                 </Border.GestureRecognizers>
                                 <Label Text="&#x2192;"
-                                       FontSize="12"
+                                       FontSize="16"
                                        FontAttributes="Bold"
                                        TextColor="#6b7280"/>
                             </Border>
@@ -1710,7 +1880,7 @@
                         <Label x:Name="OverlayItemPosition"
                                Grid.Column="1"
                                Text="ITEM 01 of 01"
-                               FontSize="11"
+                               FontSize="15"
                                FontAttributes="Bold"
                                TextColor="#9ca3af"
                                FontFamily="Consolas"
@@ -1719,7 +1889,7 @@
                         <HorizontalStackLayout Grid.Column="2" Spacing="8" VerticalOptions="Center">
                             <Label x:Name="OverlayNavHint"
                                    Text="↑↓ navigate"
-                                   FontSize="10"
+                                   FontSize="13"
                                    TextColor="#9ca3af"
                                    VerticalOptions="Center"
                                    IsVisible="False"/>
@@ -1733,13 +1903,13 @@
                                 </Border.GestureRecognizers>
                                 <HorizontalStackLayout Spacing="6">
                                     <Label Text="Esc"
-                                           FontSize="10"
+                                           FontSize="13"
                                            FontAttributes="Bold"
                                            TextColor="#9ca3af"
                                            FontFamily="Consolas"
                                            VerticalOptions="Center"/>
                                     <Label Text="close"
-                                           FontSize="10"
+                                           FontSize="13"
                                            TextColor="#d1d5db"
                                            VerticalOptions="Center"/>
                                 </HorizontalStackLayout>
@@ -1763,14 +1933,14 @@
                                 Padding="7,2"
                                 VerticalOptions="Center">
                             <Label Text="BUNDLE"
-                                   FontSize="9"
+                                   FontSize="12"
                                    FontAttributes="Bold"
                                    TextColor="White"
                                    FontFamily="Consolas"/>
                         </Border>
                         <Label x:Name="OverlayBundleBarName"
                                Grid.Column="1"
-                               FontSize="12"
+                               FontSize="16"
                                FontAttributes="Bold"
                                TextColor="#3b0764"
                                VerticalOptions="Center"
@@ -1781,7 +1951,7 @@
                                                VerticalOptions="Center"/>
                         <Label x:Name="OverlayBundleBarCounter"
                                Grid.Column="3"
-                               FontSize="11"
+                               FontSize="15"
                                FontAttributes="Bold"
                                TextColor="#5b21b6"
                                FontFamily="Consolas"
@@ -1830,7 +2000,7 @@
                                     Margin="0,0,12,0"
                                     IsVisible="False">
                                 <Label x:Name="OverlayActiveCompText"
-                                       FontSize="11"
+                                       FontSize="15"
                                        FontAttributes="Bold"
                                        TextColor="White"
                                        FontFamily="Consolas"
@@ -1844,7 +2014,7 @@
                                     BackgroundColor="#ef4444"
                                     Stroke="Transparent"
                                     StrokeShape="RoundRectangle 8"
-                                    Padding="16,8">
+                                    Padding="20,10">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Tapped="OnOverlayMinusTapped"/>
                                 </Border.GestureRecognizers>
@@ -1854,7 +2024,7 @@
                                             Radius="4"/>
                                 </Border.Shadow>
                                 <Label Text="−"
-                                       FontSize="18"
+                                       FontSize="24"
                                        FontAttributes="Bold"
                                        TextColor="White"
                                        FontFamily="Consolas"/>
@@ -1863,7 +2033,7 @@
                                     BackgroundColor="#5B31E0"
                                     Stroke="Transparent"
                                     StrokeShape="RoundRectangle 8"
-                                    Padding="16,8">
+                                    Padding="20,10">
                                 <Border.GestureRecognizers>
                                     <TapGestureRecognizer Tapped="OnOverlayPlusTapped"/>
                                 </Border.GestureRecognizers>
@@ -1873,7 +2043,7 @@
                                             Radius="4"/>
                                 </Border.Shadow>
                                 <Label Text="+"
-                                       FontSize="18"
+                                       FontSize="24"
                                        FontAttributes="Bold"
                                        TextColor="White"
                                        FontFamily="Consolas"/>
@@ -1902,10 +2072,10 @@
                                 Margin="0,0,0,-12">
                             <HorizontalStackLayout Spacing="6">
                                 <Label Text="&#x1F4E6;"
-                                       FontSize="12"
+                                       FontSize="16"
                                        VerticalOptions="Center"/>
                                 <Label x:Name="OverlayComponentHintText"
-                                       FontSize="11"
+                                       FontSize="15"
                                        FontAttributes="Bold"
                                        TextColor="#7c3aed"
                                        VerticalOptions="Center"/>
@@ -1914,7 +2084,7 @@
 
                         <!-- SCANNED label -->
                         <Label Text="SCANNED"
-                               FontSize="12"
+                               FontSize="16"
                                FontAttributes="Bold"
                                TextColor="#6b7280"
                                FontFamily="Consolas"/>
@@ -1931,9 +2101,8 @@
                             <Entry x:Name="OverlayPickEntry"
                                    IsVisible="False"
                                    Keyboard="Numeric"
-                                   WidthRequest="80"
-                                   HeightRequest="64"
-                                   FontSize="48"
+                                   WidthRequest="96"
+                                   FontSize="72"
                                    FontAttributes="Bold"
                                    FontFamily="Consolas"
                                    HorizontalTextAlignment="Center"
@@ -1945,19 +2114,19 @@
                             <!-- Read-only verified label (hidden when picking) -->
                             <Label x:Name="OverlayVerifiedQty"
                                    Text="0"
-                                   FontSize="56"
+                                   FontSize="72"
                                    FontAttributes="Bold"
                                    TextColor="#111827"
                                    FontFamily="Consolas"
                                    VerticalOptions="Center"/>
                             <Label Text="/"
-                                   FontSize="32"
+                                   FontSize="42"
                                    TextColor="#d1d5db"
                                    FontFamily="Consolas"
                                    VerticalOptions="Center"/>
                             <Label x:Name="OverlayReqQty"
                                    Text="1"
-                                   FontSize="32"
+                                   FontSize="42"
                                    TextColor="#9ca3af"
                                    FontFamily="Consolas"
                                    VerticalOptions="Center"/>
@@ -1969,7 +2138,7 @@
 
                         <!-- Product name -->
                         <Label x:Name="OverlayProductName"
-                               FontSize="22"
+                               FontSize="28"
                                FontAttributes="Bold"
                                TextColor="#111827"
                                LineBreakMode="WordWrap"/>
@@ -1977,7 +2146,7 @@
                         <!-- SKU pills -->
                         <VerticalStackLayout Spacing="4">
                             <Label Text="SKU"
-                                   FontSize="12"
+                                   FontSize="16"
                                    FontAttributes="Bold"
                                    TextColor="#6b7280"
                                    FontFamily="Consolas"/>
@@ -1990,7 +2159,7 @@
                         <!-- Variation pill badge (light purple) -->
                         <VerticalStackLayout Spacing="4">
                             <Label Text="VARIATION"
-                                   FontSize="12"
+                                   FontSize="16"
                                    FontAttributes="Bold"
                                    TextColor="#6b7280"
                                    FontFamily="Consolas"/>
@@ -2004,19 +2173,19 @@
                                     IsVisible="False">
                                 <HorizontalStackLayout Spacing="7">
                                     <BoxView x:Name="OverlayVariationSwatch"
-                                             WidthRequest="18"
-                                             HeightRequest="18"
+                                             WidthRequest="22"
+                                             HeightRequest="22"
                                              CornerRadius="5"
                                              VerticalOptions="Center"
                                              IsVisible="False"/>
                                     <BoxView x:Name="OverlayVariationSwatch2"
-                                             WidthRequest="18"
-                                             HeightRequest="18"
+                                             WidthRequest="22"
+                                             HeightRequest="22"
                                              CornerRadius="5"
                                              VerticalOptions="Center"
                                              IsVisible="False"/>
                                     <Label x:Name="OverlayVariationLabel"
-                                           FontSize="15"
+                                           FontSize="20"
                                            FontAttributes="Bold"
                                            TextColor="#5b21b6"
                                            FontFamily="Consolas"/>
@@ -2028,27 +2197,27 @@
                         <VerticalStackLayout Spacing="4"
                                              VerticalOptions="FillAndExpand">
                             <Label Text="QC NOTES"
-                                   FontSize="12"
+                                   FontSize="16"
                                    FontAttributes="Bold"
                                    TextColor="#6b7280"
                                    FontFamily="Consolas"/>
                             <Border x:Name="OverlayNotesBorder"
-                                    BackgroundColor="#fafafa"
-                                    Stroke="Transparent"
-                                    StrokeThickness="0"
-                                    StrokeShape="RoundRectangle 6"
-                                    Padding="12,8"
+                                    BackgroundColor="#fffbeb"
+                                    Stroke="#fbbf24"
+                                    StrokeThickness="1"
+                                    StrokeShape="RoundRectangle 8"
+                                    Padding="16,12"
                                     HorizontalOptions="Fill"
                                     VerticalOptions="FillAndExpand">
                                 <Label x:Name="OverlayNotesLabel"
-                                       Text="no notes"
-                                       FontSize="28"
-                                       TextColor="#d1d5db"
-                                       FontFamily="Consolas"
-                                       HorizontalTextAlignment="Center"
-                                       VerticalTextAlignment="Center"
+                                       Text="📢 QC: no notes"
+                                       FontSize="20"
+                                       FontAttributes="Bold"
+                                       TextColor="#b45309"
+                                       VerticalTextAlignment="Start"
                                        HorizontalOptions="Fill"
-                                       VerticalOptions="FillAndExpand"/>
+                                       VerticalOptions="FillAndExpand"
+                                       LineBreakMode="WordWrap"/>
                             </Border>
                         </VerticalStackLayout>
 
