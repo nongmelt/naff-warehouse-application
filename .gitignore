@@ -223,7 +223,10 @@ minio/
 .code-review-graph/
 .worktrees/
 ui-ux-pro-max/
+.graphify/
 graphify-out/
-.graphify*
-shopee-images/
-docs/
+.graphify_*.json
+.graphify_python
+.claude/
+skills/
+docs/superpowers/
