@@ -53,10 +53,10 @@ jobs:
         shell: bash
         run: |
           if [[ "${{ github.ref_name }}" == "main" ]]; then
-            echo "APP_VERSION=1.4.3" >> $GITHUB_ENV
+            echo "APP_VERSION=1.4.5" >> $GITHUB_ENV
             echo "ARTIFACT_NAME=warehouse-installer" >> $GITHUB_ENV
           else
-            echo "APP_VERSION=dev-1.4.3" >> $GITHUB_ENV
+            echo "APP_VERSION=dev-1.4.5" >> $GITHUB_ENV
             echo "ARTIFACT_NAME=warehouse-installer-dev" >> $GITHUB_ENV
           fi
 
