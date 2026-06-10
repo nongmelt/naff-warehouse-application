@@ -30,6 +30,8 @@ public partial class StationView : ContentView, IDisposable
     private Task? _recordingTask;
     private string? _pendingFilePath;
     private FileStream? _recordingFileStream;
+    private WindowsVideoRecorder? _recorder;
+    private bool _usingFallbackRecorder;
 
     // Diagnostics
     private DateTime _recordingStartedAt;
@@ -847,15 +849,29 @@ public partial class StationView : ContentView, IDisposable
             Directory.CreateDirectory(dir);
             _pendingFilePath = Path.Combine(dir, $"{DateTime.Now:yyyyMMdd_HHmmss}_{Environment.MachineName}_{prefix}_{barcode}.mp4");
 
-            // Open a seekable FileStream — toolkit calls .AsRandomAccessStream() on it internally,
-            // which requires CanSeek = true. Encoded MP4 bytes go straight to disk; no MemoryStream.
-            _recordingFileStream = new FileStream(_pendingFilePath,
-                FileMode.Create, FileAccess.ReadWrite, FileShare.None,
-                bufferSize: 65536, FileOptions.Asynchronous);
-
             var sw = Stopwatch.StartNew();
             _recordingCts = new CancellationTokenSource();
-            _recordingTask = CameraFeed.StartVideoRecording(_recordingFileStream, _recordingCts.Token);
+            _recorder ??= new WindowsVideoRecorder(CameraFeed, _stationId);
+            if (_recorder.IsAvailable)
+            {
+                // Contract-correct LowLag path: 1080p profile fixed before Prepare, native
+                // file sink, FinishAsync per clip. Works around the toolkit record path
+                // that wedges Media Foundation on Win10 1909.
+                _usingFallbackRecorder = false;
+                _recordingTask = _recorder.StartAsync(_pendingFilePath, _recordingCts.Token);
+            }
+            else
+            {
+                Logger.Log($"Station {_stationId}: [WARN] WindowsVideoRecorder unavailable " +
+                           "(toolkit internals changed?) — using toolkit record path");
+                _usingFallbackRecorder = true;
+                // Open a seekable FileStream — toolkit calls .AsRandomAccessStream() on it internally,
+                // which requires CanSeek = true. Encoded MP4 bytes go straight to disk; no MemoryStream.
+                _recordingFileStream = new FileStream(_pendingFilePath,
+                    FileMode.Create, FileAccess.ReadWrite, FileShare.None,
+                    bufferSize: 65536, FileOptions.Asynchronous);
+                _recordingTask = CameraFeed.StartVideoRecording(_recordingFileStream, _recordingCts.Token);
+            }
             _ = _recordingTask.ContinueWith(t =>
             {
                 if (!_isRecording) return;
