@@ -71,8 +71,9 @@ public sealed class WindowsVideoRecorder(CameraView cameraView, int stationId)
         {
             await recording.StartAsync().AsTask(token);
         }
-        catch
+        catch (Exception startEx)
         {
+            Logger.Log($"Station {stationId}: [REC] StartAsync threw: {startEx.Message}");
             // Never orphan a prepared sink — release it before surfacing the failure.
             try { await recording.FinishAsync(); }
             catch (Exception ex) { Logger.Log($"Station {stationId}: [REC] FinishAsync after failed start: {ex.Message}"); }
