@@ -33,6 +33,9 @@ public sealed class WindowsVideoRecorder(CameraView cameraView, int stationId)
 
     public bool IsAvailable => TryGetMediaCapture(out _);
 
+    /// <summary>True while a started recording has not yet been claimed by StopAsync.</summary>
+    public bool HasActiveRecording => _recording is not null;
+
     /// <summary>Prepares and starts a LowLag recording into <paramref name="outputFilePath"/>.</summary>
     /// <remarks>
     /// <paramref name="outputFilePath"/> must be an absolute path and its directory must

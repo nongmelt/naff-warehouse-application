@@ -974,6 +974,26 @@ public partial class StationView : ContentView, IDisposable
                 }
             }
 
+            // A start that was still preparing when Phase 1 ran may have landed during
+            // the Phase-2 wait — reap it so the camera isn't left recording invisibly.
+            if (!_usingFallbackRecorder && _recorder is { HasActiveRecording: true })
+            {
+                Logger.Log($"Station {_stationId}: [WARN] Late-started recording detected after stop — stopping again");
+                var lateStop = _recorder.StopAsync();
+                using var lateDelayCts = new CancellationTokenSource();
+                if (await Task.WhenAny(lateStop, Task.Delay(StopRecordingTimeout, lateDelayCts.Token)) == lateStop)
+                {
+                    lateDelayCts.Cancel();
+                    try { await lateStop; }
+                    catch (Exception ex) { Logger.Log($"Station {_stationId}: Late stop threw: {ex.Message}"); }
+                }
+                else
+                {
+                    Logger.Log($"Station {_stationId}: [WARN] Late stop exceeded {StopRecordingTimeout.TotalSeconds}s — abandoning");
+                    _ = lateStop.ContinueWith(t => { _ = t.Exception; }, TaskScheduler.Default);
+                }
+            }
+
             // Phase 3: Flush and close the FileStream.
             if (_recordingFileStream != null)
             {
@@ -1283,8 +1303,7 @@ public partial class StationView : ContentView, IDisposable
         // Best-effort: release the recorder's native sink so the MP4 gets finalized and
         // the camera isn't left pinned (the StorageFile sink is independent of
         // _recordingFileStream, so disposing the stream below doesn't cover it).
-        if (!_usingFallbackRecorder)
-            _ = _recorder?.StopAsync().ContinueWith(t => { _ = t.Exception; }, TaskScheduler.Default);
+        _ = _recorder?.StopAsync().ContinueWith(t => { _ = t.Exception; }, TaskScheduler.Default);
 
         // Cancel recording first — gives the recording task a chance to exit
         // before we yank the FileStream from under it.
