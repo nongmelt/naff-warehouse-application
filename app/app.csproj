@@ -31,7 +31,7 @@
 		<!-- Versions -->
 		<!-- ApplicationDisplayVersion must be valid 3-part semver (MAUI Resizetizer enforces this).
 		     The hotfix label 1.4.4.1 lives in setup.iss / CI APP_VERSION (installer name) instead. -->
-		<ApplicationDisplayVersion>1.4.4</ApplicationDisplayVersion>
+		<ApplicationDisplayVersion>1.4.6</ApplicationDisplayVersion>
 		<ApplicationVersion>3</ApplicationVersion>
 
 		<!-- To develop, package, and publish an app to the Microsoft Store, see:
