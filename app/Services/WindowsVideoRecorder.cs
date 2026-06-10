@@ -82,7 +82,16 @@ public sealed class WindowsVideoRecorder(CameraView cameraView, int stationId)
             catch (Exception ex) { Logger.Log($"Station {stationId}: [REC] FinishAsync after failed start: {ex.Message}"); }
             throw;
         }
-        _recording = recording;
+        if (Interlocked.CompareExchange(ref _recording, recording, null) is not null)
+        {
+            // An abandoned earlier start landed after a newer clip went live — never let
+            // it clobber the live recording's handle. Release this one quietly; its
+            // original stop already gave up on it.
+            Logger.Log($"Station {stationId}: [REC] [WARN] Another recording is already live — finishing this late-started one");
+            try { await recording.FinishAsync(); }
+            catch (Exception ex) { Logger.Log($"Station {stationId}: [REC] Late FinishAsync failed: {ex.Message}"); }
+            return;
+        }
         Logger.Log($"Station {stationId}: [REC] LowLag record started ({sw.ElapsedMilliseconds} ms total)");
     }
 
