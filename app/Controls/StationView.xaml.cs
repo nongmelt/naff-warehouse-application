@@ -863,7 +863,7 @@ public partial class StationView : ContentView, IDisposable
             else
             {
                 Logger.Log($"Station {_stationId}: [WARN] WindowsVideoRecorder unavailable " +
-                           "(toolkit internals changed?) — using toolkit record path");
+                           "(handler detached or toolkit internals changed) — using toolkit record path");
                 _usingFallbackRecorder = true;
                 // Open a seekable FileStream — toolkit calls .AsRandomAccessStream() on it internally,
                 // which requires CanSeek = true. Encoded MP4 bytes go straight to disk; no MemoryStream.
@@ -916,21 +916,45 @@ public partial class StationView : ContentView, IDisposable
 
             var swStop = Stopwatch.StartNew();
 
-            // Phase 1: Ask toolkit to stop encoding (bounded).
+            // Give an in-flight start a moment to land so the stop doesn't no-op
+            // (recorder start is fire-and-forget and Prepare can be slow on the wedging box).
+            if (!_usingFallbackRecorder && _recordingTask is { IsCompleted: false })
+                await Task.WhenAny(_recordingTask, Task.Delay(TimeSpan.FromSeconds(2)));
+
+            // Phase 1: Stop encoding (wall-clock bounded — a wedged native call can
+            // ignore its cancellation token, so CancellationTokenSource(timeout) alone
+            // is not enough).
             using var stopCts = new CancellationTokenSource(StopRecordingTimeout);
-            try
+            Task stopCall = _usingFallbackRecorder
+                ? CameraFeed.StopVideoRecording(stopCts.Token)
+                : _recorder!.StopAsync();
+            using var stopDelayCts = new CancellationTokenSource();
+            var stopWinner = await Task.WhenAny(stopCall, Task.Delay(StopRecordingTimeout, stopDelayCts.Token));
+            if (stopWinner == stopCall)
             {
-                _ = await CameraFeed.StopVideoRecording(stopCts.Token);
+                stopDelayCts.Cancel();
+                try
+                {
+                    await stopCall;
+                }
+                catch (OperationCanceledException)
+                {
+                    Logger.Log($"Station {_stationId}: [WARN] Stop cancelled — forcing cancel");
+                    _recordingCts?.Cancel();
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"Station {_stationId}: Stop threw: {ex.Message}");
+                    _recordingCts?.Cancel();
+                }
             }
-            catch (OperationCanceledException)
+            else
             {
-                Logger.Log($"Station {_stationId}: [WARN] StopVideoRecording timed out — forcing cancel");
+                Logger.Log($"Station {_stationId}: [WARN] Stop exceeded " +
+                           $"{StopRecordingTimeout.TotalSeconds}s wall clock — abandoning, forcing cancel");
                 _recordingCts?.Cancel();
-            }
-            catch (Exception ex)
-            {
-                Logger.Log($"Station {_stationId}: StopVideoRecording threw: {ex.Message}");
-                _recordingCts?.Cancel();
+                // Observe the abandoned task's eventual fault so it can't raise UnobservedTaskException.
+                _ = stopCall.ContinueWith(t => { _ = t.Exception; }, TaskScheduler.Default);
             }
 
             // Phase 2: Wait for recording task to finish (bounded).
@@ -1255,6 +1279,12 @@ public partial class StationView : ContentView, IDisposable
             _cameraPreviewActive = false;
         }
         StopInactivityTimer();
+
+        // Best-effort: release the recorder's native sink so the MP4 gets finalized and
+        // the camera isn't left pinned (the StorageFile sink is independent of
+        // _recordingFileStream, so disposing the stream below doesn't cover it).
+        if (!_usingFallbackRecorder)
+            _ = _recorder?.StopAsync().ContinueWith(t => { _ = t.Exception; }, TaskScheduler.Default);
 
         // Cancel recording first — gives the recording task a chance to exit
         // before we yank the FileStream from under it.
