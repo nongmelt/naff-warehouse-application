@@ -20,7 +20,7 @@ and only admits the LAN subnets `192.168.0.0/24` and `192.168.1.0/24`.
 ```bash
 docker compose \
   -f compose.yml -f compose.db.yml -f compose.minio.yml \
-  -f compose.traefik.yml -f compose.dnsmasq.yml up -d
+  -f compose.traefik.yml up -d
 ```
 
 ## Required out-of-proxy steps
@@ -31,9 +31,9 @@ The proxy alone is not enough — three things outside this file must also be se
    can only reach it if a router/VLAN routes between the subnets. Traefik filters
    traffic that arrives; it cannot create the path.
 
-2. **DNS.** Clients must resolve `*.warehouse.local` to the server IP. Either run
-   `compose.dnsmasq.yml` and point clients' DNS at the server, or add hosts-file
-   entries on each PC. Set `SERVER_IP` in `dnsmasq/dnsmasq.conf`.
+2. **DNS.** Clients must resolve `*.warehouse.local` to the server IP — add the
+   records to your LAN DNS (router/AD), or a hosts-file entry on each PC:
+   `<server-ip>  app.warehouse.local api.warehouse.local minio.warehouse.local console.warehouse.local`
 
 3. **Frontend rebuild + backend config.** `NEXT_PUBLIC_*` URLs are baked into the
    frontend image at BUILD time, so the image must be rebuilt with the

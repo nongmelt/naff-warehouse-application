@@ -6,7 +6,7 @@
 #
 # Full stack:
 #   docker compose -f compose.yml -f compose.db.yml -f compose.minio.yml \
-#                  -f compose.traefik.yml -f compose.dnsmasq.yml up -d
+#                  -f compose.traefik.yml up -d
 services:
   traefik:
     image: traefik:v3.3
