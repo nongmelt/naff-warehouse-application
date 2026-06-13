@@ -194,7 +194,7 @@ public partial class OrderSearchPage
         // non-bundle product that still needs picking (spec: one single product).
         var soleProduct = SingleProductOverlayPolicy.PickSoleProduct(
             Results, _pendingScanQueue.Count > 0);
-        if (soleProduct != null)
+        if (soleProduct != null && Results.FirstOrDefault()?.IsCancelledOrder != true)
             await AutoOpenSingleProductOverlayAsync(soleProduct);
 
         // Drain queued scans
@@ -593,11 +593,25 @@ public partial class OrderSearchPage
             CurrentOrder = order;
             if (order is null)
             {
+                _cancelledOverlayShownFor = null;
                 HeaderOrderLabel.IsVisible = false;
                 HeaderOrderNumber.IsVisible = false;
                 HeaderPlatformBadge.IsVisible = false;
                 HeaderTrackingLabel.IsVisible = false;
                 return;
+            }
+
+            if (order.IsCancelledOrder)
+            {
+                if (_cancelledOverlayShownFor != order.TrackingNumber)
+                {
+                    _cancelledOverlayShownFor = order.TrackingNumber;
+                    ShowCancelledOverlay();
+                }
+            }
+            else
+            {
+                _cancelledOverlayShownFor = null;
             }
 
             HeaderOrderLabel.IsVisible = true;

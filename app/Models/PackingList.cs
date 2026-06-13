@@ -781,7 +781,7 @@ public class PackingList : INotifyPropertyChanged
 
     public bool HasOrderStatus => !string.IsNullOrWhiteSpace(OrderStatus);
 
-    private bool IsCancelledOrder =>
+    public bool IsCancelledOrder =>
         string.Equals(OrderStatus, "Cancelled", StringComparison.OrdinalIgnoreCase);
 
     public Color OrderStatusBgColor =>

@@ -84,6 +84,13 @@ public partial class OrderSearchPage
             return;
         }
 
+        if (e.Key == Windows.System.VirtualKey.Escape && CancelledOrderOverlay.IsVisible)
+        {
+            _ = DismissCancelledOverlayAsync();
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Windows.System.VirtualKey.Escape && ReturnSuccessOverlay.IsVisible)
         {
             _ = DismissReturnSuccessAsync();

@@ -203,6 +203,18 @@
                            FontSize="17"
                            VerticalOptions="Center"
                            IsVisible="False"/>
+                    <!-- Marketplace order status pill (e.g. Cancelled) — compact header style -->
+                    <Border IsVisible="{Binding CurrentOrder.HasOrderStatus}"
+                            BackgroundColor="{Binding CurrentOrder.OrderStatusBgColor}"
+                            Stroke="Transparent"
+                            StrokeShape="RoundRectangle 4"
+                            Padding="10,3"
+                            VerticalOptions="Center">
+                        <Label Text="{Binding CurrentOrder.OrderStatusDisplay}"
+                               TextColor="{Binding CurrentOrder.OrderStatusFgColor}"
+                               FontSize="12"
+                               FontAttributes="Bold"/>
+                    </Border>
                 </HorizontalStackLayout>
 
                 <!-- Scan alert pill (hidden by default, shown on scan events) -->
@@ -861,17 +873,7 @@
                                    FontSize="15"
                                    FontAttributes="Bold"/>
                         </Border>
-                        <!-- Marketplace order status (e.g. Cancelled) — shown only when present -->
-                        <Border IsVisible="{Binding CurrentOrder.HasOrderStatus}"
-                                BackgroundColor="{Binding CurrentOrder.OrderStatusBgColor}"
-                                Stroke="Transparent"
-                                StrokeShape="RoundRectangle 4"
-                                Padding="10,5">
-                            <Label Text="{Binding CurrentOrder.OrderStatusDisplay}"
-                                   TextColor="{Binding CurrentOrder.OrderStatusFgColor}"
-                                   FontSize="15"
-                                   FontAttributes="Bold"/>
-                        </Border>
+
                         <Border IsVisible="{Binding CurrentOrder.IsPackedComplete}"
                                 BackgroundColor="#dcfce7"
                                 Stroke="#86efac"
@@ -2823,6 +2825,55 @@
                                  HorizontalOptions="Start"
                                  WidthRequest="200"/>
                     </Grid>
+                </VerticalStackLayout>
+            </Border>
+        </Grid>
+
+        <!-- ── Cancelled-order overlay — shown when a cancelled order loads; manual dismiss only ── -->
+        <Grid x:Name="CancelledOrderOverlay"
+              Grid.Row="0"
+              Grid.RowSpan="5"
+              BackgroundColor="#99111827"
+              IsVisible="False"
+              ZIndex="11">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnCancelledOverlayBackdropTapped"/>
+            </Grid.GestureRecognizers>
+            <Border HorizontalOptions="Center"
+                    VerticalOptions="Center"
+                    Stroke="Transparent"
+                    StrokeShape="RoundRectangle 16"
+                    BackgroundColor="White"
+                    Padding="48,40"
+                    WidthRequest="380"
+                    InputTransparent="False">
+                <Border.Shadow>
+                    <Shadow Brush="#30000000" Offset="0,12" Radius="32"/>
+                </Border.Shadow>
+                <VerticalStackLayout Spacing="14" HorizontalOptions="Center">
+                    <Border BackgroundColor="#fee2e2" Stroke="Transparent" StrokeShape="RoundRectangle 999"
+                            WidthRequest="64" HeightRequest="64" HorizontalOptions="Center">
+                        <Label Text="&#x2715;" FontSize="30" FontAttributes="Bold" TextColor="#b91c1c"
+                               HorizontalOptions="Center" VerticalOptions="Center"
+                               HorizontalTextAlignment="Center" VerticalTextAlignment="Center"/>
+                    </Border>
+                    <Label Text="{Binding CurrentOrder.OrderStatusDisplay}"
+                           FontSize="28" FontAttributes="Bold" TextColor="#b91c1c"
+                           HorizontalOptions="Center" HorizontalTextAlignment="Center"/>
+                    <Label Text="คำสั่งซื้อนี้ถูกยกเลิก"
+                           FontSize="15" TextColor="#6b7280"
+                           HorizontalOptions="Center" HorizontalTextAlignment="Center"/>
+                    <Label Text="{Binding CurrentOrder.TrackingNumber}"
+                           FontSize="13" TextColor="#9ca3af"
+                           HorizontalOptions="Center" HorizontalTextAlignment="Center"/>
+                    <Border BackgroundColor="#b91c1c" Stroke="Transparent" StrokeShape="RoundRectangle 8"
+                            Padding="28,10" HorizontalOptions="Center" Margin="0,6,0,0">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnCancelledOverlayDismissTapped"/>
+                        </Border.GestureRecognizers>
+                        <Label Text="ปิด" FontSize="15" FontAttributes="Bold" TextColor="White"
+                               HorizontalTextAlignment="Center"/>
+                    </Border>
                 </VerticalStackLayout>
             </Border>
         </Grid>
