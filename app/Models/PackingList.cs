@@ -646,6 +646,7 @@ public class PackingList : INotifyPropertyChanged
     public ProductListPayload? ProductLists { get; set; }
     public ProductListPayload? UpdatedProductLists { get; set; }
     public string? Platform { get; set; }
+    public string? ShippingOptions { get; set; }
 
     private string? _packingStatus;
     public string? PackingStatus
@@ -663,6 +664,21 @@ public class PackingList : INotifyPropertyChanged
             OnPropertyChanged(nameof(StatusDisplay));
             OnPropertyChanged(nameof(StatusBgColor));
             OnPropertyChanged(nameof(StatusFgColor));
+        }
+    }
+
+    private string? _orderStatus;
+    public string? OrderStatus
+    {
+        get => _orderStatus;
+        set
+        {
+            _orderStatus = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(OrderStatusDisplay));
+            OnPropertyChanged(nameof(HasOrderStatus));
+            OnPropertyChanged(nameof(OrderStatusBgColor));
+            OnPropertyChanged(nameof(OrderStatusFgColor));
         }
     }
 
@@ -757,6 +773,22 @@ public class PackingList : INotifyPropertyChanged
 
     public string CheckedByDisplay =>
         string.IsNullOrWhiteSpace(CheckedBy) ? "—" : CheckedBy;
+
+    // Display only: cancelled orders (stored value "Cancelled") show the Thai label.
+    public string OrderStatusDisplay =>
+        IsCancelledOrder ? "ยกเลิกแล้ว"
+        : string.IsNullOrWhiteSpace(OrderStatus) ? "—" : OrderStatus;
+
+    public bool HasOrderStatus => !string.IsNullOrWhiteSpace(OrderStatus);
+
+    public bool IsCancelledOrder =>
+        string.Equals(OrderStatus, "Cancelled", StringComparison.OrdinalIgnoreCase);
+
+    public Color OrderStatusBgColor =>
+        IsCancelledOrder ? Color.FromArgb("#fee2e2") : Color.FromArgb("#f3f4f6");
+
+    public Color OrderStatusFgColor =>
+        IsCancelledOrder ? Color.FromArgb("#b91c1c") : Color.FromArgb("#374151");
 
     public string? PlatformIcon => (Platform ?? "").ToLower() switch
     {
