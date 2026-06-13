@@ -1,5 +1,18 @@
 # traefik/dynamic.yml — Traefik v3 DYNAMIC configuration
 #
+# SAME-ORIGIN PATH ROUTING. A single origin (http://<server-ip>/) fronts the whole
+# stack, so the dashboard works from ANY subnet that can reach the server: the
+# browser always calls back the exact host:port it loaded the page from. No baked
+# IPs in the frontend, no CORS (everything is same-origin).
+#
+#   /api/*  -> backend   (StripPrefix /api -> backend sees /packing-lists, /products, ...)
+#   /s3/*   -> minio      (StripPrefix /s3  -> minio path-style: /<bucket>/<key>)
+#   /*      -> frontend  (catch-all: dashboard pages + Next.js /_next assets)
+#
+# The WebSocket (/api/packing-lists/events) upgrades transparently through Traefik.
+# Backend sits under /api to avoid path collisions: /products, /stations and
+# /reports exist as BOTH frontend pages and backend routes.
+#
 # ACCESS CONTROL is enforced by the HOST FIREWALL, not Traefik. On Docker Desktop
 # the published-port proxy SNATs the client IP, so Traefik only ever sees an
 # internal gateway — a Traefik ipAllowList would block every client. The Windows
@@ -7,52 +20,52 @@
 # 192.168.1.0/24. See README "Access control".
 # (On native Linux Docker the client IP is preserved — there you COULD add an
 #  ipAllowList middleware here instead. This stack targets Docker Desktop.)
-#
-# STAGE 1 (active): dashboard reachable by the server's LAN IP (http://<server-ip>/).
-# STAGE 2 (commented): per-service hostnames once *.warehouse.local resolves.
 
 http:
   routers:
-    # Catch-all: any host (incl. http://<server-ip>/) -> dashboard.
-    dashboard:
+    # Backend REST + WebSocket, namespaced under /api so it never collides with
+    # the frontend page routes of the same name (/products, /stations, /reports).
+    backend:
+      rule: "PathPrefix(`/api`)"
+      entryPoints: [web]
+      service: backend
+      middlewares: [strip-api]
+      priority: 100
+
+    # MinIO S3 API for direct browser fetches (staff/badge images, etc.).
+    minio-api:
+      rule: "PathPrefix(`/s3`)"
+      entryPoints: [web]
+      service: minio-api
+      middlewares: [strip-s3]
+      priority: 100
+
+    # Catch-all: dashboard pages + Next.js static assets. Lowest priority so the
+    # /api and /s3 routers win for their prefixes.
+    frontend:
       rule: "PathPrefix(`/`)"
       entryPoints: [web]
       service: frontend
+      priority: 1
 
-    # ── STAGE 2 — uncomment once *.warehouse.local resolves ──────────────────
-    # backend:
-    #   rule: "Host(`api.warehouse.local`)"
-    #   entryPoints: [web]
-    #   service: backend
-    # minio-api:
-    #   rule: "Host(`minio.warehouse.local`)"
-    #   entryPoints: [web]
-    #   service: minio-api
-    # minio-console:
-    #   rule: "Host(`console.warehouse.local`)"
-    #   entryPoints: [web]
-    #   service: minio-console
-    # traefik-dashboard:
-    #   rule: "Host(`traefik.warehouse.local`)"
-    #   entryPoints: [web]
-    #   service: api@internal
+  middlewares:
+    strip-api:
+      stripPrefix:
+        prefixes: ["/api"]
+    strip-s3:
+      stripPrefix:
+        prefixes: ["/s3"]
 
   services:
+    backend:
+      loadBalancer:
+        servers:
+          - url: "http://backend:8080"
+    minio-api:
+      loadBalancer:
+        servers:
+          - url: "http://minio:9000"
     frontend:
       loadBalancer:
         servers:
           - url: "http://frontend:3000"
-
-    # ── STAGE 2 services ─────────────────────────────────────────────────────
-    # backend:
-    #   loadBalancer:
-    #     servers:
-    #       - url: "http://backend:8080"
-    # minio-api:
-    #   loadBalancer:
-    #     servers:
-    #       - url: "http://minio:9000"
-    # minio-console:
-    #   loadBalancer:
-    #     servers:
-    #       - url: "http://minio:9001"
