@@ -3,7 +3,7 @@
 Single entrypoint (port 80) that fronts the warehouse stack on `*.warehouse.local`
 and only admits the LAN subnets `192.168.0.0/24` and `192.168.1.0/24`.
 
-**Replaces `compose.nginx.yml`.** Never run both — they both bind host port 80.
+**Supersedes the old nginx proxy** (`compose.nginx.yml` + `nginx/`, now removed).
 
 ## Hosts
 
