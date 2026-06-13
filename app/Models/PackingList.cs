@@ -61,9 +61,8 @@ public class BundleComponentItem : INotifyPropertyChanged
         : IsPartiallyVerified ? Color.FromArgb("#FFF7ED") : Colors.White;
     public Color ComponentBorderColor => _isActiveComponent ? Color.FromArgb("#a78bfa")
         : IsFullyVerified ? Color.FromArgb("#86efac")
-        : IsPartiallyVerified ? Color.FromArgb("#fdba74") : Colors.Transparent;
-    public int ComponentBorderWidth => _isActiveComponent ? 2
-        : (IsFullyVerified || IsPartiallyVerified) ? 1 : 0;
+        : IsPartiallyVerified ? Color.FromArgb("#fdba74") : Color.FromArgb("#94a3b8");
+    public int ComponentBorderWidth => _isActiveComponent ? 3 : 2;
     public Color QtyBadgeBg => IsFullyVerified ? Color.FromArgb("#dcfce7")
         : IsPartiallyVerified ? Color.FromArgb("#ffedd5") : Color.FromArgb("#f3f4f6");
     public Color QtyTextColor => IsFullyVerified ? Color.FromArgb("#166534")
@@ -281,12 +280,13 @@ public class ProductItem : INotifyPropertyChanged
         get
         {
             if (_isActive) return Color.FromArgb("#a78bfa");
-            if (IsBundle && !IsCompleted) return Color.FromArgb("#e0daf7");
-            return Colors.Transparent;
+            if (IsCompleted) return Color.FromArgb("#86efac");
+            if (IsPartiallyVerified) return Color.FromArgb("#fdba74");
+            return Color.FromArgb("#94a3b8");
         }
     }
 
-    [JsonIgnore] public int CardBorderWidth => _isActive ? 2 : (IsBundle && !IsCompleted) ? 1 : 0;
+    [JsonIgnore] public int CardBorderWidth => _isActive ? 3 : 2;
 
     [JsonIgnore] public Color ButtonBgColor
     {
@@ -502,6 +502,9 @@ public class ProductItem : INotifyPropertyChanged
         OnPropertyChanged(nameof(VariationBadgeTextColor));
         OnPropertyChanged(nameof(VariationBorderColor));
         OnPropertyChanged(nameof(BundleComponentDotColors));
+        OnPropertyChanged(nameof(ShowBundleExpandArrow));
+        OnPropertyChanged(nameof(AggregatedQcNotes));
+        OnPropertyChanged(nameof(HasAggregatedQcNotes));
     }
 
     public void PopulateBundleComponentStates()
@@ -528,10 +531,11 @@ public class ProductItem : INotifyPropertyChanged
     public bool IsBundleExpanded
     {
         get => _isBundleExpanded;
-        set { _isBundleExpanded = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsBundleCollapsed)); OnPropertyChanged(nameof(BundleChevron)); }
+        set { _isBundleExpanded = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsBundleCollapsed)); OnPropertyChanged(nameof(BundleChevron)); OnPropertyChanged(nameof(ShowBundleExpandArrow)); }
     }
     [JsonIgnore] public bool IsBundleCollapsed => !_isBundleExpanded;
     [JsonIgnore] public string BundleChevron => _isBundleExpanded ? "▾" : "▸";
+    [JsonIgnore] public bool ShowBundleExpandArrow => IsBundle && IsBundleCollapsed;
 
     // ── Enrichment (populated after search via EnrichProductsAsync) ──────────
 
@@ -569,10 +573,25 @@ public class ProductItem : INotifyPropertyChanged
 
     [JsonIgnore] public bool HasQcNotes => !string.IsNullOrWhiteSpace(QcNotes);
     [JsonIgnore] public bool HasNoQcNotes => string.IsNullOrWhiteSpace(QcNotes);
+    [JsonIgnore] public string AggregatedQcNotes
+    {
+        get
+        {
+            if (!IsBundle || BundleComponents is not { Count: > 0 })
+                return QcNotes ?? "";
+            var notes = new List<string>();
+            if (HasQcNotes) notes.Add(QcNotes!);
+            foreach (var c in BundleComponents.Where(c => c.HasQcNotes))
+                notes.Add($"[{c.SubRowNumber}] {c.QcNotes}");
+            return string.Join("\n", notes);
+        }
+    }
+    [JsonIgnore] public bool HasAggregatedQcNotes => !string.IsNullOrWhiteSpace(AggregatedQcNotes);
     [JsonIgnore] public bool HasImagePath => !string.IsNullOrWhiteSpace(ImagePath);
 
     /// <summary>Category badge text like "TEE-01".</summary>
     [JsonIgnore] public string CategoryBadge { get; set; } = "";
+    [JsonIgnore] public bool HasCategoryBadge => !string.IsNullOrWhiteSpace(CategoryBadge);
 
     /// <summary>Category badge background color.</summary>
     [JsonIgnore] public Color CategoryBadgeBg { get; set; } = Colors.Transparent;
@@ -603,10 +622,11 @@ public class ProductItem : INotifyPropertyChanged
     public string? LocalImagePath
     {
         get => _localImagePath;
-        set { _localImagePath = value; OnPropertyChanged(); OnPropertyChanged(nameof(HasLocalImage)); }
+        set { _localImagePath = value; OnPropertyChanged(); OnPropertyChanged(nameof(HasLocalImage)); OnPropertyChanged(nameof(HasNoLocalImage)); }
     }
 
     [JsonIgnore] public bool HasLocalImage => !string.IsNullOrWhiteSpace(_localImagePath);
+    [JsonIgnore] public bool HasNoLocalImage => !HasLocalImage;
 
     [JsonIgnore] public int RowNumber { get; set; }
 
@@ -791,7 +811,7 @@ public class PackingList : INotifyPropertyChanged
     private ObservableCollection<ProductItem> ParseProductsCore()
     {
         var isQcPassed = string.Equals(_packingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase);
-        var useUpdated = (IsQcHold || isQcPassed || (IsPacked && !IsPackedComplete))
+        var useUpdated = (IsQcHold || isQcPassed || IsPacked)
                          && UpdatedProductLists?.Items is { Count: > 0 };
         var sourceItems = (useUpdated ? UpdatedProductLists : ProductLists)?.Items;
         if (sourceItems is null or { Count: 0 }) return [];
