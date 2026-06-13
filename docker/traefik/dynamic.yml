@@ -1,0 +1,72 @@
+# traefik/dynamic.yml — Traefik v3 DYNAMIC configuration
+# Routers + services + middlewares for the warehouse reverse proxy.
+# Every router is gated by the lan-allowlist middleware, so only the two
+# warehouse subnets can reach backend / frontend / minio.
+
+http:
+  middlewares:
+    # Allow ONLY the two warehouse subnets.
+    # Traefik publishes :80 directly on the host with no upstream proxy, so the
+    # client's real IP is the connection remote address — no ipStrategy/depth
+    # tuning needed. To trust X-Forwarded-For from an upstream LB, add
+    # forwardedHeaders + ipStrategy.depth instead.
+    lan-allowlist:
+      ipAllowList:
+        sourceRange:
+          - "192.168.0.0/24"
+          - "192.168.1.0/24"
+
+  routers:
+    frontend:
+      rule: "Host(`app.warehouse.local`)"
+      entryPoints: [web]
+      middlewares: [lan-allowlist]
+      service: frontend
+
+    backend:
+      rule: "Host(`api.warehouse.local`)"
+      entryPoints: [web]
+      middlewares: [lan-allowlist]
+      service: backend
+
+    minio-api:
+      rule: "Host(`minio.warehouse.local`)"
+      entryPoints: [web]
+      middlewares: [lan-allowlist]
+      service: minio-api
+
+    minio-console:
+      rule: "Host(`console.warehouse.local`)"
+      entryPoints: [web]
+      middlewares: [lan-allowlist]
+      service: minio-console
+
+    dashboard:
+      rule: "Host(`traefik.warehouse.local`)"
+      entryPoints: [web]
+      middlewares: [lan-allowlist]
+      service: api@internal
+
+  services:
+    # Service names below resolve over the shared Compose default network.
+    # Traefik, backend, frontend and minio must all be on that network
+    # (they are, as long as the compose files are combined in one `up`).
+    frontend:
+      loadBalancer:
+        servers:
+          - url: "http://frontend:3000"
+
+    backend:
+      loadBalancer:
+        servers:
+          - url: "http://backend:8080"
+
+    minio-api:
+      loadBalancer:
+        servers:
+          - url: "http://minio:9000"
+
+    minio-console:
+      loadBalancer:
+        servers:
+          - url: "http://minio:9001"

@@ -1,0 +1,21 @@
+# Traefik reverse proxy — replaces compose.nginx.yml.
+# Routes *.warehouse.local to backend / frontend / minio and restricts access
+# to the 192.168.0.0/24 and 192.168.1.0/24 subnets (see traefik/dynamic.yml).
+#
+# Do NOT combine with compose.nginx.yml — both bind host port 80.
+#
+# Full stack:
+#   docker compose -f compose.yml -f compose.db.yml -f compose.minio.yml \
+#                  -f compose.traefik.yml -f compose.dnsmasq.yml up -d
+services:
+  traefik:
+    image: traefik:v3.3
+    restart: always
+    ports:
+      - "0.0.0.0:80:80"      # web entrypoint — all *.warehouse.local hosts
+    volumes:
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+    depends_on:
+      - backend
+      - frontend
