@@ -1,52 +1,40 @@
 # traefik/dynamic.yml — Traefik v3 DYNAMIC configuration
 #
-# STAGE 1 (active): the dashboard is reachable by the server's LAN IP
-#   (http://<server-ip>/), restricted to the warehouse subnets. No DNS needed.
+# ACCESS CONTROL is enforced by the HOST FIREWALL, not Traefik. On Docker Desktop
+# the published-port proxy SNATs the client IP, so Traefik only ever sees an
+# internal gateway — a Traefik ipAllowList would block every client. The Windows
+# Firewall sees the real client IP; it restricts :80 to 192.168.0.0/24 and
+# 192.168.1.0/24. See README "Access control".
+# (On native Linux Docker the client IP is preserved — there you COULD add an
+#  ipAllowList middleware here instead. This stack targets Docker Desktop.)
 #
-# STAGE 2 (commented out): per-service hostnames once *.warehouse.local DNS is
-#   in place. Uncomment the blocks below to expose api / minio / console.
-#
-# Allowlist note: Traefik publishes :80 directly on the host, so an external LAN
-# client's real IP is the source. Host-local traffic (from the Docker host
-# itself) is NAT'd to the bridge gateway and will be DENIED — test from another
-# LAN PC, not from the server box.
+# STAGE 1 (active): dashboard reachable by the server's LAN IP (http://<server-ip>/).
+# STAGE 2 (commented): per-service hostnames once *.warehouse.local resolves.
 
 http:
-  middlewares:
-    lan-allowlist:
-      ipAllowList:
-        sourceRange:
-          - "192.168.0.0/24"
-          - "192.168.1.0/24"
-
   routers:
-    # Catch-all: any host (incl. http://<server-ip>/) -> dashboard, LAN-only.
+    # Catch-all: any host (incl. http://<server-ip>/) -> dashboard.
     dashboard:
       rule: "PathPrefix(`/`)"
       entryPoints: [web]
-      middlewares: [lan-allowlist]
       service: frontend
 
     # ── STAGE 2 — uncomment once *.warehouse.local resolves ──────────────────
     # backend:
     #   rule: "Host(`api.warehouse.local`)"
     #   entryPoints: [web]
-    #   middlewares: [lan-allowlist]
     #   service: backend
     # minio-api:
     #   rule: "Host(`minio.warehouse.local`)"
     #   entryPoints: [web]
-    #   middlewares: [lan-allowlist]
     #   service: minio-api
     # minio-console:
     #   rule: "Host(`console.warehouse.local`)"
     #   entryPoints: [web]
-    #   middlewares: [lan-allowlist]
     #   service: minio-console
     # traefik-dashboard:
     #   rule: "Host(`traefik.warehouse.local`)"
     #   entryPoints: [web]
-    #   middlewares: [lan-allowlist]
     #   service: api@internal
 
   services:
