@@ -667,6 +667,21 @@ public class PackingList : INotifyPropertyChanged
         }
     }
 
+    private string? _orderStatus;
+    public string? OrderStatus
+    {
+        get => _orderStatus;
+        set
+        {
+            _orderStatus = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(OrderStatusDisplay));
+            OnPropertyChanged(nameof(HasOrderStatus));
+            OnPropertyChanged(nameof(OrderStatusBgColor));
+            OnPropertyChanged(nameof(OrderStatusFgColor));
+        }
+    }
+
     private string? _packedBy;
     public string? PackedBy
     {
@@ -758,6 +773,20 @@ public class PackingList : INotifyPropertyChanged
 
     public string CheckedByDisplay =>
         string.IsNullOrWhiteSpace(CheckedBy) ? "—" : CheckedBy;
+
+    public string OrderStatusDisplay =>
+        string.IsNullOrWhiteSpace(OrderStatus) ? "—" : OrderStatus;
+
+    public bool HasOrderStatus => !string.IsNullOrWhiteSpace(OrderStatus);
+
+    private bool IsCancelledOrder =>
+        string.Equals(OrderStatus, "Cancelled", StringComparison.OrdinalIgnoreCase);
+
+    public Color OrderStatusBgColor =>
+        IsCancelledOrder ? Color.FromArgb("#fee2e2") : Color.FromArgb("#f3f4f6");
+
+    public Color OrderStatusFgColor =>
+        IsCancelledOrder ? Color.FromArgb("#b91c1c") : Color.FromArgb("#374151");
 
     public string? PlatformIcon => (Platform ?? "").ToLower() switch
     {

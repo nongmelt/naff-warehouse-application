@@ -861,6 +861,17 @@
                                    FontSize="15"
                                    FontAttributes="Bold"/>
                         </Border>
+                        <!-- Marketplace order status (e.g. Cancelled) — shown only when present -->
+                        <Border IsVisible="{Binding CurrentOrder.HasOrderStatus}"
+                                BackgroundColor="{Binding CurrentOrder.OrderStatusBgColor}"
+                                Stroke="Transparent"
+                                StrokeShape="RoundRectangle 4"
+                                Padding="10,5">
+                            <Label Text="{Binding CurrentOrder.OrderStatusDisplay}"
+                                   TextColor="{Binding CurrentOrder.OrderStatusFgColor}"
+                                   FontSize="15"
+                                   FontAttributes="Bold"/>
+                        </Border>
                         <Border IsVisible="{Binding CurrentOrder.IsPackedComplete}"
                                 BackgroundColor="#dcfce7"
                                 Stroke="#86efac"
