@@ -104,6 +104,40 @@ public partial class OrderSearchPage
     private void HideLoginOverlay() =>
         MainThread.BeginInvokeOnMainThread(() => LoginOverlay.IsVisible = false);
 
+    // ── Admin bypass (Ctrl+Shift+A+M) ─────────────────────────────────────────
+    // Dev/admin shortcut: log in as "admin" without scanning an operator badge.
+    // Mirrors the badge-scan login path in OrderSearchPage.ComPort.cs.
+    private void LoginAsAdmin()
+    {
+        const string adminName = "admin";
+        if (_currentOperator == adminName) return; // already logged in as admin
+
+        _currentOperator = adminName;
+        _currentOperatorFirstName = adminName;
+        _currentOperatorId = null;
+        StartInactivityTimer();
+        Services.StationWsClient.SendOperatorLogin(adminName, Services.SessionKind.QC);
+        UpdateNavOperatorUI(adminName);
+        HideLoginOverlay();
+        _ = ShowWelcomeAnimationAsync(adminName);
+        _ = Toast.Make("Logged in as admin").Show();
+        Logger.Log("OrderSearch: Operator logged in as admin (Ctrl+Shift+A+M bypass)");
+
+        // Resolve a real operator id/nickname if an "admin" operator exists in the
+        // backend, so Packed/Checked attribution uses a valid id (mirrors badge login).
+        _ = Task.Run(async () =>
+        {
+            var (firstName, operatorId) = await ApiService.GetOperatorInfoAsync(adminName);
+            if (_currentOperator != adminName) return;
+            _currentOperatorId = operatorId;
+            if (firstName is not null)
+            {
+                _currentOperatorFirstName = firstName;
+                MainThread.BeginInvokeOnMainThread(() => UpdateNavOperatorUI(firstName));
+            }
+        });
+    }
+
     private async Task ShowWelcomeAnimationAsync(string name)
     {
         WelcomeLabel.Text = $"Welcome, {name}";

@@ -25,8 +25,26 @@ public partial class OrderSearchPage
             w.Content.PreviewKeyDown -= OnWindowKeyDown;
     }
 
+    private static bool IsKeyDown(Windows.System.VirtualKey key) =>
+        Microsoft.UI.Input.InputKeyboardSource
+            .GetKeyStateForCurrentThread(key)
+            .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+
     private void OnWindowKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
+        // Admin bypass chord: Ctrl+Shift+A+M (all held) → log in as "admin" without a badge scan.
+        // Checked before the TextBox guard so it works even when a field has focus.
+        if ((e.Key == Windows.System.VirtualKey.M || e.Key == Windows.System.VirtualKey.A)
+            && IsKeyDown(Windows.System.VirtualKey.Control)
+            && IsKeyDown(Windows.System.VirtualKey.Shift)
+            && IsKeyDown(Windows.System.VirtualKey.A)
+            && IsKeyDown(Windows.System.VirtualKey.M))
+        {
+            LoginAsAdmin();
+            e.Handled = true;
+            return;
+        }
+
         // Don't intercept while typing in any Entry / TextBox
         if (e.OriginalSource is Microsoft.UI.Xaml.Controls.TextBox tb)
         {
