@@ -774,8 +774,10 @@ public class PackingList : INotifyPropertyChanged
     public string CheckedByDisplay =>
         string.IsNullOrWhiteSpace(CheckedBy) ? "—" : CheckedBy;
 
+    // Display only: cancelled orders (stored value "Cancelled") show the Thai label.
     public string OrderStatusDisplay =>
-        string.IsNullOrWhiteSpace(OrderStatus) ? "—" : OrderStatus;
+        IsCancelledOrder ? "ยกเลิกแล้ว"
+        : string.IsNullOrWhiteSpace(OrderStatus) ? "—" : OrderStatus;
 
     public bool HasOrderStatus => !string.IsNullOrWhiteSpace(OrderStatus);
 
