@@ -169,6 +169,45 @@
                     </VerticalStackLayout>
                 </Border>
 
+                <!-- Pack Station card (no-video) -->
+                <Border x:Name="PackCard"
+                        Stroke="#e5e7eb"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 12"
+                        BackgroundColor="White"
+                        Padding="36,32">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnGoToPack"/>
+                        <PointerGestureRecognizer
+                            PointerEntered="OnPackCardEntered"
+                            PointerExited="OnPackCardExited"
+                            PointerPressed="OnPackCardPressed"
+                            PointerReleased="OnPackCardReleased"/>
+                    </Border.GestureRecognizers>
+                    <VerticalStackLayout InputTransparent="True"
+                                         x:Name="PackStack"
+                                         Spacing="14"
+                                         HorizontalOptions="Center">
+                        <Label x:Name="PackIcon"  Text="&#x1F3F7;&#xFE0F;" FontSize="44" HorizontalOptions="Center"/>
+                        <Label x:Name="PackTitle" Text="Pack Station"
+                               FontSize="16"
+                               FontAttributes="Bold"
+                               TextColor="#111827"
+                               HorizontalOptions="Center"/>
+                        <Label x:Name="PackDesc"  Text="Scan to mark packed&#10;(no video, login required)"
+                               FontSize="12"
+                               TextColor="#6b7280"
+                               HorizontalOptions="Center"
+                               HorizontalTextAlignment="Center"/>
+                        <Label x:Name="PackArrow"
+                               Text="Open →"
+                               FontSize="12"
+                               TextColor="#9ca3af"
+                               HorizontalOptions="Center"
+                               Margin="0,4,0,0"/>
+                    </VerticalStackLayout>
+                </Border>
+
             </HorizontalStackLayout>
 
         </Grid>
