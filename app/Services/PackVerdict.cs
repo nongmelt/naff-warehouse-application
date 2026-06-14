@@ -7,7 +7,7 @@ namespace app.Services;
 /// can be unit-tested from a plain net10.0 test project. Given the result of a tracking
 /// lookup, decides whether a scan seals the parcel as "Packed" and which verdict to flash.
 /// </summary>
-public enum PackOutcome { Pack, NotFound, Cancelled, AlreadyPacked, Blocked }
+public enum PackOutcome { Pack, NotFound, Cancelled, AlreadyPacked, Blocked, SaveFailed }
 
 public readonly record struct PackVerdictResult(
     PackOutcome Outcome,
@@ -56,10 +56,10 @@ public static class PackVerdict
 
         // Unknown / null status — block rather than seal.
         return new(PackOutcome.Blocked, false, "BLOCKED",
-            string.IsNullOrWhiteSpace(packingStatus) ? "Unknown status" : packingStatus!, "!", ColorAmber);
+            string.IsNullOrWhiteSpace(packingStatus) ? "Unknown status" : packingStatus, "!", ColorAmber);
     }
 
     /// <summary>Verdict shown when the REST write itself fails (network / server error).</summary>
     public static PackVerdictResult SaveFailed() =>
-        new(PackOutcome.Blocked, false, "SAVE FAILED", "Could not reach server", "!", ColorRed);
+        new(PackOutcome.SaveFailed, false, "SAVE FAILED", "Could not reach server", "!", ColorRed);
 }

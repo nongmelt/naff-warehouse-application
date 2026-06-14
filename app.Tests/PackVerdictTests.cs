@@ -9,6 +9,7 @@ public class PackVerdictTests
     [InlineData("QC Passed")]
     [InlineData("Packing")]
     [InlineData("qc passed")] // case-insensitive
+    [InlineData("packing")]   // case-insensitive
     public void QcCleared_status_seals_as_Packed(string status)
     {
         var v = PackVerdict.Evaluate(found: true, cancelled: false, packingStatus: status);
@@ -86,6 +87,7 @@ public class PackVerdictTests
     public void SaveFailed_is_red_no_write()
     {
         var v = PackVerdict.SaveFailed();
+        Assert.Equal(PackOutcome.SaveFailed, v.Outcome);
         Assert.False(v.ShouldWrite);
         Assert.Equal("SAVE FAILED", v.Word);
         Assert.Equal(PackVerdict.ColorRed, v.Color);
