@@ -41,6 +41,14 @@ public class ShippingHistoryTests
         Assert.False(ShippingHistory.IsSeal(PackOutcome.AlreadyPacked));
         Assert.False(ShippingHistory.IsSeal(PackOutcome.Blocked));
         Assert.False(ShippingHistory.IsSeal(PackOutcome.NotFound));
+        Assert.False(ShippingHistory.IsSeal(PackOutcome.Cancelled));
+        Assert.False(ShippingHistory.IsSeal(PackOutcome.SaveFailed));
+    }
+
+    [Fact]
+    public void CarrierToken_pure_thai_with_no_known_carrier_is_null()
+    {
+        Assert.Null(ShippingHistory.CarrierToken("ส่งธรรมดาในประเทศ"));
     }
 
     private static ShipScan Scan(int seq, string plat, string ship, PackOutcome o) =>

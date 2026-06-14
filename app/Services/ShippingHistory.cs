@@ -46,9 +46,13 @@ public static class ShippingHistory
         if (s.Contains("KERRY")) return "Kerry";
         if (s.Contains("DHL"))   return "DHL";
         if (s.Contains("NINJA")) return "Ninja";
-        // No known carrier keyword — fall back to the first ASCII word ("Instant", "Express", …).
+        // No known carrier keyword — fall back to the first word, but only if it is ASCII
+        // (e.g. "Instant"); a pure-Thai segment is not a usable carrier label.
         var w = shipping.Trim().Split([' ', '-'], StringSplitOptions.RemoveEmptyEntries);
-        return w.Length > 0 ? w[0] : null;
+        var first = w.Length > 0 ? w[0] : null;
+        return first != null && first.Any(ch => ch is >= 'A' and <= 'Z' or >= 'a' and <= 'z')
+            ? first
+            : null;
     }
 
     /// <summary>Per-platform packed counts — only sealed scans count.</summary>
