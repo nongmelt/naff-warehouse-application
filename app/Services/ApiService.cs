@@ -20,13 +20,20 @@ public static class ApiService
 
     private static HttpClient? _http;
     private static string _httpBase = "";
+    private static string _httpCfId = "";
+    private static string _httpCfSecret = "";
 
     private static HttpClient Http
     {
         get
         {
             var url = (AppSettings.ApiUrl?.TrimEnd('/') ?? "http://localhost:8080") + "/";
-            if (_http is null || _httpBase != url)
+            var cfId = AppSettings.CfAccessClientId;
+            var cfSecret = AppSettings.CfAccessClientSecret;
+
+            // Rebuild when the URL or the Cloudflare Access token changes so edits made in
+            // Settings take effect without restarting the app.
+            if (_http is null || _httpBase != url || _httpCfId != cfId || _httpCfSecret != cfSecret)
             {
                 _http?.Dispose();
                 _http = new HttpClient
@@ -34,7 +41,18 @@ public static class ApiService
                     BaseAddress = new Uri(url),
                     Timeout = TimeSpan.FromSeconds(30),
                 };
+
+                // Cloudflare Access service-token headers — only added when present, so the
+                // app works fine against a backend with no Cloudflare Access in front of it
+                // (both values empty/null => no headers sent).
+                if (!string.IsNullOrWhiteSpace(cfId))
+                    _http.DefaultRequestHeaders.Add("CF-Access-Client-Id", cfId);
+                if (!string.IsNullOrWhiteSpace(cfSecret))
+                    _http.DefaultRequestHeaders.Add("CF-Access-Client-Secret", cfSecret);
+
                 _httpBase = url;
+                _httpCfId = cfId;
+                _httpCfSecret = cfSecret;
             }
             return _http;
         }
