@@ -20,7 +20,7 @@
         </ResourceDictionary>
     </ContentPage.Resources>
 
-    <Grid RowDefinitions="Auto, *">
+    <Grid RowDefinitions="Auto, Auto, *">
 
         <!-- Header -->
         <Grid Grid.Row="0"
@@ -32,29 +32,108 @@
                     Clicked="OnGoHome"
                     Style="{StaticResource NavOutlineButton}"/>
             <Label Grid.Column="1"
-                   Text="Pack Station"
+                   Text="Shipping"
                    TextColor="White"
                    FontSize="16"
                    FontAttributes="Bold"
                    HorizontalOptions="Center"
                    VerticalOptions="Center"/>
-            <Border Grid.Column="2"
-                    x:Name="OperatorHeaderBadge"
-                    IsVisible="False"
-                    BackgroundColor="Transparent"
-                    Stroke="Transparent"
-                    Padding="0">
-                <Label x:Name="HeaderComputerOperatorLabel"
-                       Text=""
-                       TextColor="White"
-                       FontSize="13"
-                       VerticalOptions="Center"/>
-            </Border>
+            <HorizontalStackLayout Grid.Column="2" Spacing="10" VerticalOptions="Center">
+                <!-- COM port dropdown badge (always reachable, like Order Search) -->
+                <Border x:Name="ComPortBadge"
+                        BackgroundColor="#1Affffff"
+                        Stroke="#30ffffff"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 6"
+                        Padding="12,6"
+                        VerticalOptions="Center">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnComPortBadgeTapped"/>
+                    </Border.GestureRecognizers>
+                    <HorizontalStackLayout Spacing="6">
+                        <Label Text="COM"
+                               TextColor="#cbd5e1"
+                               FontSize="10"
+                               VerticalOptions="Center"/>
+                        <Label x:Name="ComPortBadgeLabel"
+                               Text="None"
+                               TextColor="White"
+                               FontSize="12"
+                               FontAttributes="Bold"
+                               VerticalOptions="Center"/>
+                        <Label Text="&#x25BE;"
+                               TextColor="#cbd5e1"
+                               FontSize="10"
+                               VerticalOptions="Center"/>
+                    </HorizontalStackLayout>
+                </Border>
+                <!-- Operator badge -->
+                <Border x:Name="OperatorHeaderBadge"
+                        IsVisible="False"
+                        BackgroundColor="Transparent"
+                        Stroke="Transparent"
+                        Padding="0"
+                        VerticalOptions="Center">
+                    <Label x:Name="HeaderComputerOperatorLabel"
+                           Text=""
+                           TextColor="White"
+                           FontSize="13"
+                           VerticalOptions="Center"/>
+                </Border>
+            </HorizontalStackLayout>
         </Grid>
+
+        <!-- Scan history belt (visible once logged in) — mirrors Order Search belt -->
+        <Border x:Name="HistoryBelt"
+                Grid.Row="1"
+                IsVisible="False"
+                BackgroundColor="White"
+                Stroke="#e5e7eb"
+                StrokeThickness="1"
+                StrokeShape="RoundRectangle 0"
+                Padding="0">
+            <Grid ColumnDefinitions="Auto, *" Padding="6,4">
+
+                <!-- Platform stat pills (always visible, incl. 0) -->
+                <HorizontalStackLayout Grid.Column="0" Spacing="4" VerticalOptions="Center" Padding="6,0">
+                    <Border BackgroundColor="#fff1ed" Stroke="#fbcab9" StrokeThickness="1" StrokeShape="RoundRectangle 4" Padding="8,4">
+                        <HorizontalStackLayout Spacing="4" VerticalOptions="Center">
+                            <BoxView WidthRequest="6" HeightRequest="6" Color="#EE4D2D" CornerRadius="3" VerticalOptions="Center"/>
+                            <Label x:Name="ShopeeCountLabel" Text="0" FontSize="12" FontAttributes="Bold" TextColor="#c2410c" VerticalOptions="Center"/>
+                            <Label Text="Shopee" FontSize="10" TextColor="#6b7280" VerticalOptions="Center"/>
+                        </HorizontalStackLayout>
+                    </Border>
+                    <Border BackgroundColor="#eef0fb" Stroke="#c3c8ee" StrokeThickness="1" StrokeShape="RoundRectangle 4" Padding="8,4">
+                        <HorizontalStackLayout Spacing="4" VerticalOptions="Center">
+                            <BoxView WidthRequest="6" HeightRequest="6" Color="#0F146D" CornerRadius="3" VerticalOptions="Center"/>
+                            <Label x:Name="LazadaCountLabel" Text="0" FontSize="12" FontAttributes="Bold" TextColor="#0F146D" VerticalOptions="Center"/>
+                            <Label Text="Lazada" FontSize="10" TextColor="#6b7280" VerticalOptions="Center"/>
+                        </HorizontalStackLayout>
+                    </Border>
+                    <Border BackgroundColor="#f3f4f6" Stroke="#d1d5db" StrokeThickness="1" StrokeShape="RoundRectangle 4" Padding="8,4">
+                        <HorizontalStackLayout Spacing="4" VerticalOptions="Center">
+                            <BoxView WidthRequest="6" HeightRequest="6" Color="#000000" CornerRadius="3" VerticalOptions="Center"/>
+                            <Label x:Name="TiktokCountLabel" Text="0" FontSize="12" FontAttributes="Bold" TextColor="#111827" VerticalOptions="Center"/>
+                            <Label Text="TikTok" FontSize="10" TextColor="#6b7280" VerticalOptions="Center"/>
+                        </HorizontalStackLayout>
+                    </Border>
+                </HorizontalStackLayout>
+
+                <!-- Carousel of scanned parcels -->
+                <ScrollView Grid.Column="1"
+                            Orientation="Horizontal"
+                            HorizontalScrollBarVisibility="Never"
+                            VerticalOptions="Center"
+                            Padding="8,0">
+                    <HorizontalStackLayout x:Name="HistoryStrip" Spacing="4" VerticalOptions="Center"/>
+                </ScrollView>
+
+            </Grid>
+        </Border>
 
         <!-- Body: idle prompt -->
         <VerticalStackLayout x:Name="IdlePrompt"
-                             Grid.Row="1"
+                             Grid.Row="2"
                              BackgroundColor="#f3f4f6"
                              HorizontalOptions="Fill"
                              VerticalOptions="Fill"
@@ -80,7 +159,7 @@
 
         <!-- Welcome banner -->
         <Border x:Name="WelcomeBanner"
-                Grid.Row="1"
+                Grid.Row="2"
                 IsVisible="False"
                 HorizontalOptions="Center"
                 VerticalOptions="Center"
@@ -101,7 +180,7 @@
 
         <!-- Login overlay (covers body only; header Home stays reachable) -->
         <Grid x:Name="LoginOverlay"
-              Grid.Row="1"
+              Grid.Row="2"
               BackgroundColor="#CC111827"
               IsVisible="True"
               ZIndex="10">
@@ -148,7 +227,7 @@
         <!-- Full-screen verdict flash (spans both rows; above everything) -->
         <Grid x:Name="VerdictOverlay"
               Grid.Row="0"
-              Grid.RowSpan="2"
+              Grid.RowSpan="3"
               IsVisible="False"
               Opacity="0"
               ZIndex="30"
@@ -180,6 +259,37 @@
                        TextColor="#e5e7eb"
                        HorizontalTextAlignment="Center"/>
             </VerticalStackLayout>
+        </Grid>
+
+        <!-- COM port dropdown popover -->
+        <Grid x:Name="ComPortDropdownBackdrop"
+              Grid.Row="0"
+              Grid.RowSpan="3"
+              BackgroundColor="Transparent"
+              IsVisible="False"
+              ZIndex="20"
+              InputTransparent="False">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnComPortDropdownBackdropTapped"/>
+            </Grid.GestureRecognizers>
+            <Border x:Name="ComPortDropdownCard"
+                    HorizontalOptions="End"
+                    VerticalOptions="Start"
+                    Margin="0,48,16,0"
+                    Stroke="#e5e7eb"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 6"
+                    BackgroundColor="White"
+                    Padding="0"
+                    WidthRequest="240"
+                    InputTransparent="False">
+                <Border.Shadow>
+                    <Shadow Brush="#26000000" Offset="0,4" Radius="12"/>
+                </Border.Shadow>
+                <VerticalStackLayout x:Name="ComPortDropdownList"
+                                     Spacing="0"
+                                     Padding="8"/>
+            </Border>
         </Grid>
 
     </Grid>

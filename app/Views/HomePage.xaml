@@ -189,12 +189,12 @@
                                          Spacing="14"
                                          HorizontalOptions="Center">
                         <Label x:Name="PackIcon"  Text="&#x1F3F7;&#xFE0F;" FontSize="44" HorizontalOptions="Center"/>
-                        <Label x:Name="PackTitle" Text="Pack Station"
+                        <Label x:Name="PackTitle" Text="Shipping"
                                FontSize="16"
                                FontAttributes="Bold"
                                TextColor="#111827"
                                HorizontalOptions="Center"/>
-                        <Label x:Name="PackDesc"  Text="Scan to mark packed&#10;(no video, login required)"
+                        <Label x:Name="PackDesc"  Text="Verify &amp; mark parcels as packed&#10;(no video, login required)"
                                FontSize="12"
                                TextColor="#6b7280"
                                HorizontalOptions="Center"

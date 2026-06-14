@@ -1,4 +1,5 @@
 using app.Services;
+using Microsoft.Maui.Controls.Shapes;
 using System.IO.Ports;
 using System.Management;
 using System.Runtime.Versioning;
@@ -40,6 +41,7 @@ public partial class PackStationPage
             OverlayComPortPicker.Items.Add(p.DisplayName);
         OverlayComPortPicker.SelectedIndex = selIdx;
         _syncingPickers = false;
+        ComPortBadgeLabel.Text = selIdx == 0 ? "None" : _comPorts[selIdx - 1].PortName;
     }
 
     private async void OnOverlayRefreshPorts(object sender, EventArgs e)
@@ -60,6 +62,7 @@ public partial class PackStationPage
             _selectedPortName = null;
             CloseSerialPort();
             UpdateOverlayScannerStatus("No scanner connected");
+            MainThread.BeginInvokeOnMainThread(() => ComPortBadgeLabel.Text = "None");
             return;
         }
 
@@ -68,6 +71,7 @@ public partial class PackStationPage
 
         var portName = _comPorts[portIdx].PortName;
         _selectedPortName = portName;
+        MainThread.BeginInvokeOnMainThread(() => ComPortBadgeLabel.Text = portName);
         CloseSerialPort();
         try
         {
@@ -88,6 +92,89 @@ public partial class PackStationPage
             Logger.Log($"PackStation serial port: {ex}");
             UpdateOverlayScannerStatus($"COM error: {ex.Message}");
         }
+    }
+
+    // ── COM port header badge + dropdown (forked from Order Search) ───────────────
+
+    private void OnComPortBadgeTapped(object sender, TappedEventArgs e)
+    {
+        BuildComPortDropdown();
+        ComPortDropdownBackdrop.IsVisible = true;
+    }
+
+    private void OnComPortDropdownBackdropTapped(object sender, TappedEventArgs e)
+        => ComPortDropdownBackdrop.IsVisible = false;
+
+    private void BuildComPortDropdown()
+    {
+        ComPortDropdownList.Children.Clear();
+
+        var noneRow = BuildComPortOption("None", _selectedPortName == null);
+        noneRow.GestureRecognizers.Add(new TapGestureRecognizer { Command = new Command(() => SelectComPort(-1)) });
+        ComPortDropdownList.Children.Add(noneRow);
+
+        for (int i = 0; i < _comPorts.Count; i++)
+        {
+            var port = _comPorts[i];
+            var isActive = _selectedPortName == port.PortName;
+            var row = BuildComPortOption(port.DisplayName, isActive);
+            var idx = i;
+            row.GestureRecognizers.Add(new TapGestureRecognizer { Command = new Command(() => SelectComPort(idx)) });
+            ComPortDropdownList.Children.Add(row);
+        }
+
+        var refreshRow = new Border
+        {
+            BackgroundColor = Colors.Transparent,
+            Stroke = Colors.Transparent,
+            StrokeShape = new RoundRectangle { CornerRadius = 6 },
+            Padding = new Thickness(16, 10),
+            Margin = new Thickness(0, 4, 0, 0),
+        };
+        refreshRow.Content = new Label { Text = "↻ Refresh ports", FontSize = 11, TextColor = Color.FromArgb("#6b7280") };
+        refreshRow.GestureRecognizers.Add(new TapGestureRecognizer
+        {
+            Command = new Command(async () => { await LoadComPortsAsync(); BuildComPortDropdown(); })
+        });
+        ComPortDropdownList.Children.Add(refreshRow);
+    }
+
+    private static Border BuildComPortOption(string label, bool isActive)
+    {
+        var border = new Border
+        {
+            BackgroundColor = isActive ? Color.FromArgb("#f5f5ff") : Colors.Transparent,
+            Stroke = Colors.Transparent,
+            StrokeShape = new RoundRectangle { CornerRadius = 6 },
+            Padding = new Thickness(16, 12),
+        };
+        var grid = new Grid { ColumnDefinitions = [new(GridLength.Star), new(GridLength.Auto)] };
+        grid.Add(new Label
+        {
+            Text = label,
+            FontSize = 13,
+            FontAttributes = isActive ? FontAttributes.Bold : FontAttributes.None,
+            TextColor = isActive ? Color.FromArgb("#4338ca") : Color.FromArgb("#374151"),
+        });
+        if (isActive)
+        {
+            var check = new Label { Text = "✓", FontSize = 14, FontAttributes = FontAttributes.Bold, TextColor = Color.FromArgb("#4338ca"), VerticalOptions = LayoutOptions.Center };
+            Grid.SetColumn(check, 1);
+            grid.Add(check);
+        }
+        border.Content = grid;
+        return border;
+    }
+
+    private void SelectComPort(int portIndex)
+    {
+        ComPortDropdownBackdrop.IsVisible = false;
+        ApplyComPortSelection(portIndex + 1);
+        ComPortBadgeLabel.Text = portIndex < 0 ? "None"
+            : portIndex < _comPorts.Count ? _comPorts[portIndex].PortName : "None";
+        _syncingPickers = true;
+        OverlayComPortPicker.SelectedIndex = portIndex + 1;
+        _syncingPickers = false;
     }
 
     private void OnSerialDataReceived(object sender, SerialDataReceivedEventArgs e)

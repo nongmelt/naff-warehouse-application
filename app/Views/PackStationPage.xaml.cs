@@ -48,6 +48,7 @@ public partial class PackStationPage : ContentPage
         if (_currentOperator != null)
         {
             StartInactivityTimer();
+            ShowHistoryBelt();
             if (OverlayComPortPicker.SelectedIndex > 0)
                 ApplyComPortSelection(OverlayComPortPicker.SelectedIndex);
         }
@@ -100,6 +101,7 @@ public partial class PackStationPage : ContentPage
         StationWsClient.SendOperatorLogin(badge, SessionKind.Packing);
         UpdateNavOperatorUI(badge);
         HideLoginOverlay();
+        ShowHistoryBelt();
         _ = ShowWelcomeAnimationAsync(badge);
         Logger.Log($"PackStation: Operator logged in — {badge}");
         _ = Task.Run(async () =>
@@ -125,6 +127,8 @@ public partial class PackStationPage : ContentPage
         StationWsClient.SendOperatorLogout();
         UpdateNavOperatorUI(null);
         ShowLoginOverlay();
+        ClearHistory();
+        HideHistoryBelt();
         if (displayName is not null)
             _ = Toast.Make($"Logged out — {displayName}").Show();
         Logger.Log($"PackStation: Operator logged out — {displayName}");
@@ -235,15 +239,22 @@ public partial class PackStationPage : ContentPage
 
             if (verdict.ShouldWrite)
             {
+                // Resolve the station id before sealing — never read ResolvedStationId
+                // directly in a scan-critical path (it may be unset at startup). This
+                // ensures packing_station_id is written, mirroring StationView.
+                var stationId = await AppSettings.EnsureStationIdAsync();
+
                 // packed_by MUST be the raw badge string, not the display name.
                 var ok = await ApiService.UpdatePackingStatusByScanAsync(
                     tracking, "Packed", packer,
-                    packingStationId: AppSettings.ResolvedStationId);
+                    packingStationId: stationId);
 
                 if (!ok)
                 {
                     Logger.Log($"PackStation: write failed for {tracking}");
-                    await ShowVerdictAsync(PackVerdict.SaveFailed(), tracking);
+                    var failed = PackVerdict.SaveFailed();
+                    AddScanToHistory(match, tracking);
+                    await ShowVerdictAsync(failed, tracking);
                     return;
                 }
 
@@ -254,7 +265,7 @@ public partial class PackStationPage : ContentPage
                     trackingNumber: tracking,
                     fromState: fromState,
                     toState: "Packed",
-                    stationId: AppSettings.ResolvedStationId,
+                    stationId: stationId,
                     @operator: packer,
                     payload: new Dictionary<string, object?>
                     {
@@ -265,6 +276,7 @@ public partial class PackStationPage : ContentPage
                 Logger.Log($"PackStation: {tracking} -> Packed by {packer}");
             }
 
+            AddScanToHistory(match, tracking);
             await ShowVerdictAsync(verdict, tracking, packerName);
         }
         finally
