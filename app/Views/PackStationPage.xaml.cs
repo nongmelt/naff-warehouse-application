@@ -128,6 +128,7 @@ public partial class PackStationPage : ContentPage
         ShowLoginOverlay();
         ClearHistory();
         HideHistoryBelt();
+        HideParcelPanel();
         if (displayName is not null)
             _ = Toast.Make($"Logged out — {displayName}").Show();
         Logger.Log($"PackStation: Operator logged out — {displayName}");
@@ -253,6 +254,7 @@ public partial class PackStationPage : ContentPage
                     Logger.Log($"PackStation: write failed for {tracking}");
                     var failed = PackVerdict.SaveFailed();
                     AddScanToHistory(match, tracking, PackOutcome.SaveFailed);
+                    ShowParcelPanel(match, failed, packerName);
                     await ShowVerdictAsync(failed, tracking);
                     return;
                 }
@@ -276,6 +278,7 @@ public partial class PackStationPage : ContentPage
             }
 
             AddScanToHistory(match, tracking, verdict.Outcome);
+            ShowParcelPanel(match, verdict, packerName);
             await ShowVerdictAsync(verdict, tracking, packerName);
         }
         finally

@@ -171,6 +171,77 @@
             </VerticalStackLayout>
         </VerticalStackLayout>
 
+        <!-- Parcel detail panel: shown after a scan (verdict banner + carrier + contents) -->
+        <Grid x:Name="ParcelPanel"
+              Grid.Row="2"
+              IsVisible="False"
+              BackgroundColor="#eef1f5"
+              RowDefinitions="Auto, Auto, *"
+              Padding="14,12">
+
+            <!-- Banner -->
+            <Border x:Name="ParcelBanner"
+                    Grid.Row="0"
+                    BackgroundColor="#16a34a"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 14"
+                    Padding="16,12">
+                <Grid ColumnDefinitions="Auto, *, Auto" ColumnSpacing="14">
+                    <Label x:Name="ParcelGlyph"
+                           Grid.Column="0"
+                           Text="&#x2713;"
+                           FontSize="40"
+                           FontAttributes="Bold"
+                           TextColor="White"
+                           WidthRequest="50"
+                           HorizontalTextAlignment="Center"
+                           VerticalOptions="Center"/>
+                    <VerticalStackLayout Grid.Column="1" Spacing="4" VerticalOptions="Center">
+                        <HorizontalStackLayout Spacing="10" VerticalOptions="Center">
+                            <Label x:Name="ParcelWord" Text="PACKED" FontSize="26" FontAttributes="Bold" TextColor="White" VerticalOptions="Center"/>
+                            <Border x:Name="ParcelPlatformBadge" IsVisible="False" BackgroundColor="#33ffffff" StrokeThickness="0" StrokeShape="RoundRectangle 4" Padding="7,3" VerticalOptions="Center">
+                                <Label x:Name="ParcelPlatformLabel" Text="" FontSize="10" FontAttributes="Bold" TextColor="White"/>
+                            </Border>
+                            <Label x:Name="ParcelTracking" Text="" FontSize="16" FontFamily="Consolas" TextColor="#f5f5f5" VerticalOptions="Center"/>
+                        </HorizontalStackLayout>
+                        <HorizontalStackLayout Spacing="10" VerticalOptions="Center">
+                            <HorizontalStackLayout x:Name="ParcelCarrierBox" IsVisible="False" Spacing="8" VerticalOptions="Center">
+                                <Label x:Name="ParcelCarrierToken" Text="" FontSize="18" FontAttributes="Bold" TextColor="White" VerticalOptions="Center"/>
+                                <Label x:Name="ParcelCarrierFull" Text="" FontSize="12" TextColor="#eafff1" VerticalOptions="Center" LineBreakMode="TailTruncation" MaxLines="1"/>
+                            </HorizontalStackLayout>
+                            <Label x:Name="ParcelByLabel" Text="" FontSize="13" TextColor="#eafff1" VerticalOptions="Center"/>
+                        </HorizontalStackLayout>
+                    </VerticalStackLayout>
+                    <Border x:Name="ParcelCountBox" Grid.Column="2" BackgroundColor="#26000000" StrokeThickness="0" StrokeShape="RoundRectangle 12" Padding="16,8" VerticalOptions="Center">
+                        <VerticalStackLayout Spacing="0" HorizontalOptions="Center">
+                            <Label x:Name="ParcelCountLabel" Text="0" FontSize="28" FontAttributes="Bold" TextColor="White" HorizontalTextAlignment="Center"/>
+                            <Label Text="ITEMS" FontSize="9" FontAttributes="Bold" TextColor="#eafff1" HorizontalTextAlignment="Center"/>
+                        </VerticalStackLayout>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- Contents header -->
+            <HorizontalStackLayout x:Name="ParcelContentsHeader" Grid.Row="1" Spacing="8" Padding="2,14,2,8" VerticalOptions="Center">
+                <Label Text="CONTENTS" FontSize="12" FontAttributes="Bold" TextColor="#475569" VerticalOptions="Center"/>
+                <Border BackgroundColor="#e2e8f0" StrokeThickness="0" StrokeShape="RoundRectangle 999" Padding="9,2">
+                    <Label x:Name="ParcelContentsCount" Text="0 items" FontSize="11" FontAttributes="Bold" TextColor="#64748b"/>
+                </Border>
+            </HorizontalStackLayout>
+
+            <!-- Contents list (compact image cards, built in code) -->
+            <ScrollView x:Name="ParcelScroll" Grid.Row="2" VerticalScrollBarVisibility="Default">
+                <VerticalStackLayout x:Name="ParcelContentsStack" Spacing="8" Padding="0,0,4,0"/>
+            </ScrollView>
+
+            <!-- Empty state (not found) -->
+            <VerticalStackLayout x:Name="ParcelEmpty" Grid.Row="2" IsVisible="False" Spacing="8" HorizontalOptions="Center" VerticalOptions="Center">
+                <Label Text="&#x1F4ED;" FontSize="46" HorizontalOptions="Center"/>
+                <Label Text="No matching order" FontSize="16" FontAttributes="Bold" TextColor="#64748b" HorizontalOptions="Center"/>
+                <Label Text="Nothing to show for this tracking number." FontSize="12" TextColor="#94a3b8" HorizontalOptions="Center"/>
+            </VerticalStackLayout>
+        </Grid>
+
         <!-- Welcome banner -->
         <Border x:Name="WelcomeBanner"
                 Grid.Row="2"
