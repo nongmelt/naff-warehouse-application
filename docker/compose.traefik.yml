@@ -1,0 +1,26 @@
+# Traefik reverse proxy — replaces compose.nginx.yml.
+# Single same-origin entrypoint on :80, path-routed to the stack:
+#   /api/* -> backend, /s3/* -> minio, /* -> frontend  (see traefik/dynamic.yml).
+# Same-origin means the dashboard works from any subnet that can reach the server
+# and needs no baked IPs or CORS. LAN access is restricted by the host firewall.
+#
+# Do NOT combine with compose.nginx.yml — both bind host port 80.
+#
+# Full stack:
+#   docker compose -f compose.yml -f compose.db.yml -f compose.minio.yml \
+#                  -f compose.traefik.yml up -d
+services:
+  traefik:
+    image: traefik:v3.3
+    restart: always
+    ports:
+      - "0.0.0.0:80:80"      # single same-origin web entrypoint
+    volumes:
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+    # Start-ordering only. MinIO is intentionally NOT listed: in prod it runs on a
+    # separate host (no `minio` service here), and Traefik retries upstreams that
+    # aren't ready yet. See compose.traefik.prod.yml for the external-MinIO wiring.
+    depends_on:
+      - backend
+      - frontend
