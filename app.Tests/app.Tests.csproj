@@ -16,6 +16,7 @@
   <!-- Link the single pure file under test; no MAUI dependency. -->
   <ItemGroup>
     <Compile Include="..\app\Services\PackVerdict.cs" Link="PackVerdict.cs" />
+    <Compile Include="..\app\Services\ShippingHistory.cs" Link="ShippingHistory.cs" />
   </ItemGroup>
 
 </Project>
