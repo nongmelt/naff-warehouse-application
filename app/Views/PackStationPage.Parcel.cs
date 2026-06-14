@@ -11,6 +11,10 @@ public partial class PackStationPage
     // Show the just-scanned parcel: verdict banner + carrier + contents (with images).
     private void ShowParcelPanel(PackingList? match, PackVerdictResult verdict, string? packerName)
     {
+        // A logout / inactivity timeout can land between the scan's awaits; if nobody is
+        // logged in, don't surface the panel underneath the login overlay.
+        if (_currentOperator is null) return;
+
         IdlePrompt.IsVisible = false;
         ParcelPanel.IsVisible = true;
 
@@ -21,7 +25,8 @@ public partial class PackStationPage
         ParcelWord.Text = verdict.Word;
         ParcelTracking.Text = match?.TrackingNumber ?? "";
 
-        var (platColor, platName) = PlatformBadge(match?.Platform);
+        // Badge background stays the banner's translucent white (set in XAML); only the name is needed.
+        var (_, platName) = PlatformBadge(match?.Platform);
         ParcelPlatformBadge.IsVisible = platName != null;
         ParcelPlatformLabel.Text = platName ?? "";
 
@@ -72,7 +77,11 @@ public partial class PackStationPage
     // Fresh copies of the ordered line items so async enrichment never mutates the cached payload.
     private static List<ProductItem> BuildParcelItems(PackingList match)
     {
-        var src = match.ProductLists?.Items ?? [];
+        // Prefer the post-QC list when present (mirrors PackingList.ParseProductsCore) so
+        // re-scanned / QC-adjusted parcels show the actual packed quantities, not the original order.
+        var src = (match.UpdatedProductLists?.Items is { Count: > 0 }
+            ? match.UpdatedProductLists
+            : match.ProductLists)?.Items ?? [];
         var list = new List<ProductItem>();
         var row = 0;
         foreach (var p in src)

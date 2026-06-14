@@ -48,6 +48,7 @@ public partial class PackStationPage : ContentPage
         {
             StartInactivityTimer();
             ShowHistoryBelt();
+            HideParcelPanel();
             if (OverlayComPortPicker.SelectedIndex > 0)
                 ApplyComPortSelection(OverlayComPortPicker.SelectedIndex);
         }
