@@ -32,6 +32,7 @@
                     Clicked="OnGoHome"
                     Style="{StaticResource NavOutlineButton}"/>
             <VerticalStackLayout Grid.Column="1"
+                                 Margin="20,0,0,0"
                                  HorizontalOptions="Start"
                                  VerticalOptions="Center"
                                  Spacing="1">
@@ -176,7 +177,7 @@
               Grid.Row="2"
               IsVisible="False"
               BackgroundColor="#eef1f5"
-              RowDefinitions="Auto, Auto, *"
+              RowDefinitions="Auto, *"
               Padding="14,12">
 
             <!-- Banner -->
@@ -221,21 +222,13 @@
                 </Grid>
             </Border>
 
-            <!-- Contents header -->
-            <HorizontalStackLayout x:Name="ParcelContentsHeader" Grid.Row="1" Spacing="8" Padding="2,14,2,8" VerticalOptions="Center">
-                <Label Text="CONTENTS" FontSize="12" FontAttributes="Bold" TextColor="#475569" VerticalOptions="Center"/>
-                <Border BackgroundColor="#e2e8f0" StrokeThickness="0" StrokeShape="RoundRectangle 999" Padding="9,2">
-                    <Label x:Name="ParcelContentsCount" Text="0 items" FontSize="11" FontAttributes="Bold" TextColor="#64748b"/>
-                </Border>
-            </HorizontalStackLayout>
-
             <!-- Contents list (compact image cards, built in code) -->
-            <ScrollView x:Name="ParcelScroll" Grid.Row="2" VerticalScrollBarVisibility="Default">
+            <ScrollView x:Name="ParcelScroll" Grid.Row="1" Margin="0,8,0,0" VerticalScrollBarVisibility="Default">
                 <VerticalStackLayout x:Name="ParcelContentsStack" Spacing="8" Padding="0,0,4,0"/>
             </ScrollView>
 
             <!-- Empty state (not found) -->
-            <VerticalStackLayout x:Name="ParcelEmpty" Grid.Row="2" IsVisible="False" Spacing="8" HorizontalOptions="Center" VerticalOptions="Center">
+            <VerticalStackLayout x:Name="ParcelEmpty" Grid.Row="1" IsVisible="False" Spacing="8" HorizontalOptions="Center" VerticalOptions="Center">
                 <Label Text="&#x1F4ED;" FontSize="46" HorizontalOptions="Center"/>
                 <Label Text="No matching order" FontSize="16" FontAttributes="Bold" TextColor="#64748b" HorizontalOptions="Center"/>
                 <Label Text="Nothing to show for this tracking number." FontSize="12" TextColor="#94a3b8" HorizontalOptions="Center"/>
@@ -307,43 +300,6 @@
                            TextColor="#6b7280"/>
                 </VerticalStackLayout>
             </Border>
-        </Grid>
-
-        <!-- Full-screen verdict flash (spans both rows; above everything) -->
-        <Grid x:Name="VerdictOverlay"
-              Grid.Row="0"
-              Grid.RowSpan="3"
-              IsVisible="False"
-              Opacity="0"
-              ZIndex="30"
-              BackgroundColor="#16a34a">
-            <VerticalStackLayout HorizontalOptions="Center"
-                                 VerticalOptions="Center"
-                                 Spacing="14">
-                <Label x:Name="VerdictGlyph"
-                       Text="&#x2713;"
-                       FontSize="120"
-                       FontAttributes="Bold"
-                       TextColor="White"
-                       HorizontalTextAlignment="Center"/>
-                <Label x:Name="VerdictWord"
-                       Text=""
-                       FontSize="56"
-                       FontAttributes="Bold"
-                       TextColor="White"
-                       HorizontalTextAlignment="Center"/>
-                <Label x:Name="VerdictTracking"
-                       Text=""
-                       FontSize="22"
-                       FontFamily="Consolas"
-                       TextColor="#f5f5f5"
-                       HorizontalTextAlignment="Center"/>
-                <Label x:Name="VerdictSub"
-                       Text=""
-                       FontSize="18"
-                       TextColor="#e5e7eb"
-                       HorizontalTextAlignment="Center"/>
-            </VerticalStackLayout>
         </Grid>
 
         <!-- COM port dropdown popover -->

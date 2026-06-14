@@ -217,8 +217,8 @@ public partial class PackStationPage : ContentPage
 
     private async Task HandlePackScanAsync(string tracking)
     {
-        // Gate rapid double-scans: ignore while a verdict is flashing or a write is in flight.
-        if (_processing || VerdictOverlay.IsVisible) return;
+        // Gate rapid double-scans: ignore while a write is in flight.
+        if (_processing) return;
         _processing = true;
         // Capture the operator for THIS scan up front: a logout / inactivity-timeout
         // landing inside the awaits below must not change who the parcel is attributed to.
@@ -256,7 +256,6 @@ public partial class PackStationPage : ContentPage
                     var failed = PackVerdict.SaveFailed();
                     AddScanToHistory(match, tracking, PackOutcome.SaveFailed);
                     ShowParcelPanel(match, failed, packerName);
-                    await ShowVerdictAsync(failed, tracking);
                     return;
                 }
 
@@ -280,7 +279,6 @@ public partial class PackStationPage : ContentPage
 
             AddScanToHistory(match, tracking, verdict.Outcome);
             ShowParcelPanel(match, verdict, packerName);
-            await ShowVerdictAsync(verdict, tracking, packerName);
         }
         finally
         {
@@ -288,23 +286,4 @@ public partial class PackStationPage : ContentPage
         }
     }
 
-    // ── Verdict flash ─────────────────────────────────────────────────────────────
-
-    private async Task ShowVerdictAsync(PackVerdictResult v, string tracking, string? packedByName = null)
-    {
-        VerdictOverlay.BackgroundColor = Color.FromArgb(v.Color);
-        VerdictGlyph.Text = v.Glyph;
-        VerdictWord.Text = v.Word;
-        VerdictTracking.Text = tracking;
-        VerdictSub.Text = v.Outcome == PackOutcome.Pack && packedByName is { } fn
-            ? $"by {fn}"
-            : v.Sub;
-
-        VerdictOverlay.Opacity = 0;
-        VerdictOverlay.IsVisible = true;
-        await VerdictOverlay.FadeToAsync(1.0, 120, Easing.SinOut);
-        await Task.Delay(1500);
-        await VerdictOverlay.FadeToAsync(0.0, 220, Easing.SinIn);
-        VerdictOverlay.IsVisible = false;
-    }
 }

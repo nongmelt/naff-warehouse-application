@@ -30,6 +30,8 @@ public partial class PackStationPage
         ParcelPlatformBadge.IsVisible = platName != null;
         ParcelPlatformLabel.Text = platName ?? "";
 
+        // Carrier shows only for sealed parcels (QC Passed/Packed → Pack/AlreadyPacked),
+        // not for blocked To-be-packed / QC-Hold scans.
         var token = ShippingHistory.CarrierToken(match?.ShippingOptions);
         ParcelCarrierBox.IsVisible = green && token != null;
         ParcelCarrierToken.Text = token ?? "";
@@ -42,7 +44,6 @@ public partial class PackStationPage
         if (match is null)
         {
             // Not found — empty state, no contents, no count.
-            ParcelContentsHeader.IsVisible = false;
             ParcelScroll.IsVisible = false;
             ParcelEmpty.IsVisible = true;
             ParcelCountBox.IsVisible = false;
@@ -52,7 +53,6 @@ public partial class PackStationPage
 
         ParcelEmpty.IsVisible = false;
         ParcelScroll.IsVisible = true;
-        ParcelContentsHeader.IsVisible = true;
 
         var items = BuildParcelItems(match);
         ParcelContentsStack.Children.Clear();
@@ -62,7 +62,6 @@ public partial class PackStationPage
         var units = items.Sum(i => i.Quantity);
         ParcelCountBox.IsVisible = true;
         ParcelCountLabel.Text = units.ToString();
-        ParcelContentsCount.Text = $"{items.Count} item{(items.Count == 1 ? "" : "s")}";
 
         _ = EnrichParcelImagesAsync(items);
     }
@@ -77,11 +76,12 @@ public partial class PackStationPage
     // Fresh copies of the ordered line items so async enrichment never mutates the cached payload.
     private static List<ProductItem> BuildParcelItems(PackingList match)
     {
-        // Prefer the post-QC list when present (mirrors PackingList.ParseProductsCore) so
-        // re-scanned / QC-adjusted parcels show the actual packed quantities, not the original order.
-        var src = (match.UpdatedProductLists?.Items is { Count: > 0 }
-            ? match.UpdatedProductLists
-            : match.ProductLists)?.Items ?? [];
+        // Show the ORDERED quantities from product_lists (what should be in the box).
+        // UpdatedProductLists holds remaining-to-pick (0 when fully packed), so using it
+        // here inverts the numbers — product_lists is the required/ordered qty, like Order Search.
+        var src = (match.ProductLists?.Items is { Count: > 0 }
+            ? match.ProductLists
+            : match.UpdatedProductLists)?.Items ?? [];
         var list = new List<ProductItem>();
         var row = 0;
         foreach (var p in src)
@@ -111,7 +111,7 @@ public partial class PackStationPage
             ColumnDefinitions =
             {
                 new ColumnDefinition(GridLength.Auto),
-                new ColumnDefinition(new GridLength(96)),
+                new ColumnDefinition(GridLength.Auto),
                 new ColumnDefinition(GridLength.Star),
                 new ColumnDefinition(GridLength.Auto),
             },
@@ -121,17 +121,7 @@ public partial class PackStationPage
 
         grid.Add(new BoxView { WidthRequest = 4, Color = stroke, VerticalOptions = LayoutOptions.Fill }, 0, 0);
 
-        grid.Add(new Border
-        {
-            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(8) },
-            StrokeThickness = 0,
-            BackgroundColor = Color.FromArgb("#e5e7eb"),
-            WidthRequest = 96,
-            HeightRequest = 96,
-            Margin = new Thickness(8, 0),
-            VerticalOptions = LayoutOptions.Center,
-            Content = BuildParcelImage(item),
-        }, 1, 0);
+        grid.Add(BuildParcelImage(item), 1, 0);
 
         var info = new VerticalStackLayout { Spacing = 5, Padding = new Thickness(6, 0), VerticalOptions = LayoutOptions.Center };
         info.Children.Add(new Label
@@ -183,13 +173,13 @@ public partial class PackStationPage
     // Two stacked images bound to the item so async-loaded thumbnails appear without a rebuild.
     private static View BuildParcelImage(ProductItem item)
     {
-        var wrap = new Grid { WidthRequest = 96, HeightRequest = 96, BindingContext = item };
+        var wrap = new Grid { Padding = new Thickness(8, 0), BindingContext = item, VerticalOptions = LayoutOptions.Center };
 
-        var remote = new Image { Aspect = Aspect.AspectFill };
+        var remote = new Image { Aspect = Aspect.AspectFit, WidthRequest = 96, HeightRequest = 96 };
         remote.SetBinding(Image.SourceProperty, new Binding(nameof(ProductItem.ImageSource)));
         remote.SetBinding(VisualElement.IsVisibleProperty, new Binding(nameof(ProductItem.HasNoLocalImage)));
 
-        var local = new Image { Aspect = Aspect.AspectFill };
+        var local = new Image { Aspect = Aspect.AspectFit, WidthRequest = 96, HeightRequest = 96 };
         local.SetBinding(Image.SourceProperty, new Binding(nameof(ProductItem.LocalImagePath)));
         local.SetBinding(VisualElement.IsVisibleProperty, new Binding(nameof(ProductItem.HasLocalImage)));
 
