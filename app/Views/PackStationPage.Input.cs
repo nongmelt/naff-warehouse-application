@@ -16,7 +16,6 @@ public partial class PackStationPage
     private List<ComPortEntry> _comPorts = [];
     private bool _syncingPickers;
     private IDispatcherTimer? _comHeartbeatTimer;
-    private long _lastSerialDataTicks;
 
     // ── COM port management ──────────────────────────────────────────────────────
 
@@ -91,7 +90,6 @@ public partial class PackStationPage
 
     private void OnSerialDataReceived(object sender, SerialDataReceivedEventArgs e)
     {
-        Interlocked.Exchange(ref _lastSerialDataTicks, DateTime.UtcNow.Ticks);
         try
         {
             var line = _serialPort?.ReadLine()?.Trim();
@@ -153,7 +151,6 @@ public partial class PackStationPage
     private void StartComHeartbeatTimer()
     {
         _comHeartbeatTimer?.Stop();
-        Interlocked.Exchange(ref _lastSerialDataTicks, DateTime.UtcNow.Ticks);
         _comHeartbeatTimer = Dispatcher.CreateTimer();
         _comHeartbeatTimer.Interval = TimeSpan.FromSeconds(10);
         _comHeartbeatTimer.Tick += (_, _) =>

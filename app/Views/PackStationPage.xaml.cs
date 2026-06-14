@@ -17,9 +17,6 @@ public partial class PackStationPage : ContentPage
     private string? _currentOperator;
     private string? _currentOperatorFirstName; // resolved display name (UI only)
 
-    // Falls back to MachineName when no operator is logged in (mirrors StationView).
-    private string EffectiveOperator => _currentOperator ?? StationName;
-
     private IDispatcherTimer? _inactivityTimer;
 
     // Guards the async SearchAsync -> write round-trip against rapid double-scans.
@@ -208,6 +205,10 @@ public partial class PackStationPage : ContentPage
         // Gate rapid double-scans: ignore while a verdict is flashing or a write is in flight.
         if (_processing || VerdictOverlay.IsVisible) return;
         _processing = true;
+        // Capture the operator for THIS scan up front: a logout / inactivity-timeout
+        // landing inside the awaits below must not change who the parcel is attributed to.
+        var packer = _currentOperator!;
+        var packerName = _currentOperatorFirstName;
         try
         {
             BumpActivity();
@@ -226,7 +227,7 @@ public partial class PackStationPage : ContentPage
             {
                 // packed_by MUST be the raw badge string, not the display name.
                 var ok = await ApiService.UpdatePackingStatusByScanAsync(
-                    tracking, "Packed", _currentOperator,
+                    tracking, "Packed", packer,
                     packingStationId: AppSettings.ResolvedStationId);
 
                 if (!ok)
@@ -244,17 +245,17 @@ public partial class PackStationPage : ContentPage
                     fromState: fromState,
                     toState: "Packed",
                     stationId: AppSettings.ResolvedStationId,
-                    @operator: EffectiveOperator,
+                    @operator: packer,
                     payload: new Dictionary<string, object?>
                     {
-                        ["packedBy"] = EffectiveOperator,
+                        ["packedBy"] = packer,
                         ["source"] = "no-video",
                     });
 
-                Logger.Log($"PackStation: {tracking} -> Packed by {EffectiveOperator}");
+                Logger.Log($"PackStation: {tracking} -> Packed by {packer}");
             }
 
-            await ShowVerdictAsync(verdict, tracking);
+            await ShowVerdictAsync(verdict, tracking, packerName);
         }
         finally
         {
@@ -264,13 +265,13 @@ public partial class PackStationPage : ContentPage
 
     // ── Verdict flash ─────────────────────────────────────────────────────────────
 
-    private async Task ShowVerdictAsync(PackVerdictResult v, string tracking)
+    private async Task ShowVerdictAsync(PackVerdictResult v, string tracking, string? packedByName = null)
     {
         VerdictOverlay.BackgroundColor = Color.FromArgb(v.Color);
         VerdictGlyph.Text = v.Glyph;
         VerdictWord.Text = v.Word;
         VerdictTracking.Text = tracking;
-        VerdictSub.Text = v.Outcome == PackOutcome.Pack && _currentOperatorFirstName is { } fn
+        VerdictSub.Text = v.Outcome == PackOutcome.Pack && packedByName is { } fn
             ? $"by {fn}"
             : v.Sub;
 
