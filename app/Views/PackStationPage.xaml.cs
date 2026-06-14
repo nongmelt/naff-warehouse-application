@@ -41,6 +41,16 @@ public partial class PackStationPage : ContentPage
             _warmedUp = true;
             _ = ApiService.TestConnectionAsync(); // establish TCP + DB pool in background
         }
+
+        // Returning to this reused page while still logged in: OnDisappearing closed the
+        // serial port and stopped the inactivity timer, but _currentOperator is still set.
+        // Re-arm both so scanning keeps working and auto-logout stays active.
+        if (_currentOperator != null)
+        {
+            StartInactivityTimer();
+            if (OverlayComPortPicker.SelectedIndex > 0)
+                ApplyComPortSelection(OverlayComPortPicker.SelectedIndex);
+        }
 #if WINDOWS
         RegisterKeyboardHandler();
 #endif

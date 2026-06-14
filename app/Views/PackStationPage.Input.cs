@@ -23,7 +23,9 @@ public partial class PackStationPage
     {
         _comPorts = await GetFriendlyComPortsAsync();
 
-        var selectedPort = _serialPort?.IsOpen == true ? _serialPort.PortName : null;
+        // Base the picker on the persisted selection, not the live port: after returning
+        // to the page the port is closed but _selectedPortName still holds the intent.
+        var selectedPort = _selectedPortName;
         int selIdx = 0;
         if (selectedPort != null)
         {
