@@ -25,7 +25,6 @@ public partial class PackStationPage : ContentPage
     public PackStationPage()
     {
         InitializeComponent();
-        IdleStationLabel.Text = $"Station: {StationName}";
     }
 
     // ── Lifecycle ──────────────────────────────────────────────────────────────

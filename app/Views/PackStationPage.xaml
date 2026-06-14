@@ -31,13 +31,19 @@
                     Text="&#x2302; Home"
                     Clicked="OnGoHome"
                     Style="{StaticResource NavOutlineButton}"/>
-            <Label Grid.Column="1"
-                   Text="Shipping"
-                   TextColor="White"
-                   FontSize="16"
-                   FontAttributes="Bold"
-                   HorizontalOptions="Center"
-                   VerticalOptions="Center"/>
+            <VerticalStackLayout Grid.Column="1"
+                                 HorizontalOptions="Start"
+                                 VerticalOptions="Center"
+                                 Spacing="1">
+                <Label Text="Shipping"
+                       TextColor="White"
+                       FontSize="16"
+                       FontAttributes="Bold"/>
+                <Label Text="SEAL &amp; VERIFY"
+                       TextColor="#7c8aa3"
+                       FontSize="9"
+                       FontAttributes="Bold"/>
+            </VerticalStackLayout>
             <HorizontalStackLayout Grid.Column="2" Spacing="10" VerticalOptions="Center">
                 <!-- COM port dropdown badge (always reachable, like Order Search) -->
                 <Border x:Name="ComPortBadge"
@@ -161,11 +167,6 @@
                        FontSize="26"
                        FontAttributes="Bold"
                        TextColor="#111827"
-                       HorizontalOptions="Center"/>
-                <Label x:Name="IdleStationLabel"
-                       Text=""
-                       FontSize="14"
-                       TextColor="#6b7280"
                        HorizontalOptions="Center"/>
             </VerticalStackLayout>
         </VerticalStackLayout>
