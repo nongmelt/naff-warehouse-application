@@ -97,7 +97,8 @@ public partial class PackStationPage
         PackOutcome.Blocked       => (Color.FromArgb("#fef3c7"), Color.FromArgb("#fcd34d"), Color.FromArgb("#92400e"), "!"),
         PackOutcome.Cancelled     => (Color.FromArgb("#fee2e2"), Color.FromArgb("#fca5a5"), Color.FromArgb("#991b1b"), "✕"),
         PackOutcome.NotFound      => (Color.FromArgb("#fee2e2"), Color.FromArgb("#fca5a5"), Color.FromArgb("#991b1b"), "?"),
-        _                         => (Color.FromArgb("#fee2e2"), Color.FromArgb("#fca5a5"), Color.FromArgb("#991b1b"), "!"),
+        PackOutcome.SaveFailed    => (Color.FromArgb("#fee2e2"), Color.FromArgb("#fca5a5"), Color.FromArgb("#991b1b"), "!"),
+        _                         => (Color.FromArgb("#fee2e2"), Color.FromArgb("#fca5a5"), Color.FromArgb("#991b1b"), "!"), // defensive: unmapped outcome -> red
     };
 
     private static (Color Color, string? Name) PlatformBadge(string? platform) =>
