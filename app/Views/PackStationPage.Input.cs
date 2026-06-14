@@ -96,7 +96,11 @@ public partial class PackStationPage
         {
             var line = _serialPort?.ReadLine()?.Trim();
             if (!string.IsNullOrEmpty(line))
-                MainThread.BeginInvokeOnMainThread(async () => await HandleScanAsync(line));
+                MainThread.BeginInvokeOnMainThread(async () =>
+                {
+                    try { await HandleScanAsync(line); }
+                    catch (Exception ex) { Logger.Log($"PackStation HandleScan error: {ex}"); }
+                });
         }
         catch (TimeoutException) { }
         catch (Exception ex)
@@ -156,7 +160,7 @@ public partial class PackStationPage
         {
             if (_serialPort is not { IsOpen: true })
             {
-                if (_selectedPortName != null) TryReconnectComPort();
+                if (_selectedPortName != null && _currentOperator != null) TryReconnectComPort();
             }
         };
         _comHeartbeatTimer.Start();

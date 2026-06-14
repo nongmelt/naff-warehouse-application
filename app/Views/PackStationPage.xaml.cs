@@ -140,10 +140,10 @@ public partial class PackStationPage : ContentPage
         WelcomeBanner.Opacity = 0;
         WelcomeBanner.Scale = 0.85;
         await Task.WhenAll(
-            WelcomeBanner.FadeTo(1.0, 280, Easing.SinOut),
-            WelcomeBanner.ScaleTo(1.0, 280, Easing.SinOut));
+            WelcomeBanner.FadeToAsync(1.0, 280, Easing.SinOut),
+            WelcomeBanner.ScaleToAsync(1.0, 280, Easing.SinOut));
         await Task.Delay(1500);
-        await WelcomeBanner.FadeTo(0.0, 350, Easing.SinIn);
+        await WelcomeBanner.FadeToAsync(0.0, 350, Easing.SinIn);
         WelcomeBanner.IsVisible = false;
         WelcomeBanner.Scale = 1.0;
     }
@@ -276,9 +276,9 @@ public partial class PackStationPage : ContentPage
 
         VerdictOverlay.Opacity = 0;
         VerdictOverlay.IsVisible = true;
-        await VerdictOverlay.FadeTo(1.0, 120, Easing.SinOut);
+        await VerdictOverlay.FadeToAsync(1.0, 120, Easing.SinOut);
         await Task.Delay(1500);
-        await VerdictOverlay.FadeTo(0.0, 220, Easing.SinIn);
+        await VerdictOverlay.FadeToAsync(0.0, 220, Easing.SinIn);
         VerdictOverlay.IsVisible = false;
     }
 }
