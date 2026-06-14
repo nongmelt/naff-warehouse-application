@@ -1,4 +1,5 @@
 using app.Models;
+using app.Services;
 using Microsoft.Maui.Controls.Shapes;
 using System.Runtime.Versioning;
 
@@ -9,23 +10,15 @@ public partial class PackStationPage
 {
     private const int HistoryMaxItems = 40;
 
-    // One belt entry per parcel scan this session. Card design mirrors the Order Search
-    // carousel card exactly; colour is driven by the parcel's platform.
-    private readonly record struct ScanEntry(
-        int Seq,
-        string Tracking,
-        string? Platform,
-        string? Shipping);
-
-    private readonly List<ScanEntry> _history = [];
+    private readonly List<ShipScan> _history = [];
     private int _scanSeq;
 
     // ── Public hooks (called from the scan / login flow) ──────────────────────────
 
-    private void AddScanToHistory(PackingList? match, string tracking)
+    private void AddScanToHistory(PackingList? match, string tracking, PackOutcome outcome)
     {
         _scanSeq++;
-        _history.Insert(0, new ScanEntry(_scanSeq, tracking, match?.Platform, match?.ShippingOptions));
+        _history.Insert(0, new ShipScan(_scanSeq, tracking, match?.Platform, match?.ShippingOptions, outcome));
         if (_history.Count > HistoryMaxItems)
             _history.RemoveRange(HistoryMaxItems, _history.Count - HistoryMaxItems);
         RebuildHistoryUI();
@@ -64,23 +57,63 @@ public partial class PackStationPage
                 HistoryStrip.Children.Add(BuildHistoryCard(e));
         }
 
-        UpdatePlatformCounts();
+        UpdateBreakdowns();
     }
 
-    // Platform tallies — always shown, including zeros (mirrors Order Search badges).
-    private void UpdatePlatformCounts()
+    // Platform + carrier tallies — seal-only counts (mirrors the persisted belt display).
+    private void UpdateBreakdowns()
     {
-        ShopeeCountLabel.Text = _history.Count(h => PlatformTag(h.Platform).Name == "Shopee").ToString();
-        LazadaCountLabel.Text = _history.Count(h => PlatformTag(h.Platform).Name == "Lazada").ToString();
-        TiktokCountLabel.Text = _history.Count(h => PlatformTag(h.Platform).Name == "TikTok").ToString();
+        PackedTotalLabel.Text = ShippingHistory.SealedCount(_history).ToString();
+
+        var (shopee, lazada, tiktok) = ShippingHistory.PlatformTally(_history);
+        ShopeeCountLabel.Text = shopee.ToString();
+        LazadaCountLabel.Text = lazada.ToString();
+        TiktokCountLabel.Text = tiktok.ToString();
+
+        CarrierPillStrip.Children.Clear();
+        var carriers = ShippingHistory.CarrierTally(_history);
+        if (carriers.Count == 0)
+        {
+            CarrierPillStrip.Children.Add(new Label
+            {
+                Text = "—",
+                FontSize = 11,
+                TextColor = Color.FromArgb("#9ca3af"),
+                VerticalOptions = LayoutOptions.Center,
+            });
+        }
+        else
+        {
+            foreach (var (carrier, count) in carriers)
+                CarrierPillStrip.Children.Add(BuildCarrierPill(carrier, count));
+        }
     }
 
-    // Mirrors OrderSearchPage.Carousel BuildCarouselUI card: [#Seq] [platform badge]
-    // [tracking] [carrier], coloured by the platform's primary colour.
-    private static View BuildHistoryCard(ScanEntry e)
+    // Card background / stroke / foreground / glyph, derived from the scan verdict.
+    private static (Color Bg, Color Stroke, Color Fg, string Glyph) StatusStyle(PackOutcome o) => o switch
     {
-        var (platName, platColor) = PlatformTag(e.Platform);
-        var (bg, stroke, title, idx) = PlatformTints(platName);
+        PackOutcome.Pack          => (Color.FromArgb("#dcfce7"), Color.FromArgb("#86efac"), Color.FromArgb("#166534"), "✓"),
+        PackOutcome.AlreadyPacked => (Color.FromArgb("#dcfce7"), Color.FromArgb("#86efac"), Color.FromArgb("#166534"), "↻"),
+        PackOutcome.Blocked       => (Color.FromArgb("#fef3c7"), Color.FromArgb("#fcd34d"), Color.FromArgb("#92400e"), "!"),
+        PackOutcome.Cancelled     => (Color.FromArgb("#fee2e2"), Color.FromArgb("#fca5a5"), Color.FromArgb("#991b1b"), "✕"),
+        PackOutcome.NotFound      => (Color.FromArgb("#fee2e2"), Color.FromArgb("#fca5a5"), Color.FromArgb("#991b1b"), "?"),
+        _                         => (Color.FromArgb("#fee2e2"), Color.FromArgb("#fca5a5"), Color.FromArgb("#991b1b"), "!"),
+    };
+
+    private static (Color Color, string? Name) PlatformBadge(string? platform) =>
+        ShippingHistory.PlatformKey(platform) switch
+        {
+            "Shopee" => (Color.FromArgb("#EE4D2D"), "Shopee"),
+            "Lazada" => (Color.FromArgb("#0F146D"), "Lazada"),
+            "TikTok" => (Color.FromArgb("#000000"), "TikTok"),
+            _        => (Colors.Transparent, null),
+        };
+
+    // [#Seq] [platform badge] [tracking] [carrier token] [status glyph], coloured by status.
+    private static View BuildHistoryCard(ShipScan e)
+    {
+        var (bg, stroke, fg, glyph) = StatusStyle(e.Outcome);
+        var (platColor, platName) = PlatformBadge(e.Platform);
 
         var row = new HorizontalStackLayout { Spacing = 6, VerticalOptions = LayoutOptions.Center };
 
@@ -89,7 +122,7 @@ public partial class PackStationPage
             Text = $"#{e.Seq}",
             FontSize = 11,
             FontAttributes = FontAttributes.Bold,
-            TextColor = idx,
+            TextColor = fg,
             VerticalOptions = LayoutOptions.Center,
         });
 
@@ -119,12 +152,12 @@ public partial class PackStationPage
             Text = e.Tracking,
             FontSize = 11,
             FontAttributes = FontAttributes.Bold,
-            TextColor = title,
+            TextColor = fg,
             LineBreakMode = LineBreakMode.NoWrap,
             VerticalOptions = LayoutOptions.Center,
         });
 
-        var carrier = ShortCarrier(e.Shipping);
+        var carrier = ShippingHistory.CarrierToken(e.Shipping);
         if (carrier != null)
         {
             row.Children.Add(new Label
@@ -132,16 +165,25 @@ public partial class PackStationPage
                 Text = carrier,
                 FontSize = 9,
                 FontAttributes = FontAttributes.Bold,
-                TextColor = Color.FromArgb("#6b7280"),
-                BackgroundColor = Color.FromArgb("#f3f4f6"),
+                TextColor = Color.FromArgb("#475569"),
+                BackgroundColor = Color.FromArgb("#f1f5f9"),
                 Padding = new Thickness(4, 1),
                 VerticalOptions = LayoutOptions.Center,
             });
         }
 
+        row.Children.Add(new Label
+        {
+            Text = glyph,
+            FontSize = 10,
+            FontAttributes = FontAttributes.Bold,
+            TextColor = fg,
+            VerticalOptions = LayoutOptions.Center,
+        });
+
         return new Border
         {
-            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(4) },
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(9) },
             Stroke = stroke,
             StrokeThickness = 1,
             BackgroundColor = bg,
@@ -151,39 +193,23 @@ public partial class PackStationPage
         };
     }
 
-    // ── Pure helpers ──────────────────────────────────────────────────────────────
-
-    private static (string? Name, Color Color) PlatformTag(string? platform)
+    // [●] [count] [carrier] pill for the persisted carrier breakdown.
+    private static View BuildCarrierPill(string carrier, int count)
     {
-        var p = (platform ?? "").ToLowerInvariant();
-        if (p.Contains("shopee")) return ("Shopee", Color.FromArgb("#EE4D2D"));
-        if (p.Contains("lazada")) return ("Lazada", Color.FromArgb("#0F146D"));
-        if (p.Contains("tiktok")) return ("TikTok", Color.FromArgb("#000000"));
-        return (null, Colors.Transparent);
-    }
+        var row = new HorizontalStackLayout { Spacing = 6, VerticalOptions = LayoutOptions.Center };
+        row.Children.Add(new BoxView { WidthRequest = 8, HeightRequest = 8, Color = Color.FromArgb("#0ea5e9"), CornerRadius = 4, VerticalOptions = LayoutOptions.Center });
+        row.Children.Add(new Label { Text = count.ToString(), FontSize = 13, FontAttributes = FontAttributes.Bold, TextColor = Color.FromArgb("#0369a1"), VerticalOptions = LayoutOptions.Center });
+        row.Children.Add(new Label { Text = carrier, FontSize = 11, TextColor = Color.FromArgb("#374151"), VerticalOptions = LayoutOptions.Center });
 
-    // Card bg / stroke / tracking-title / index colours derived from the platform.
-    private static (Color Bg, Color Stroke, Color Title, Color Idx) PlatformTints(string? platName) => platName switch
-    {
-        "Shopee" => (Color.FromArgb("#fff1ed"), Color.FromArgb("#EE4D2D"), Color.FromArgb("#c2410c"), Color.FromArgb("#f59e7d")),
-        "Lazada" => (Color.FromArgb("#eef0fb"), Color.FromArgb("#0F146D"), Color.FromArgb("#0F146D"), Color.FromArgb("#9aa3e0")),
-        "TikTok" => (Color.FromArgb("#f3f4f6"), Color.FromArgb("#111827"), Color.FromArgb("#111827"), Color.FromArgb("#6b7280")),
-        _ => (Color.FromArgb("#f9fafb"), Color.FromArgb("#e5e7eb"), Color.FromArgb("#6b7280"), Color.FromArgb("#9ca3af")),
-    };
-
-    // Collapse the verbose shipping_options string to a short carrier keyword.
-    private static string? ShortCarrier(string? shipping)
-    {
-        if (string.IsNullOrWhiteSpace(shipping)) return null;
-        var s = shipping.ToUpperInvariant();
-        if (s.Contains("J&T")) return "J&T";
-        if (s.Contains("SPX")) return "SPX";
-        if (s.Contains("FLASH")) return "Flash";
-        if (s.Contains("LEX")) return "LEX";
-        if (s.Contains("KERRY")) return "Kerry";
-        if (s.Contains("DHL")) return "DHL";
-        if (s.Contains("NINJA")) return "Ninja";
-        var w = shipping.Trim().Split([' ', '-'], StringSplitOptions.RemoveEmptyEntries);
-        return w.Length > 0 ? w[0] : null;
+        return new Border
+        {
+            BackgroundColor = Color.FromArgb("#f0f9ff"),
+            Stroke = Color.FromArgb("#bae6fd"),
+            StrokeThickness = 1,
+            StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(7) },
+            Padding = new Thickness(8, 4),
+            VerticalOptions = LayoutOptions.Center,
+            Content = row,
+        };
     }
 }

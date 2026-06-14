@@ -253,7 +253,7 @@ public partial class PackStationPage : ContentPage
                 {
                     Logger.Log($"PackStation: write failed for {tracking}");
                     var failed = PackVerdict.SaveFailed();
-                    AddScanToHistory(match, tracking);
+                    AddScanToHistory(match, tracking, PackOutcome.SaveFailed);
                     await ShowVerdictAsync(failed, tracking);
                     return;
                 }
@@ -276,7 +276,7 @@ public partial class PackStationPage : ContentPage
                 Logger.Log($"PackStation: {tracking} -> Packed by {packer}");
             }
 
-            AddScanToHistory(match, tracking);
+            AddScanToHistory(match, tracking, verdict.Outcome);
             await ShowVerdictAsync(verdict, tracking, packerName);
         }
         finally
