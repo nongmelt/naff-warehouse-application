@@ -99,4 +99,30 @@ public class ShippingHistoryTests
         };
         Assert.Equal(2, ShippingHistory.SealedCount(scans));
     }
+
+    [Fact]
+    public void SeedScans_are_pack_seals_with_no_shipping()
+    {
+        var seeds = ShippingHistory.SeedScans(
+            new string?[] { "Shopee", "shopee-th", "Lazada", "Tiktok", "Amazon", null });
+
+        Assert.All(seeds, s => Assert.Equal(PackOutcome.Pack, s.Outcome));
+        Assert.All(seeds, s => Assert.Null(s.Shipping));
+
+        // Every seeded row counts as a sealed parcel.
+        Assert.Equal(6, ShippingHistory.SealedCount(seeds));
+
+        // Platform breakdown buckets by canonical key; unknown ("Amazon") and null are excluded.
+        var (shopee, lazada, tiktok) = ShippingHistory.PlatformTally(seeds);
+        Assert.Equal(2, shopee);
+        Assert.Equal(1, lazada);
+        Assert.Equal(1, tiktok);
+
+        // No shipping_options on seeds → no carrier breakdown from the seed.
+        Assert.Empty(ShippingHistory.CarrierTally(seeds));
+    }
+
+    [Fact]
+    public void SeedScans_empty_input_is_empty()
+        => Assert.Empty(ShippingHistory.SeedScans(System.Array.Empty<string?>()));
 }

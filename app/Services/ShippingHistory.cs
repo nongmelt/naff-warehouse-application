@@ -95,4 +95,19 @@ public static class ShippingHistory
 
     /// <summary>Total parcels sealed this session.</summary>
     public static int SealedCount(IEnumerable<ShipScan> scans) => scans.Count(s => IsSeal(s.Outcome));
+
+    /// <summary>
+    /// Build seal scans from a list of platform strings — today's already-packed parcels
+    /// at a station, fetched from the backend. Each becomes a <see cref="PackOutcome.Pack"/>
+    /// with no tracking, no sequence and no shipping_options: enough to seed the packed
+    /// total and the platform breakdown, but not the carrier breakdown (the source list
+    /// endpoint does not expose shipping_options).
+    /// </summary>
+    public static IReadOnlyList<ShipScan> SeedScans(IEnumerable<string?> platforms)
+    {
+        var list = new List<ShipScan>();
+        foreach (var platform in platforms)
+            list.Add(new ShipScan(0, "", platform, null, PackOutcome.Pack));
+        return list;
+    }
 }
