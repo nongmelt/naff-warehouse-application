@@ -102,6 +102,7 @@ public partial class PackStationPage : ContentPage
         UpdateNavOperatorUI(badge);
         HideLoginOverlay();
         ShowHistoryBelt();
+        _ = SeedPackedTallyAsync(badge);
         _ = ShowWelcomeAnimationAsync(badge);
         Logger.Log($"PackStation: Operator logged in — {badge}");
         _ = Task.Run(async () =>
