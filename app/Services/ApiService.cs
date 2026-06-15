@@ -382,6 +382,39 @@ public static class ApiService
         }
     }
 
+    // ── Packed-today count (Shipping page seed) ─────────────────────────────────
+
+    /// <summary>
+    /// Today's packed parcels for a station, reusing the dashboard list endpoint
+    /// (status=Packed, packingStationId, from=local-midnight). Returns the authoritative
+    /// <c>total</c> plus each row's platform, so the Shipping page can seed its packed +
+    /// platform tallies from the DB (uncapped) before the live session adds to them.
+    /// The endpoint filters on server-side updated_at — a parcel sealed today was updated
+    /// today — and does not expose shipping_options, so carrier seeding is left to the
+    /// live session.
+    /// </summary>
+    public static async Task<(int Total, List<string?> Platforms)> GetPackedTodayAsync(int stationId)
+    {
+        try
+        {
+            // Local midnight → UTC so the backend counts from the operator's local "today".
+            var from = DateTime.Today.ToUniversalTime().ToString("o");
+            var resp = await Http.GetFromJsonAsync<PackedTodayResponse>(
+                $"packing-lists/list?status=Packed&packingStationId={stationId}" +
+                $"&from={Uri.EscapeDataString(from)}&limit=1000&offset=0", JsonOpts);
+
+            var platforms = new List<string?>();
+            if (resp?.Items is { } items)
+                foreach (var i in items) platforms.Add(i.Platform);
+            return (resp?.Total ?? platforms.Count, platforms);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.GetPackedTodayAsync: {ex.Message}");
+            return (0, []);
+        }
+    }
+
     // ── Manual upload notifications ──────────────────────────────────────────
 
     /// <summary>
@@ -607,6 +640,13 @@ public static class ApiService
         [property: JsonPropertyName("status")] string Status,
         [property: JsonPropertyName("packedBy")] string? PackedBy,
         [property: JsonPropertyName("packingStationId")] int? PackingStationId);
+
+    private record PackedTodayResponse(
+        [property: JsonPropertyName("total")] int Total,
+        [property: JsonPropertyName("items")] List<PackedTodayItem>? Items);
+
+    private record PackedTodayItem(
+        [property: JsonPropertyName("platform")] string? Platform);
 
     private record VideoRecord(
         [property: JsonPropertyName("id")] int Id);
