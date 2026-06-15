@@ -486,7 +486,7 @@
                                                                        FontAttributes="Bold"
                                                                        FontSize="15"
                                                                        TextColor="#111827"/>
-                                                                <Label Text="Optional. When the backend sits behind Cloudflare Access, these are sent as the CF-Access-Client-Id / CF-Access-Client-Secret headers. Leave both blank if Cloudflare Access is not used. When blank, the CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET environment variables are used instead."
+                                                                <Label Text="Optional. When the backend or MinIO sits behind Cloudflare Access, these are sent as the CF-Access-Client-Id / CF-Access-Client-Secret headers on both API and S3 upload requests. Leave both blank if Cloudflare Access is not used. When blank, the CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET environment variables are used instead."
                                                                        FontSize="12"
                                                                        TextColor="#6b7280"/>
                                                                 <Label Text="Client ID"
