@@ -35,10 +35,10 @@ public class ShippingHistoryTests
         => Assert.Equal(expected, ShippingHistory.PlatformKey(input));
 
     [Fact]
-    public void IsSeal_only_true_for_Pack()
+    public void IsSeal_only_true_for_Ship()
     {
-        Assert.True(ShippingHistory.IsSeal(PackOutcome.Pack));
-        Assert.False(ShippingHistory.IsSeal(PackOutcome.AlreadyPacked));
+        Assert.True(ShippingHistory.IsSeal(PackOutcome.Ship));
+        Assert.False(ShippingHistory.IsSeal(PackOutcome.AlreadyShipped));
         Assert.False(ShippingHistory.IsSeal(PackOutcome.Blocked));
         Assert.False(ShippingHistory.IsSeal(PackOutcome.NotFound));
         Assert.False(ShippingHistory.IsSeal(PackOutcome.Cancelled));
@@ -59,10 +59,10 @@ public class ShippingHistoryTests
     {
         var scans = new List<ShipScan>
         {
-            Scan(1, "Shopee", "SPX Express", PackOutcome.Pack),
-            Scan(2, "Shopee", "SPX Express", PackOutcome.Pack),
-            Scan(3, "Shopee", "SPX Express", PackOutcome.AlreadyPacked), // not a seal
-            Scan(4, "Lazada", "LEX TH",      PackOutcome.Pack),
+            Scan(1, "Shopee", "SPX Express", PackOutcome.Ship),
+            Scan(2, "Shopee", "SPX Express", PackOutcome.Ship),
+            Scan(3, "Shopee", "SPX Express", PackOutcome.AlreadyShipped), // not a seal
+            Scan(4, "Lazada", "LEX TH",      PackOutcome.Ship),
             Scan(5, "Tiktok", "J&T Express", PackOutcome.Blocked),       // not a seal
         };
         var (shopee, lazada, tiktok) = ShippingHistory.PlatformTally(scans);
@@ -76,11 +76,11 @@ public class ShippingHistoryTests
     {
         var scans = new List<ShipScan>
         {
-            Scan(1, "Shopee", "SPX Express", PackOutcome.Pack),
-            Scan(2, "Shopee", "SPX Express", PackOutcome.Pack),
-            Scan(3, "Tiktok", "J&T Express", PackOutcome.Pack),
-            Scan(4, "Shopee", "SPX Express", PackOutcome.AlreadyPacked), // excluded
-            Scan(5, "Lazada", "",            PackOutcome.Pack),          // no carrier -> excluded
+            Scan(1, "Shopee", "SPX Express", PackOutcome.Ship),
+            Scan(2, "Shopee", "SPX Express", PackOutcome.Ship),
+            Scan(3, "Tiktok", "J&T Express", PackOutcome.Ship),
+            Scan(4, "Shopee", "SPX Express", PackOutcome.AlreadyShipped), // excluded
+            Scan(5, "Lazada", "",            PackOutcome.Ship),          // no carrier -> excluded
         };
         var tally = ShippingHistory.CarrierTally(scans);
         Assert.Equal(2, tally.Count);
@@ -93,9 +93,9 @@ public class ShippingHistoryTests
     {
         var scans = new List<ShipScan>
         {
-            Scan(1, "Shopee", "SPX", PackOutcome.Pack),
-            Scan(2, "Shopee", "SPX", PackOutcome.AlreadyPacked),
-            Scan(3, "Lazada", "LEX", PackOutcome.Pack),
+            Scan(1, "Shopee", "SPX", PackOutcome.Ship),
+            Scan(2, "Shopee", "SPX", PackOutcome.AlreadyShipped),
+            Scan(3, "Lazada", "LEX", PackOutcome.Ship),
         };
         Assert.Equal(2, ShippingHistory.SealedCount(scans));
     }
@@ -106,7 +106,7 @@ public class ShippingHistoryTests
         var seeds = ShippingHistory.SeedScans(
             new string?[] { "Shopee", "shopee-th", "Lazada", "Tiktok", "Amazon", null });
 
-        Assert.All(seeds, s => Assert.Equal(PackOutcome.Pack, s.Outcome));
+        Assert.All(seeds, s => Assert.Equal(PackOutcome.Ship, s.Outcome));
         Assert.All(seeds, s => Assert.Null(s.Shipping));
 
         // Every seeded row counts as a sealed parcel.

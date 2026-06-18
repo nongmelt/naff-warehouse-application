@@ -18,8 +18,8 @@ public readonly record struct ShipScan(
 
 public static class ShippingHistory
 {
-    /// <summary>True only when a scan actually transitioned the parcel to Packed (a real seal).</summary>
-    public static bool IsSeal(PackOutcome outcome) => outcome == PackOutcome.Pack;
+    /// <summary>True only when a scan actually transitioned the parcel to Shipped (a real seal).</summary>
+    public static bool IsSeal(PackOutcome outcome) => outcome == PackOutcome.Ship;
 
     /// <summary>Canonical platform name, or null if unrecognised.</summary>
     public static string? PlatformKey(string? platform)
@@ -97,9 +97,9 @@ public static class ShippingHistory
     public static int SealedCount(IEnumerable<ShipScan> scans) => scans.Count(s => IsSeal(s.Outcome));
 
     /// <summary>
-    /// Build seal scans from a list of platform strings — today's already-packed parcels
-    /// at a station, fetched from the backend. Each becomes a <see cref="PackOutcome.Pack"/>
-    /// with no tracking, no sequence and no shipping_options: enough to seed the packed
+    /// Build seal scans from a list of platform strings — today's already-shipped parcels
+    /// at a station, fetched from the backend. Each becomes a <see cref="PackOutcome.Ship"/>
+    /// with no tracking, no sequence and no shipping_options: enough to seed the shipped
     /// total and the platform breakdown, but not the carrier breakdown (the source list
     /// endpoint does not expose shipping_options).
     /// </summary>
@@ -107,7 +107,7 @@ public static class ShippingHistory
     {
         var list = new List<ShipScan>();
         foreach (var platform in platforms)
-            list.Add(new ShipScan(0, "", platform, null, PackOutcome.Pack));
+            list.Add(new ShipScan(0, "", platform, null, PackOutcome.Ship));
         return list;
     }
 }
