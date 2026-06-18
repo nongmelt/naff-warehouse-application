@@ -647,6 +647,7 @@ public class PackingList : INotifyPropertyChanged
     public ProductListPayload? UpdatedProductLists { get; set; }
     public string? Platform { get; set; }
     public string? ShippingOptions { get; set; }
+    public bool? AllItemsCleared { get; set; }
 
     private string? _packingStatus;
     public string? PackingStatus
