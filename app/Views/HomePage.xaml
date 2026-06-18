@@ -194,7 +194,7 @@
                                FontAttributes="Bold"
                                TextColor="#111827"
                                HorizontalOptions="Center"/>
-                        <Label x:Name="PackDesc"  Text="Verify &amp; mark parcels as packed&#10;(no video, login required)"
+                        <Label x:Name="PackDesc"  Text="Confirm QC'd parcels and&#10;mark shipped to the carrier"
                                FontSize="12"
                                TextColor="#6b7280"
                                HorizontalOptions="Center"

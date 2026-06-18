@@ -30,7 +30,7 @@ public partial class PackStationPage
         ParcelPlatformBadge.IsVisible = platName != null;
         ParcelPlatformLabel.Text = platName ?? "";
 
-        // Carrier shows only for sealed parcels (QC Passed/Packed → Pack/AlreadyPacked),
+        // Carrier shows only for sealed parcels (QC Passed/Packed → Ship/AlreadyShipped),
         // not for blocked To-be-packed / QC-Hold scans.
         var token = ShippingHistory.CarrierToken(match?.ShippingOptions);
         ParcelCarrierBox.IsVisible = green && token != null;
