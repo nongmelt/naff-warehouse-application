@@ -125,7 +125,7 @@ public partial class PackStationPage
         var stationId = await AppSettings.EnsureStationIdAsync();
         if (stationId is null || _currentOperator != badge) return;
 
-        var (total, platforms) = await ApiService.GetPackedTodayAsync(stationId.Value);
+        var (total, platforms) = await ApiService.GetShippedTodayAsync(stationId.Value);
 
         // Bail if the operator logged out / changed, or another seed already ran, during the
         // awaits. (A parcel sealed by a live scan inside this window can briefly appear in both
@@ -139,7 +139,7 @@ public partial class PackStationPage
         // The list endpoint caps returned rows at 1000; if more were packed today, pad with
         // platform-less seals so the headline still equals the true DB total.
         for (var i = _seedSeals.Count; i < total; i++)
-            _seedSeals.Add(new ShipScan(0, "", null, null, PackOutcome.Pack));
+            _seedSeals.Add(new ShipScan(0, "", null, null, PackOutcome.Ship));
 
         UpdateBreakdowns();
     }
@@ -147,8 +147,8 @@ public partial class PackStationPage
     // Card background / stroke / foreground / glyph, derived from the scan verdict.
     private static (Color Bg, Color Stroke, Color Fg, string Glyph) StatusStyle(PackOutcome o) => o switch
     {
-        PackOutcome.Pack          => (Color.FromArgb("#dcfce7"), Color.FromArgb("#86efac"), Color.FromArgb("#166534"), "✓"),
-        PackOutcome.AlreadyPacked => (Color.FromArgb("#dcfce7"), Color.FromArgb("#86efac"), Color.FromArgb("#166534"), "↻"),
+        PackOutcome.Ship           => (Color.FromArgb("#dcfce7"), Color.FromArgb("#86efac"), Color.FromArgb("#166534"), "✓"),
+        PackOutcome.AlreadyShipped => (Color.FromArgb("#dcfce7"), Color.FromArgb("#86efac"), Color.FromArgb("#166534"), "↻"),
         PackOutcome.Blocked       => (Color.FromArgb("#fef3c7"), Color.FromArgb("#fcd34d"), Color.FromArgb("#92400e"), "!"),
         PackOutcome.Cancelled     => (Color.FromArgb("#fee2e2"), Color.FromArgb("#fca5a5"), Color.FromArgb("#991b1b"), "✕"),
         PackOutcome.NotFound      => (Color.FromArgb("#fee2e2"), Color.FromArgb("#fca5a5"), Color.FromArgb("#991b1b"), "?"),

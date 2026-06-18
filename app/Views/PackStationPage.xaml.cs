@@ -218,11 +218,8 @@ public partial class PackStationPage : ContentPage
 
     private async Task HandlePackScanAsync(string tracking)
     {
-        // Gate rapid double-scans: ignore while a write is in flight.
         if (_processing) return;
         _processing = true;
-        // Capture the operator for THIS scan up front: a logout / inactivity-timeout
-        // landing inside the awaits below must not change who the parcel is attributed to.
         var packer = _currentOperator!;
         var packerName = _currentOperatorFirstName;
         try
@@ -235,47 +232,75 @@ public partial class PackStationPage : ContentPage
             var verdict = PackVerdict.Evaluate(
                 found: match != null,
                 cancelled: match?.IsCancelledOrder ?? false,
-                packingStatus: match?.PackingStatus);
+                packingStatus: match?.PackingStatus,
+                allItemsCleared: match?.AllItemsCleared ?? false);
 
             var fromState = match?.PackingStatus;
 
             if (verdict.ShouldWrite)
             {
-                // Resolve the station id before sealing — never read ResolvedStationId
-                // directly in a scan-critical path (it may be unset at startup). This
-                // ensures packing_station_id is written, mirroring StationView.
                 var stationId = await AppSettings.EnsureStationIdAsync();
 
-                // packed_by MUST be the raw badge string, not the display name.
-                var ok = await ApiService.UpdatePackingStatusByScanAsync(
-                    tracking, "Packed", packer,
-                    packingStationId: stationId);
+                var result = await ApiService.ShipAsync(tracking, packer, shippingStationId: stationId);
 
-                if (!ok)
+                if (result.Status != 200)
                 {
-                    Logger.Log($"PackStation: write failed for {tracking}");
-                    var failed = PackVerdict.SaveFailed();
-                    AddScanToHistory(match, tracking, PackOutcome.SaveFailed);
-                    ShowParcelPanel(match, failed, packerName);
+                    // Server is authoritative: map its rejection to the right verdict.
+                    var serverVerdict = result.Status switch
+                    {
+                        404 => new PackVerdictResult(PackOutcome.NotFound, false, "NOT FOUND", "No matching order", "?", PackVerdict.ColorRed),
+                        410 => new PackVerdictResult(PackOutcome.Cancelled, false, "CANCELLED", "Order cancelled", "✕", PackVerdict.ColorRed),
+                        409 => new PackVerdictResult(PackOutcome.Blocked, false, "BLOCKED", "Not ready to ship", "!", PackVerdict.ColorAmber),
+                        _   => PackVerdict.SaveFailed(),
+                    };
+                    Logger.Log($"PackStation: ship rejected {tracking} HTTP {result.Status}");
+                    AddScanToHistory(match, tracking, serverVerdict.Outcome);
+                    ShowParcelPanel(match, serverVerdict, packerName);
                     return;
                 }
 
+                // Race guard: another station shipped it between our search and this ship call.
+                // Server returns 200 alreadyShipped=true with no write — show the no-op verdict.
+                if (result.AlreadyShipped)
+                {
+                    var already = new PackVerdictResult(PackOutcome.AlreadyShipped, false,
+                        "ALREADY SHIPPED", "No action taken", "↻", PackVerdict.ColorGrey);
+                    AddScanToHistory(match, tracking, PackOutcome.AlreadyShipped);
+                    ShowParcelPanel(match, already, packerName);
+                    return;
+                }
+
+                // Record the Packed milestone first when the server backfilled it.
+                if (result.PackedBackfilled)
+                {
+                    StationEvents.Emit(
+                        workflowName: "Shipping",
+                        stepId: "packed",
+                        trigger: "barcode_scan",
+                        trackingNumber: tracking,
+                        fromState: fromState,
+                        toState: "Packed",
+                        stationId: stationId,
+                        @operator: packer,
+                        payload: new Dictionary<string, object?> { ["source"] = "ship-backfill" });
+                }
+
                 StationEvents.Emit(
-                    workflowName: "Packing",
-                    stepId: "packed_no_video",
+                    workflowName: "Shipping",
+                    stepId: "shipped",
                     trigger: "barcode_scan",
                     trackingNumber: tracking,
-                    fromState: fromState,
-                    toState: "Packed",
+                    fromState: result.PackedBackfilled ? "Packed" : fromState,
+                    toState: "Shipped",
                     stationId: stationId,
                     @operator: packer,
                     payload: new Dictionary<string, object?>
                     {
-                        ["packedBy"] = packer,
-                        ["source"] = "no-video",
+                        ["shippedBy"] = packer,
+                        ["carrier"] = match?.ShippingOptions,
                     });
 
-                Logger.Log($"PackStation: {tracking} -> Packed by {packer}");
+                Logger.Log($"PackStation: {tracking} -> Shipped by {packer}");
             }
 
             AddScanToHistory(match, tracking, verdict.Outcome);

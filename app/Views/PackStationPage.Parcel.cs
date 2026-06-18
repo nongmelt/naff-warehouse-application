@@ -18,7 +18,7 @@ public partial class PackStationPage
         IdlePrompt.IsVisible = false;
         ParcelPanel.IsVisible = true;
 
-        var green = verdict.Outcome is PackOutcome.Pack or PackOutcome.AlreadyPacked;
+        var green = verdict.Outcome is PackOutcome.Ship or PackOutcome.AlreadyShipped;
 
         ParcelBanner.BackgroundColor = Color.FromArgb(verdict.Color);
         ParcelGlyph.Text = verdict.Glyph;
@@ -37,7 +37,7 @@ public partial class PackStationPage
         ParcelCarrierToken.Text = token ?? "";
         ParcelCarrierFull.Text = match?.ShippingOptions ?? "";
 
-        ParcelByLabel.Text = verdict.Outcome == PackOutcome.Pack
+        ParcelByLabel.Text = verdict.Outcome == PackOutcome.Ship
             ? (packerName is { } fn ? $"by {fn}" : "")
             : verdict.Sub;
 
