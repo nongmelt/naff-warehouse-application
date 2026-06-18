@@ -33,7 +33,13 @@ public partial class PackStationPage
         // Display belt: newest first, capped — old cards scroll off but never affect the counts.
         _belt.Insert(0, scan);
         if (_belt.Count > HistoryMaxItems)
-            _belt.RemoveRange(HistoryMaxItems, _belt.Count - HistoryMaxItems);
+        {
+            // At capacity: drop the oldest already-shipped ("passed") card first so blocked /
+            // unresolved scans stay visible; fall back to the oldest card if every card passed.
+            var evictIdx = _belt.FindLastIndex(s => s.Outcome is PackOutcome.Ship or PackOutcome.AlreadyShipped);
+            if (evictIdx < 0) evictIdx = _belt.Count - 1;
+            _belt.RemoveAt(evictIdx);
+        }
 
         // Counts: only real seals, kept uncapped for the whole session.
         if (ShippingHistory.IsSeal(outcome))
@@ -51,8 +57,46 @@ public partial class PackStationPage
         RebuildHistoryUI();
     }
 
+    // Tap a history card → re-fetch read-only and show its current detail. Never re-ships
+    // (uses SearchAsync, not ShipAsync), so reviewing a past scan can't change state.
+    private async Task ViewParcelAsync(string tracking)
+    {
+        if (string.IsNullOrWhiteSpace(tracking)) return;   // read-only view; safe even mid-scan
+        try
+        {
+            var rows = await ApiService.SearchAsync(tracking);
+            var match = rows.FirstOrDefault(r =>
+                string.Equals(r.TrackingNumber, tracking, StringComparison.OrdinalIgnoreCase));
+
+            // Same verdict a live scan computes, so a viewed parcel renders identically.
+            // Read-only: ShipAsync is never called, so verdict.ShouldWrite is simply ignored.
+            var verdict = PackVerdict.Evaluate(
+                found: match != null,
+                cancelled: match?.IsCancelledOrder ?? false,
+                packingStatus: match?.PackingStatus,
+                allItemsCleared: match?.AllItemsCleared ?? false);
+
+            ShowParcelPanel(match, verdict, null);
+        }
+        catch (Exception ex) { Logger.Log($"PackStation view {tracking}: {ex.Message}"); }
+    }
+
     private void ShowHistoryBelt() => HistoryBelt.IsVisible = true;
     private void HideHistoryBelt() => HistoryBelt.IsVisible = false;
+
+    // ── Carousel navigation (‹ ›) ─────────────────────────────────────────────────
+    private const double HistoryScrollStep = 320;
+
+    private async void OnHistoryPrevTapped(object? sender, TappedEventArgs e) => await ScrollHistoryAsync(-HistoryScrollStep);
+    private async void OnHistoryNextTapped(object? sender, TappedEventArgs e) => await ScrollHistoryAsync(+HistoryScrollStep);
+
+    private async Task ScrollHistoryAsync(double delta)
+    {
+        // ScrollView self-clamps to its content bounds; don't gate on HistoryStrip.Width —
+        // it can read 0 before/inside layout, which would pin every scroll to 0.
+        var target = Math.Max(0, HistoryScroll.ScrollX + delta);
+        await HistoryScroll.ScrollToAsync(target, 0, animated: true);
+    }
 
     // ── UI building ───────────────────────────────────────────────────────────────
 
@@ -74,7 +118,14 @@ public partial class PackStationPage
         else
         {
             foreach (var e in _belt)
-                HistoryStrip.Children.Add(BuildHistoryCard(e));
+            {
+                var card = BuildHistoryCard(e);
+                var tracking = e.Tracking;
+                var tap = new TapGestureRecognizer();
+                tap.Tapped += (_, _) => _ = ViewParcelAsync(tracking);   // OrderSearch pattern (event, not Command)
+                card.GestureRecognizers.Add(tap);
+                HistoryStrip.Children.Add(card);
+            }
         }
 
         UpdateBreakdowns();
