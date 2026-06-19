@@ -18,12 +18,22 @@ public partial class PackStationPage
         IdlePrompt.IsVisible = false;
         ParcelPanel.IsVisible = true;
 
-        var green = verdict.Outcome is PackOutcome.Ship or PackOutcome.AlreadyShipped;
+        // Already-shipped parcels are historical → grey item cards. Freshly-shipped / picking
+        // parcels colour each line by its own verification state (green/orange) in BuildParcelCard.
+        var alreadyShipped = verdict.Outcome is PackOutcome.AlreadyShipped;
 
-        ParcelBanner.BackgroundColor = Color.FromArgb(verdict.Color);
-        ParcelGlyph.Text = verdict.Glyph;
-        ParcelWord.Text = verdict.Word;
-        // Parcel title (ORDER {num} · platform · tracking) lives in the page header now, mirroring Order Search.
+        // Secondary: the status badge is the ONLY element carrying the verdict colour. One badge,
+        // no duplicate status text elsewhere (green = shipped, amber = hold, red = rejected).
+        ParcelStatusBadge.BackgroundColor = Color.FromArgb(verdict.Color);
+        ParcelStatusGlyph.Text = verdict.Glyph;
+        ParcelStatusWord.Text = verdict.Word;
+
+        // Primary: platform logo + tracking number (reuses Order Search's PlatformIcon/HasPlatformIcon).
+        ParcelPlatformLogo.Source = match?.PlatformIcon;   // implicit string → ImageSource
+        ParcelPlatformLogo.IsVisible = match?.HasPlatformIcon ?? false;
+        ParcelTrackingLabel.Text = match?.TrackingNumber ?? "";
+
+        // Header identity (top bar) — unchanged, mirrors Order Search.
         var orderNo = match?.OrderNumber;
         var (platColor, platName) = PlatformBadge(match?.Platform);
         HeaderParcelInfo.IsVisible = match is not null;
@@ -34,21 +44,17 @@ public partial class PackStationPage
         if (platName != null) HeaderParcelPlatformBadge.BackgroundColor = platColor;  // platform accent (mirrors Order Search)
         HeaderParcelTracking.Text = match?.TrackingNumber ?? "";
 
-        // shipping_options as a pill on the banner (carrier token removed).
+        // Tertiary: carrier (shipping_options), grouped under the tracking number.
         var shipping = match?.ShippingOptions;
-        ParcelShippingPill.IsVisible = !string.IsNullOrWhiteSpace(shipping);
-        ParcelShippingLabel.Text = shipping ?? "";
-
-        ParcelByLabel.Text = verdict.Outcome == PackOutcome.Ship
-            ? (packerName is { } fn ? $"by {fn}" : "")
-            : verdict.Sub;
+        ParcelCarrierPill.IsVisible = !string.IsNullOrWhiteSpace(shipping);
+        ParcelCarrierLabel.Text = shipping ?? "";
 
         if (match is null)
         {
             // Not found — empty state, no contents, no count.
             ParcelScroll.IsVisible = false;
             ParcelEmpty.IsVisible = true;
-            ParcelCountBox.IsVisible = false;
+            ParcelMetaLabel.Text = "";
             ParcelContentsStack.Children.Clear();
             return;
         }
@@ -56,16 +62,19 @@ public partial class PackStationPage
         ParcelEmpty.IsVisible = false;
         ParcelScroll.IsVisible = true;
 
-        var items = BuildParcelItems(match);
+        // Unverified lines float to the top so the packer sees what's left to pick first.
+        // OrderBy is stable → each group keeps its original order; verified lines sink below.
+        var items = BuildParcelItems(match).OrderBy(i => i.IsFullyPicked).ToList();
         var hasProgress = match.UpdatedProductLists?.Items is { Count: > 0 };
         ParcelContentsStack.Children.Clear();
         foreach (var item in items)
-            ParcelContentsStack.Children.Add(BuildParcelCard(item, green, hasProgress));
+            ParcelContentsStack.Children.Add(BuildParcelCard(item, alreadyShipped, hasProgress));
 
-        // Total = ordered units (RequiredQuantity); item.Quantity now holds remaining-to-pick.
+        // Tertiary: item count (ordered units), plus the packer when this scan sealed it.
         var units = items.Sum(i => i.RequiredQuantity);
-        ParcelCountBox.IsVisible = true;
-        ParcelCountLabel.Text = units.ToString();
+        ParcelMetaLabel.Text = verdict.Outcome == PackOutcome.Ship && packerName is { } fn
+            ? $"{units} items · by {fn}"
+            : $"{units} items";
 
         _ = EnrichParcelImagesAsync(items);
     }
@@ -114,12 +123,26 @@ public partial class PackStationPage
     }
 
     // Compact card mirroring Order Search: [4px strip][96px image][name + variation][verified/ordered].
-    private static View BuildParcelCard(ProductItem item, bool green, bool showProgress)
+    // Per-line colour: grey when the parcel is already shipped (historical), else green once the
+    // line is fully verified, orange while units remain unverified.
+    private static View BuildParcelCard(ProductItem item, bool alreadyShipped, bool showProgress)
     {
-        var bg      = green ? Color.FromArgb("#ECFDF5") : Color.FromArgb("#FFF7ED");
-        var stroke  = green ? Color.FromArgb("#86efac") : Color.FromArgb("#fdba74");
-        var fg      = green ? Color.FromArgb("#166534") : Color.FromArgb("#9a3412");
-        var badgeBg = green ? Color.FromArgb("#dcfce7") : Color.FromArgb("#ffedd5");
+        Color bg, stroke, fg, badgeBg;
+        if (alreadyShipped)
+        {
+            bg = Color.FromArgb("#f3f4f6"); stroke = Color.FromArgb("#d1d5db");
+            fg = Color.FromArgb("#6b7280"); badgeBg = Color.FromArgb("#e5e7eb");
+        }
+        else if (item.IsFullyPicked)
+        {
+            bg = Color.FromArgb("#ECFDF5"); stroke = Color.FromArgb("#86efac");
+            fg = Color.FromArgb("#166534"); badgeBg = Color.FromArgb("#dcfce7");
+        }
+        else
+        {
+            bg = Color.FromArgb("#FFF7ED"); stroke = Color.FromArgb("#fdba74");
+            fg = Color.FromArgb("#9a3412"); badgeBg = Color.FromArgb("#ffedd5");
+        }
 
         var grid = new Grid
         {

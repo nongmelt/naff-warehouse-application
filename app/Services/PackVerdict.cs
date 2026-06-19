@@ -45,7 +45,7 @@ public static class PackVerdict
             return new(PackOutcome.Cancelled, false, "CANCELLED", "Order cancelled", "✕", ColorRed);
 
         if (Is(packingStatus, "Shipped"))
-            return new(PackOutcome.AlreadyShipped, false, "SHIPPED", "Already shipped", "↻", ColorGreen);
+            return new(PackOutcome.AlreadyShipped, false, "ALREADY SHIPPED", "Already shipped", "↻", ColorGrey);
 
         if (Is(packingStatus, "QC Hold"))
             return new(PackOutcome.Blocked, false, "QC HOLD", "On QC hold", "!", ColorAmber);

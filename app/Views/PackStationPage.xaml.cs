@@ -264,7 +264,7 @@ public partial class PackStationPage : ContentPage
                 if (result.AlreadyShipped)
                 {
                     var already = new PackVerdictResult(PackOutcome.AlreadyShipped, false,
-                        "SHIPPED", "Already shipped", "↻", PackVerdict.ColorGreen);
+                        "ALREADY SHIPPED", "Already shipped", "↻", PackVerdict.ColorGrey);
                     AddScanToHistory(match, tracking, PackOutcome.AlreadyShipped);
                     ShowParcelPanel(match, already, packerName);
                     return;

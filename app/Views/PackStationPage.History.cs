@@ -9,15 +9,26 @@ namespace app.Views;
 [SupportedOSPlatform("windows")]
 public partial class PackStationPage
 {
-    private const int HistoryMaxItems = 40;
+    // Belt display cap follows the operator-facing "Search History Limit" setting (the only
+    // history limit the app exposes), read live so a Settings change takes effect on next scan.
+    private static int HistoryMaxItems => AppSettings.SearchHistoryMaxItems;
+
+    // One belt card = the scan summary + the full parcel it matched at scan time. Caching the
+    // PackingList lets arrow/tap navigation re-open a card instantly with no re-fetch, mirroring
+    // Order Search's cached-session carousel. ShipScan stays a pure (MAUI-free) value type.
+    private sealed record BeltCard(ShipScan Scan, PackingList? Match);
 
     // Capped display belt — the most-recent scans shown as cards (any outcome).
-    private readonly List<ShipScan> _belt = [];
+    private readonly List<BeltCard> _belt = [];
     // Uncapped seals THIS session (Pack only) — drives the headline + platform + carrier counts.
     private readonly List<ShipScan> _sessionSeals = [];
     // DB-seeded seals for today at this station (platform only; shipping null) — set once per login.
     private readonly List<ShipScan> _seedSeals = [];
     private int _scanSeq;
+
+    // Seq of the belt card currently shown in the parcel panel (-1 = none). Tracked by Seq, not
+    // index, so a live scan inserting at the front never desyncs the highlight from its card.
+    private int _historyActiveSeq = -1;
 
     // Every seal that counts toward the breakdowns: today's DB seed + this session's live seals.
     // Uncapped on purpose — only the display belt is capped.
@@ -31,15 +42,19 @@ public partial class PackStationPage
         var scan = new ShipScan(_scanSeq, tracking, match?.Platform, match?.ShippingOptions, outcome);
 
         // Display belt: newest first, capped — old cards scroll off but never affect the counts.
-        _belt.Insert(0, scan);
+        _belt.Insert(0, new BeltCard(scan, match));
         if (_belt.Count > HistoryMaxItems)
         {
             // At capacity: drop the oldest already-shipped ("passed") card first so blocked /
             // unresolved scans stay visible; fall back to the oldest card if every card passed.
-            var evictIdx = _belt.FindLastIndex(s => s.Outcome is PackOutcome.Ship or PackOutcome.AlreadyShipped);
+            var evictIdx = _belt.FindLastIndex(c => c.Scan.Outcome is PackOutcome.Ship or PackOutcome.AlreadyShipped);
             if (evictIdx < 0) evictIdx = _belt.Count - 1;
             _belt.RemoveAt(evictIdx);
         }
+
+        // A live scan takes over from any review-in-progress: the just-scanned parcel (already
+        // shown by HandlePackScanAsync) becomes the active card, so the highlight resets to it.
+        _historyActiveSeq = scan.Seq;
 
         // Counts: only real seals, kept uncapped for the whole session.
         if (ShippingHistory.IsSeal(outcome))
@@ -54,49 +69,51 @@ public partial class PackStationPage
         _sessionSeals.Clear();
         _seedSeals.Clear();
         _scanSeq = 0;
+        _historyActiveSeq = -1;
         RebuildHistoryUI();
     }
 
-    // Tap a history card → re-fetch read-only and show its current detail. Never re-ships
-    // (uses SearchAsync, not ShipAsync), so reviewing a past scan can't change state.
-    private async Task ViewParcelAsync(string tracking)
+    // Open a belt card read-only from its cached parcel — no re-fetch, no ShipAsync, so reviewing
+    // a past scan can never change state. The verdict is recomputed exactly as a live scan would,
+    // so a reviewed parcel renders identically. Mirrors Order Search's cached-session navigation.
+    private void OpenHistoryCard(BeltCard card)
     {
-        if (string.IsNullOrWhiteSpace(tracking)) return;   // read-only view; safe even mid-scan
-        try
-        {
-            var rows = await ApiService.SearchAsync(tracking);
-            var match = rows.FirstOrDefault(r =>
-                string.Equals(r.TrackingNumber, tracking, StringComparison.OrdinalIgnoreCase));
+        var match = card.Match;
+        var verdict = PackVerdict.Evaluate(
+            found: match != null,
+            cancelled: match?.IsCancelledOrder ?? false,
+            packingStatus: match?.PackingStatus,
+            allItemsCleared: match?.AllItemsCleared ?? false);
+        ShowParcelPanel(match, verdict, null);
+    }
 
-            // Same verdict a live scan computes, so a viewed parcel renders identically.
-            // Read-only: ShipAsync is never called, so verdict.ShouldWrite is simply ignored.
-            var verdict = PackVerdict.Evaluate(
-                found: match != null,
-                cancelled: match?.IsCancelledOrder ?? false,
-                packingStatus: match?.PackingStatus,
-                allItemsCleared: match?.AllItemsCleared ?? false);
+    // Make a card the active (highlighted) card and open it read-only. The single entry point for
+    // tap, ‹ › buttons and keyboard ← → — so all three behave identically.
+    private void SelectHistoryCard(int seq)
+    {
+        var card = _belt.FirstOrDefault(c => c.Scan.Seq == seq);
+        if (card is null) return;
+        _historyActiveSeq = seq;
+        RebuildHistoryUI();          // re-highlights + scrolls the active card into view
+        OpenHistoryCard(card);
+    }
 
-            ShowParcelPanel(match, verdict, null);
-        }
-        catch (Exception ex) { Logger.Log($"PackStation view {tracking}: {ex.Message}"); }
+    // Step the active card through the belt and open it. delta > 0 → older (rightward in the
+    // newest-first strip); delta < 0 → newer. First press with nothing active selects the newest.
+    private void NavigateHistory(int delta)
+    {
+        if (_belt.Count == 0) return;
+        var cur = _belt.FindIndex(c => c.Scan.Seq == _historyActiveSeq);
+        var next = cur < 0 ? 0 : Math.Clamp(cur + delta, 0, _belt.Count - 1);
+        SelectHistoryCard(_belt[next].Scan.Seq);
     }
 
     private void ShowHistoryBelt() => HistoryBelt.IsVisible = true;
     private void HideHistoryBelt() => HistoryBelt.IsVisible = false;
 
-    // ── Carousel navigation (‹ ›) ─────────────────────────────────────────────────
-    private const double HistoryScrollStep = 320;
-
-    private async void OnHistoryPrevTapped(object? sender, TappedEventArgs e) => await ScrollHistoryAsync(-HistoryScrollStep);
-    private async void OnHistoryNextTapped(object? sender, TappedEventArgs e) => await ScrollHistoryAsync(+HistoryScrollStep);
-
-    private async Task ScrollHistoryAsync(double delta)
-    {
-        // ScrollView self-clamps to its content bounds; don't gate on HistoryStrip.Width —
-        // it can read 0 before/inside layout, which would pin every scroll to 0.
-        var target = Math.Max(0, HistoryScroll.ScrollX + delta);
-        await HistoryScroll.ScrollToAsync(target, 0, animated: true);
-    }
+    // ── Carousel navigation (‹ newer · › older) — keyboard ← → mirror these (OnWindowKeyDown) ──
+    private void OnHistoryPrevTapped(object? sender, TappedEventArgs e) => NavigateHistory(-1);
+    private void OnHistoryNextTapped(object? sender, TappedEventArgs e) => NavigateHistory(+1);
 
     // ── UI building ───────────────────────────────────────────────────────────────
 
@@ -117,15 +134,27 @@ public partial class PackStationPage
         }
         else
         {
-            foreach (var e in _belt)
+            View? activeCard = null;
+            foreach (var entry in _belt)
             {
-                var card = BuildHistoryCard(e);
-                var tracking = e.Tracking;
+                var isActive = entry.Scan.Seq == _historyActiveSeq;
+                var card = BuildHistoryCard(entry.Scan, isActive);
+                var seq = entry.Scan.Seq;
                 var tap = new TapGestureRecognizer();
-                tap.Tapped += (_, _) => _ = ViewParcelAsync(tracking);   // OrderSearch pattern (event, not Command)
+                tap.Tapped += (_, _) => SelectHistoryCard(seq);   // OrderSearch pattern (event, not Command)
                 card.GestureRecognizers.Add(tap);
                 HistoryStrip.Children.Add(card);
+                if (isActive) activeCard = card;
             }
+
+            // Scroll the active card into view, mirroring Order Search's carousel (short delay so
+            // the freshly-added card has a layout slot before ScrollTo measures it).
+            if (activeCard is not null)
+                _ = Dispatcher.DispatchAsync(async () =>
+                {
+                    await Task.Delay(80);
+                    await HistoryScroll.ScrollToAsync(activeCard, ScrollToPosition.MakeVisible, animated: true);
+                });
         }
 
         UpdateBreakdowns();
@@ -217,7 +246,8 @@ public partial class PackStationPage
         };
 
     // [#Seq] [platform badge] [tracking] [carrier token] [status glyph], coloured by status.
-    private static View BuildHistoryCard(ShipScan e)
+    // The active (currently-reviewed) card gets a blue 2px ring, mirroring Order Search.
+    private static View BuildHistoryCard(ShipScan e, bool isActive)
     {
         var (bg, stroke, fg, glyph) = StatusStyle(e.Outcome);
         var (platColor, platName) = PlatformBadge(e.Platform);
@@ -291,8 +321,8 @@ public partial class PackStationPage
         return new Border
         {
             StrokeShape = new RoundRectangle { CornerRadius = new CornerRadius(9) },
-            Stroke = stroke,
-            StrokeThickness = 1,
+            Stroke = isActive ? Color.FromArgb("#2563eb") : stroke,
+            StrokeThickness = isActive ? 2 : 1,
             BackgroundColor = bg,
             Padding = new Thickness(8, 4),
             VerticalOptions = LayoutOptions.Center,

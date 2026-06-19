@@ -208,40 +208,60 @@
               RowDefinitions="Auto, *"
               Padding="14,12">
 
-            <!-- Banner -->
+            <!-- Tracking card (mirrors Order Search): neutral surface, bright colour reserved for the
+                 status badge only. Primary = platform logo + tracking number; secondary = status
+                 badge; tertiary = carrier + item count. -->
             <Border x:Name="ParcelBanner"
                     Grid.Row="0"
-                    BackgroundColor="#16a34a"
-                    StrokeThickness="0"
+                    BackgroundColor="White"
+                    Stroke="#e5e7eb"
+                    StrokeThickness="1"
                     StrokeShape="RoundRectangle 14"
                     Padding="16,12">
                 <Grid ColumnDefinitions="Auto, *, Auto" ColumnSpacing="14">
-                    <Label x:Name="ParcelGlyph"
+                    <!-- Primary: platform logo -->
+                    <Image x:Name="ParcelPlatformLogo"
                            Grid.Column="0"
-                           Text="&#x2713;"
-                           FontSize="40"
-                           FontAttributes="Bold"
-                           TextColor="White"
-                           WidthRequest="50"
-                           HorizontalTextAlignment="Center"
+                           IsVisible="False"
+                           WidthRequest="46" HeightRequest="46"
+                           Aspect="AspectFit"
                            VerticalOptions="Center"/>
-                    <VerticalStackLayout Grid.Column="1" Spacing="4" VerticalOptions="Center">
-                        <HorizontalStackLayout Spacing="12" VerticalOptions="Center">
-                            <Label x:Name="ParcelWord" Text="PACKED" FontSize="26" FontAttributes="Bold" TextColor="White" VerticalOptions="Center"/>
-                            <!-- shipping_options pill (carrier token removed) -->
-                            <Border x:Name="ParcelShippingPill" IsVisible="False" BackgroundColor="#33ffffff" StrokeThickness="0" StrokeShape="RoundRectangle 6" Padding="10,4" VerticalOptions="Center">
-                                <Label x:Name="ParcelShippingLabel" Text="" FontSize="13" FontAttributes="Bold" TextColor="White" VerticalOptions="Center" LineBreakMode="TailTruncation" MaxLines="1"/>
-                            </Border>
-                        </HorizontalStackLayout>
+                    <!-- Primary: tracking number + tertiary logistics row -->
+                    <VerticalStackLayout Grid.Column="1" Spacing="5" VerticalOptions="Center">
+                        <Label x:Name="ParcelTrackingLabel"
+                               Text=""
+                               FontSize="24" FontAttributes="Bold" FontFamily="Consolas"
+                               TextColor="#111827"
+                               LineBreakMode="NoWrap"
+                               VerticalOptions="Center"/>
                         <HorizontalStackLayout Spacing="10" VerticalOptions="Center">
-                            <Label x:Name="ParcelByLabel" Text="" FontSize="13" TextColor="#eafff1" VerticalOptions="Center"/>
+                            <Border x:Name="ParcelCarrierPill"
+                                    IsVisible="False"
+                                    BackgroundColor="#f1f5f9" StrokeThickness="0"
+                                    StrokeShape="RoundRectangle 5" Padding="9,3"
+                                    VerticalOptions="Center">
+                                <Label x:Name="ParcelCarrierLabel"
+                                       Text="" FontSize="12" FontAttributes="Bold"
+                                       TextColor="#475569"
+                                       LineBreakMode="TailTruncation" MaxLines="1"
+                                       VerticalOptions="Center"/>
+                            </Border>
+                            <Label x:Name="ParcelMetaLabel"
+                                   Text=""
+                                   FontSize="12" TextColor="#6b7280"
+                                   VerticalOptions="Center"/>
                         </HorizontalStackLayout>
                     </VerticalStackLayout>
-                    <Border x:Name="ParcelCountBox" Grid.Column="2" BackgroundColor="#26000000" StrokeThickness="0" StrokeShape="RoundRectangle 12" Padding="16,8" VerticalOptions="Center">
-                        <VerticalStackLayout Spacing="0" HorizontalOptions="Center">
-                            <Label x:Name="ParcelCountLabel" Text="0" FontSize="28" FontAttributes="Bold" TextColor="White" HorizontalTextAlignment="Center"/>
-                            <Label Text="ITEMS" FontSize="9" FontAttributes="Bold" TextColor="#eafff1" HorizontalTextAlignment="Center"/>
-                        </VerticalStackLayout>
+                    <!-- Secondary: the only bright element — single status badge -->
+                    <Border x:Name="ParcelStatusBadge"
+                            Grid.Column="2"
+                            BackgroundColor="#16a34a" StrokeThickness="0"
+                            StrokeShape="RoundRectangle 9" Padding="16,10"
+                            VerticalOptions="Center">
+                        <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                            <Label x:Name="ParcelStatusGlyph" Text="&#x2713;" FontSize="20" FontAttributes="Bold" TextColor="White" VerticalOptions="Center"/>
+                            <Label x:Name="ParcelStatusWord" Text="SHIPPED" FontSize="18" FontAttributes="Bold" TextColor="White" VerticalOptions="Center"/>
+                        </HorizontalStackLayout>
                     </Border>
                 </Grid>
             </Border>

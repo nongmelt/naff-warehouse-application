@@ -331,6 +331,20 @@ public partial class PackStationPage
         {
             LoginAsAdmin();
             e.Handled = true;
+            return;
+        }
+
+        // Don't steal arrows while typing in any Entry / TextBox (mirrors Order Search).
+        if (e.OriginalSource is Microsoft.UI.Xaml.Controls.TextBox) return;
+
+        // ← newer · → older : step the read-only history carousel. Pure review — NavigateHistory
+        // opens the cached parcel and never calls ShipAsync, so arrows can't ship or change QC.
+        var isLeft = e.Key == Windows.System.VirtualKey.Left;
+        var isRight = e.Key == Windows.System.VirtualKey.Right;
+        if ((isLeft || isRight) && _currentOperator != null && _belt.Count > 0)
+        {
+            NavigateHistory(isLeft ? -1 : +1);
+            e.Handled = true;
         }
     }
 #endif
