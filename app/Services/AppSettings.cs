@@ -22,8 +22,11 @@ public static class AppSettings
     private const string KeyMinioSecret = "settings.minio.secret_key";
     private const string KeyMinioEndpoint = "settings.minio.endpoint";
 
+    // UserProfile, not SpecialFolder.MyVideos: guarantees the physical
+    // C:\Users\<user>\Videos\Warehouse even when OneDrive redirects the Videos
+    // known folder. Recordings must stay on local disk, not sync to OneDrive.
     public static readonly string DefaultVideoFolder =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Warehouse");
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Videos", "Warehouse");
 
     public const string DefaultApiUrl = "http://localhost:8080";
 

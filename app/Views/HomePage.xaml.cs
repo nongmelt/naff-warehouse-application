@@ -58,6 +58,15 @@ public partial class HomePage : ContentPage
         OrdersTitle.FontSize       = titleSize;
         OrdersDesc.FontSize        = descSize;
         OrdersArrow.FontSize       = arrowSize;
+
+        ShippingCard.WidthRequest  = cardWidth;
+        ShippingCard.HeightRequest = cardHeight;
+        ShippingCard.Padding       = padding;
+        ShippingStack.Spacing      = spacing;
+        ShippingIcon.FontSize      = iconSize;
+        ShippingTitle.FontSize     = titleSize;
+        ShippingDesc.FontSize      = descSize;
+        ShippingArrow.FontSize     = arrowSize;
     }
 
     // ── Navigation ───────────────────────────────────────────────────────────
@@ -67,6 +76,9 @@ public partial class HomePage : ContentPage
 
     private async void OnGoToOrders(object sender, TappedEventArgs e)
         => await Shell.Current.GoToAsync("//orders");
+
+    private async void OnGoToShipping(object sender, TappedEventArgs e)
+        => await Shell.Current.GoToAsync("//ship");
 
     private async void OnOpenSettings(object sender, EventArgs e)
         => await Navigation.PushModalAsync(new SettingsPage());
@@ -98,6 +110,20 @@ public partial class HomePage : ContentPage
 
     private void OnOrdersCardReleased(object sender, PointerEventArgs e)
         => OrdersCard.BackgroundColor = _cardHover;
+
+    // ── Shipping card hover ──────────────────────────────────────────────────
+
+    private void OnShippingCardEntered(object sender, PointerEventArgs e)
+        => ApplyHover(ShippingCard, ShippingArrow, true);
+
+    private void OnShippingCardExited(object sender, PointerEventArgs e)
+        => ApplyHover(ShippingCard, ShippingArrow, false);
+
+    private void OnShippingCardPressed(object sender, PointerEventArgs e)
+        => ShippingCard.BackgroundColor = _cardPressed;
+
+    private void OnShippingCardReleased(object sender, PointerEventArgs e)
+        => ShippingCard.BackgroundColor = _cardHover;
 
     // ── Shared helper ────────────────────────────────────────────────────────
 

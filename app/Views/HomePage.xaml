@@ -169,6 +169,45 @@
                     </VerticalStackLayout>
                 </Border>
 
+                <!-- Shipping card (scan-to-ship) -->
+                <Border x:Name="ShippingCard"
+                        Stroke="#e5e7eb"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 12"
+                        BackgroundColor="White"
+                        Padding="36,32">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnGoToShipping"/>
+                        <PointerGestureRecognizer
+                            PointerEntered="OnShippingCardEntered"
+                            PointerExited="OnShippingCardExited"
+                            PointerPressed="OnShippingCardPressed"
+                            PointerReleased="OnShippingCardReleased"/>
+                    </Border.GestureRecognizers>
+                    <VerticalStackLayout InputTransparent="True"
+                                         x:Name="ShippingStack"
+                                         Spacing="14"
+                                         HorizontalOptions="Center">
+                        <Label x:Name="ShippingIcon"  Text="&#x1F3F7;&#xFE0F;" FontSize="44" HorizontalOptions="Center"/>
+                        <Label x:Name="ShippingTitle" Text="Shipping"
+                               FontSize="16"
+                               FontAttributes="Bold"
+                               TextColor="#111827"
+                               HorizontalOptions="Center"/>
+                        <Label x:Name="ShippingDesc"  Text="Confirm QC'd parcels and&#10;mark shipped to the carrier"
+                               FontSize="12"
+                               TextColor="#6b7280"
+                               HorizontalOptions="Center"
+                               HorizontalTextAlignment="Center"/>
+                        <Label x:Name="ShippingArrow"
+                               Text="Open →"
+                               FontSize="12"
+                               TextColor="#9ca3af"
+                               HorizontalOptions="Center"
+                               Margin="0,4,0,0"/>
+                    </VerticalStackLayout>
+                </Border>
+
             </HorizontalStackLayout>
 
         </Grid>
