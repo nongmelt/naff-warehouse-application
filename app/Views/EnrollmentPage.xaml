@@ -169,6 +169,35 @@
                         </HorizontalStackLayout>
                     </Border>
 
+                    <!-- CF Access panel (online sites only; hidden for LAN) -->
+                    <Border x:Name="CfPanel"
+                            IsVisible="False"
+                            BackgroundColor="#fafafa"
+                            Stroke="#e5e7eb" StrokeThickness="1"
+                            StrokeShape="RoundRectangle 10"
+                            Padding="14,12" Margin="0,14,0,0">
+                        <VerticalStackLayout Spacing="8">
+                            <Label Text="🛡 Cloudflare Access — entered by IT, once"
+                                   FontSize="11.5" FontAttributes="Bold"
+                                   TextColor="#6b7280"/>
+                            <Entry x:Name="CfIdEntry"
+                                   Placeholder="Client Id"
+                                   PlaceholderColor="#9ca3af"
+                                   FontSize="13"
+                                   FontFamily="Consolas"
+                                   BackgroundColor="White"
+                                   TextColor="#111827"/>
+                            <Entry x:Name="CfSecretEntry"
+                                   Placeholder="Client Secret"
+                                   PlaceholderColor="#9ca3af"
+                                   FontSize="13"
+                                   FontFamily="Consolas"
+                                   BackgroundColor="White"
+                                   TextColor="#111827"
+                                   IsPassword="True"/>
+                        </VerticalStackLayout>
+                    </Border>
+
                 </VerticalStackLayout>
 
                 <!-- Footer buttons -->

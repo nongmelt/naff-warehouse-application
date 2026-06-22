@@ -26,6 +26,10 @@ public partial class EnrollmentPage : ContentPage
 
         // Show the configured API host so the operator knows which server is targeted.
         ServerHostLabel.Text = HostOf(AppSettings.ApiUrl);
+
+        // Show the CF Access panel only for online (HTTPS) sites that don't have creds yet.
+        CfPanel.IsVisible = AppSettings.ApiUrl.StartsWith("https", StringComparison.OrdinalIgnoreCase)
+                         && string.IsNullOrWhiteSpace(AppSettings.CfAccessClientId);
     }
 
     // ── Button handler ────────────────────────────────────────────────────────
@@ -42,6 +46,14 @@ public partial class EnrollmentPage : ContentPage
         StatusLabel.TextColor = Color.FromArgb("#4326a8");
         StatusBorder.BackgroundColor = Color.FromArgb("#f0ecfd");
         StatusDot.Fill = Color.FromArgb("#512BD4");
+
+        // Persist CF creds before the network call so EnrollClient picks them up.
+        if (CfPanel.IsVisible
+            && !string.IsNullOrWhiteSpace(CfIdEntry.Text)
+            && !string.IsNullOrWhiteSpace(CfSecretEntry.Text))
+        {
+            AppSettings.SaveCfCreds(CfIdEntry.Text.Trim(), CfSecretEntry.Text.Trim());
+        }
 
         EnrollResult result;
         try

@@ -32,7 +32,18 @@ public static class EnrollClient
         try
         {
             var http = ApiService.GetHttpClient(); // BaseAddress = ApiUrl + "/"
-            var res = await http.PostAsJsonAsync("enroll", body, ct);
+            using var msg = new HttpRequestMessage(HttpMethod.Post, "enroll")
+            {
+                Content = JsonContent.Create(body),
+            };
+            var cfId = AppSettings.CfAccessClientId;
+            var cfSecret = AppSettings.CfAccessClientSecret;
+            if (!string.IsNullOrWhiteSpace(cfId) && !string.IsNullOrWhiteSpace(cfSecret))
+            {
+                msg.Headers.Add("CF-Access-Client-Id", cfId);
+                msg.Headers.Add("CF-Access-Client-Secret", cfSecret);
+            }
+            var res = await http.SendAsync(msg, ct);
             if (res.StatusCode == HttpStatusCode.OK)
             {
                 var creds = await res.Content.ReadFromJsonAsync<EnrollResponse>(JsonOpts, ct);

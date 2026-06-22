@@ -24,6 +24,9 @@ public static class AppSettings
     private const string KeyMinioSecret = "settings.minio.secret_key";
     private const string KeyMinioEndpoint = "settings.minio.endpoint";
 
+    private const string KeyCfAccessClientId = "settings.cf.access_client_id";
+    private const string KeyCfAccessClientSecret = "settings.cf.access_client_secret";
+
     // UserProfile, not SpecialFolder.MyVideos: guarantees the physical
     // C:\Users\<user>\Videos\Warehouse even when OneDrive redirects the Videos
     // known folder. Recordings must stay on local disk, not sync to OneDrive.
@@ -326,6 +329,36 @@ public static class AppSettings
     {
         get => Preferences.Default.Get(KeyMinioEndpoint, string.Empty);
         set => Preferences.Default.Set(KeyMinioEndpoint, value);
+    }
+
+    // Cloudflare Access service token (entered once by IT for online sites; blank for LAN).
+    // Read Preferences first, then fall back to the installer-baked appsettings.json value
+    // (so it can be either typed on-site OR baked per online build).
+    public static string CfAccessClientId
+    {
+        get
+        {
+            var v = Preferences.Default.Get(KeyCfAccessClientId, string.Empty);
+            return string.IsNullOrWhiteSpace(v) ? (ReadConfigString("cfAccessClientId") ?? string.Empty) : v;
+        }
+        set => Preferences.Default.Set(KeyCfAccessClientId, value ?? string.Empty);
+    }
+
+    public static string CfAccessClientSecret
+    {
+        get
+        {
+            var v = Preferences.Default.Get(KeyCfAccessClientSecret, string.Empty);
+            return string.IsNullOrWhiteSpace(v) ? (ReadConfigString("cfAccessClientSecret") ?? string.Empty) : v;
+        }
+        set => Preferences.Default.Set(KeyCfAccessClientSecret, value ?? string.Empty);
+    }
+
+    /// <summary>Persist the CF Access service token (called from the enrollment page before connecting).</summary>
+    public static void SaveCfCreds(string id, string secret)
+    {
+        CfAccessClientId = id;
+        CfAccessClientSecret = secret;
     }
 
     /// <summary>
