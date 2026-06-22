@@ -12,6 +12,8 @@ public static class AppSettings
     private const string KeyVideoFolderMinFreeSpace = "settings.video_folder_min_free_bytes";
     private const string KeyApiUrl = "settings.api_url";
     private const string KeyStationId = "settings.station_id";
+    private const string KeyStationName = "settings.station_name";
+    private const string KeyStationKey = "settings.station_key";
     private const string KeyUseDeclarativeWorkflow = "settings.use_declarative_workflow";
     private const string KeyAutoDeleteCompletedVideos = "settings.auto_delete_completed_videos";
     private const string KeyMaxConcurrentUploads = "settings.max_concurrent_uploads";
@@ -82,6 +84,11 @@ public static class AppSettings
                         !string.IsNullOrWhiteSpace(sid.GetString()))
                         Preferences.Default.Set(KeyStationId, sid.GetString()!);
 
+                    if (doc.TryGetProperty("stationName", out var sn) && !string.IsNullOrWhiteSpace(sn.GetString()))
+                        Preferences.Default.Set(KeyStationName, sn.GetString()!);
+                    if (doc.TryGetProperty("stationKey", out var sk) && !string.IsNullOrWhiteSpace(sk.GetString()))
+                        Preferences.Default.Set(KeyStationKey, sk.GetString()!);
+
                     if (doc.TryGetProperty("useDeclarativeWorkflow", out var udw) &&
                         udw.ValueKind is JsonValueKind.True or JsonValueKind.False)
                         Preferences.Default.Set(KeyUseDeclarativeWorkflow, udw.GetBoolean());
@@ -100,34 +107,19 @@ public static class AppSettings
             catch (Exception ex) { Logger.Log($"AppSettings.Initialize: {ex.Message}"); }
             finally { Preferences.Default.Set(KeySeeded, true); }
         }
-
-        // ── MinIO — seed any empty field from appsettings.json ───────────────
-        // No flag: runs every launch so reinstalls always pick up new credentials.
-        // User overrides in Settings are preserved because we only write when empty.
-        try
-        {
-            if (File.Exists(configPath))
-            {
-                var doc = JsonDocument.Parse(File.ReadAllText(configPath)).RootElement;
-                if (doc.TryGetProperty("minio", out var minio))
-                {
-                    SeedIfEmpty(KeyMinioBucket, minio, "bucket");
-                    SeedIfEmpty(KeyMinioAccess, minio, "accessKey");
-                    SeedIfEmpty(KeyMinioSecret, minio, "secretKey");
-                    SeedIfEmpty(KeyMinioEndpoint, minio, "endpoint");
-                    Logger.Log("AppSettings: MinIO fields synced from appsettings.json");
-                }
-            }
-        }
-        catch (Exception ex) { Logger.Log($"AppSettings.InitializeMinio: {ex.Message}"); }
     }
 
-    private static void SeedIfEmpty(string key, JsonElement parent, string property)
+    private static string? ReadConfigString(string property)
     {
-        if (parent.TryGetProperty(property, out var val) &&
-            !string.IsNullOrWhiteSpace(val.GetString()) &&
-            string.IsNullOrWhiteSpace(Preferences.Default.Get(key, string.Empty)))
-            Preferences.Default.Set(key, val.GetString()!);
+        try
+        {
+            var configPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+            if (!File.Exists(configPath)) return null;
+            var doc = JsonDocument.Parse(File.ReadAllText(configPath)).RootElement;
+            return doc.TryGetProperty(property, out var v) && !string.IsNullOrWhiteSpace(v.GetString())
+                ? v.GetString() : null;
+        }
+        catch { return null; }
     }
 
     // ── Settings ─────────────────────────────────────────────────────────────
@@ -284,6 +276,26 @@ public static class AppSettings
     {
         get => Preferences.Default.Get(KeyApiUrl, DefaultApiUrl);
         set => Preferences.Default.Set(KeyApiUrl, value);
+    }
+
+    public static string StationName
+    {
+        get
+        {
+            var v = Preferences.Default.Get(KeyStationName, string.Empty);
+            return string.IsNullOrWhiteSpace(v) ? (ReadConfigString("stationName") ?? string.Empty) : v;
+        }
+        set => Preferences.Default.Set(KeyStationName, value ?? string.Empty);
+    }
+
+    public static string StationKey
+    {
+        get
+        {
+            var v = Preferences.Default.Get(KeyStationKey, string.Empty);
+            return string.IsNullOrWhiteSpace(v) ? (ReadConfigString("stationKey") ?? string.Empty) : v;
+        }
+        set => Preferences.Default.Set(KeyStationKey, value ?? string.Empty);
     }
 
     public static string MinioBucket
