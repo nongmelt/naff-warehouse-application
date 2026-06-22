@@ -225,6 +225,17 @@ public sealed class VideoWorkflowRunner
         }
     }
 
+    /// <summary>
+    /// Drop the cached MinIO client so the next upload rebuilds it with fresh creds
+    /// (called after enrollment saves new credentials). Null under the lock — do NOT
+    /// dispose: enrollment runs at first launch with no upload in flight, and disposing
+    /// a client another task might hold would break that upload.
+    /// </summary>
+    internal static void ResetMinioClient()
+    {
+        lock (_minioLock) { _sharedMinio = null; }
+    }
+
     private async Task<(string objectName, long sizeBytes)> DoMinioUploadAsync(CancellationToken ct)
     {
         var bucket = AppSettings.MinioBucket?.Trim();

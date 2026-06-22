@@ -328,6 +328,17 @@ public static class AppSettings
         set => Preferences.Default.Set(KeyMinioEndpoint, value);
     }
 
+    /// <summary>
+    /// Persist MinIO credentials returned by POST /enroll.
+    /// </summary>
+    public static void SaveMinioCredentials(string endpoint, string bucket, string accessKey, string secretKey)
+    {
+        MinioEndpoint  = endpoint  ?? string.Empty;
+        MinioBucket    = bucket    ?? string.Empty;
+        MinioAccessKey = accessKey ?? string.Empty;
+        MinioSecretKey = secretKey ?? string.Empty;
+    }
+
     private const string KeySearchHistoryMax = "search.history.max";
     private const string KeyOperatorBranchCodes = "settings.operator.branch_codes";
     private const string KeyOperatorPositionCodes = "settings.operator.position_codes";
