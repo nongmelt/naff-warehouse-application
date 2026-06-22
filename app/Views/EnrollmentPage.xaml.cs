@@ -36,6 +36,18 @@ public partial class EnrollmentPage : ContentPage
 
     private async void OnConnectClicked(object? sender, EventArgs e)
     {
+        // Validate CF Access fields before entering busy state so the button stays enabled.
+        if (CfPanel.IsVisible
+            && (string.IsNullOrWhiteSpace(CfIdEntry.Text)
+                || string.IsNullOrWhiteSpace(CfSecretEntry.Text)))
+        {
+            StatusBorder.BackgroundColor = Color.FromArgb("#fff7ed");
+            StatusDot.Fill = Color.FromArgb("#b45309");
+            StatusLabel.Text = "Enter both Cloudflare Access fields (from IT), then tap Connect.";
+            StatusLabel.TextColor = Color.FromArgb("#9a4708");
+            return;
+        }
+
         // Busy state: disable button, show spinner, clear status.
         ActionButton.IsEnabled = false;
         ActionButton.Text = "Connecting…";
