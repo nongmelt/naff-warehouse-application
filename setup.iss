@@ -72,8 +72,18 @@ begin
     '{' + #13#10 +
     '  "stationKey": "{#StationKey}",' + #13#10 +
     '  "stationName": "{#StationName}",' + #13#10 +
-    '  "apiUrl": "{#ApiUrl}"' + #13#10 +
-    '}';
+    '  "apiUrl": "{#ApiUrl}"';
+
+  // Online builds (Cloudflare Access sites) bake the CF service token too:
+  //   iscc /DCfAccessClientId=... /DCfAccessClientSecret=... ... setup.iss
+  // Bangkok/LAN builds omit the defines -> no CF fields -> AppSettings reads them blank.
+#if defined(CfAccessClientId)
+  Json := Json + ',' + #13#10 +
+    '  "cfAccessClientId": "{#CfAccessClientId}",' + #13#10 +
+    '  "cfAccessClientSecret": "{#CfAccessClientSecret}"';
+#endif
+
+  Json := Json + #13#10 + '}';
 
   SaveStringToFile(ExpandConstant('{app}') + '\appsettings.json', Json, False);
 end;
