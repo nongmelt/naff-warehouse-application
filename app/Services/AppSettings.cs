@@ -109,17 +109,23 @@ public static class AppSettings
         }
     }
 
-    private static string? ReadConfigString(string property)
+    private static readonly Lazy<JsonElement?> _bakedConfig = new(() =>
     {
         try
         {
             var configPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
             if (!File.Exists(configPath)) return null;
-            var doc = JsonDocument.Parse(File.ReadAllText(configPath)).RootElement;
-            return doc.TryGetProperty(property, out var v) && !string.IsNullOrWhiteSpace(v.GetString())
-                ? v.GetString() : null;
+            using var doc = JsonDocument.Parse(File.ReadAllText(configPath));
+            return doc.RootElement.Clone();   // Clone detaches from the disposed doc
         }
         catch { return null; }
+    });
+
+    private static string? ReadConfigString(string property)
+    {
+        if (_bakedConfig.Value is not { } root) return null;
+        return root.TryGetProperty(property, out var v) && !string.IsNullOrWhiteSpace(v.GetString())
+            ? v.GetString() : null;
     }
 
     // ── Settings ─────────────────────────────────────────────────────────────
