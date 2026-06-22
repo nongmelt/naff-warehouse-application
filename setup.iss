@@ -15,8 +15,11 @@
 #ifndef StationName
   #define StationName ""
 #endif
+; Default left empty so a build that forgets /DApiUrl produces an explicitly
+; unconfigured appsettings.json (AppSettings skips seeding a blank apiUrl and
+; falls back to its own DefaultApiUrl) rather than silently baking localhost.
 #ifndef ApiUrl
-  #define ApiUrl "http://localhost:8080"
+  #define ApiUrl ""
 #endif
 
 [Setup]
