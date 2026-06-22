@@ -5,7 +5,10 @@ using Minio.DataModel.Args;
 using Minio.Exceptions;
 using System.Diagnostics;
 using System.Net;
+using System.Net.Http;
 using System.Runtime.Versioning;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace app.Services;
 
@@ -220,6 +223,30 @@ public sealed class VideoWorkflowRunner
             if (uri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
                 builder = builder.WithSSL();
 
+            // When MinIO is published behind Cloudflare Access (remote operators reaching
+            // it through the tunnel), every S3 request must carry the service-token headers
+            // or Access (Service Auth) rejects it. Inject them via a DelegatingHandler so
+            // they ride on every call the SDK makes. They are unsigned extras — SigV4 only
+            // signs the canonical S3 headers, so the upload signature stays valid. Reuses
+            // the same token the enroll flow stored. Only wired when both values are present,
+            // so direct-LAN setups keep the unmodified client.
+            var cfId = AppSettings.CfAccessClientId;
+            var cfSecret = AppSettings.CfAccessClientSecret;
+            if (!string.IsNullOrWhiteSpace(cfId) && !string.IsNullOrWhiteSpace(cfSecret))
+            {
+                var cfHttp = new HttpClient(new CloudflareAccessHandler(cfId, cfSecret)
+                {
+                    InnerHandler = new HttpClientHandler(),
+                })
+                {
+                    // Large video uploads can outrun any wall-clock timeout; cancellation
+                    // is driven by the per-call CancellationToken instead.
+                    Timeout = Timeout.InfiniteTimeSpan,
+                };
+                builder = builder.WithHttpClient(cfHttp, disposeHttpClient: true);
+                Logger.Log("[MinIO] Cloudflare Access service token attached to S3 client");
+            }
+
             _sharedMinio = builder.Build();
             return _sharedMinio;
         }
@@ -234,6 +261,33 @@ public sealed class VideoWorkflowRunner
     internal static void ResetMinioClient()
     {
         lock (_minioLock) { _sharedMinio = null; }
+    }
+
+    /// <summary>
+    /// Stamps the Cloudflare Access service-token headers on every request the MinIO
+    /// SDK sends, so a MinIO endpoint behind Cloudflare Access (Service Auth) accepts
+    /// the S3 calls. Mirrors the header pair the enroll flow sends to the backend.
+    /// </summary>
+    private sealed class CloudflareAccessHandler : DelegatingHandler
+    {
+        private readonly string _cfId;
+        private readonly string _cfSecret;
+
+        public CloudflareAccessHandler(string cfId, string cfSecret)
+        {
+            _cfId = cfId;
+            _cfSecret = cfSecret;
+        }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            request.Headers.Remove("CF-Access-Client-Id");
+            request.Headers.Remove("CF-Access-Client-Secret");
+            request.Headers.Add("CF-Access-Client-Id", _cfId);
+            request.Headers.Add("CF-Access-Client-Secret", _cfSecret);
+            return base.SendAsync(request, cancellationToken);
+        }
     }
 
     private async Task<(string objectName, long sizeBytes)> DoMinioUploadAsync(CancellationToken ct)
