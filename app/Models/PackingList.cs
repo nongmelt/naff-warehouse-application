@@ -647,6 +647,7 @@ public class PackingList : INotifyPropertyChanged
     public ProductListPayload? UpdatedProductLists { get; set; }
     public string? Platform { get; set; }
     public string? ShippingOptions { get; set; }
+    public bool? AllItemsCleared { get; set; }
 
     private string? _packingStatus;
     public string? PackingStatus
@@ -728,8 +729,11 @@ public class PackingList : INotifyPropertyChanged
     public bool IsNotQcHold => !IsQcHold;
     public double ResetOpacity => IsQcHold ? 1.0 : 0.0;
     public bool IsPacked  => string.Equals(_packingStatus, "Packed",   StringComparison.OrdinalIgnoreCase);
+    public bool IsShipped => string.Equals(_packingStatus, "Shipped",  StringComparison.OrdinalIgnoreCase);
+    // Shipped is the step after Packed — treat it as packed-complete so the green "QC Passed"
+    // pill shows beside the orange Shipped status pill.
     public bool IsPackedComplete =>
-        IsPacked && !string.IsNullOrWhiteSpace(_checkedBy) && AllUpdatedItemsZero();
+        (IsPacked || IsShipped) && !string.IsNullOrWhiteSpace(_checkedBy) && AllUpdatedItemsZero();
 
     private bool AllUpdatedItemsZero() =>
         UpdatedProductLists?.Items is { } items && items.All(p => p.Quantity <= 0);
@@ -740,7 +744,7 @@ public class PackingList : INotifyPropertyChanged
     {
         "completed" or "done" or "qc passed" => Color.FromArgb("#dcfce7"),
         "in_progress" or "packing" or "qc hold" => Color.FromArgb("#fef9c3"),
-        "packed"                              => Color.FromArgb("#ffedd5"),
+        "packed" or "shipped"                 => Color.FromArgb("#ffedd5"),
         _                                     => Color.FromArgb("#f3f4f6"),
     };
 
@@ -748,7 +752,7 @@ public class PackingList : INotifyPropertyChanged
     {
         "completed" or "done" or "qc passed" => Color.FromArgb("#166534"),
         "in_progress" or "packing" or "qc hold" => Color.FromArgb("#713f12"),
-        "packed"                              => Color.FromArgb("#9a3412"),
+        "packed" or "shipped"                 => Color.FromArgb("#9a3412"),
         _                                     => Color.FromArgb("#374151"),
     };
 
@@ -843,7 +847,11 @@ public class PackingList : INotifyPropertyChanged
     private ObservableCollection<ProductItem> ParseProductsCore()
     {
         var isQcPassed = string.Equals(_packingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase);
-        var useUpdated = (IsQcHold || isQcPassed || IsPacked)
+        var isPacking  = string.Equals(_packingStatus, "Packing",   StringComparison.OrdinalIgnoreCase);
+        var isShipped  = string.Equals(_packingStatus, "Shipped",   StringComparison.OrdinalIgnoreCase);
+        // 'Packing'/'Shipped' carry forward QC/pick progress (updated_product_lists = remaining-to-pick),
+        // so show verified-of-ordered (e.g. 2/3) like the dashboard instead of resetting to 0 verified.
+        var useUpdated = (IsQcHold || isQcPassed || IsPacked || isPacking || isShipped)
                          && UpdatedProductLists?.Items is { Count: > 0 };
         var sourceItems = (useUpdated ? UpdatedProductLists : ProductLists)?.Items;
         if (sourceItems is null or { Count: 0 }) return [];

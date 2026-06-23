@@ -1,0 +1,395 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="app.Views.PackStationPage"
+             x:DataType="views:PackStationPage"
+             xmlns:views="clr-namespace:app.Views"
+             Shell.NavBarIsVisible="False">
+
+    <ContentPage.Resources>
+        <ResourceDictionary>
+            <Style x:Key="NavOutlineButton" TargetType="Button">
+                <Setter Property="BackgroundColor" Value="Transparent"/>
+                <Setter Property="TextColor"       Value="White"/>
+                <Setter Property="BorderColor"     Value="White"/>
+                <Setter Property="BorderWidth"     Value="1"/>
+                <Setter Property="FontSize"        Value="12"/>
+                <Setter Property="Padding"         Value="14,6"/>
+                <Setter Property="CornerRadius"    Value="6"/>
+            </Style>
+        </ResourceDictionary>
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="Auto, Auto, *, Auto">
+
+        <!-- Header -->
+        <Grid Grid.Row="0"
+              ColumnDefinitions="Auto, *, Auto"
+              BackgroundColor="{StaticResource Primary}"
+              Padding="12,7">
+            <Button Grid.Column="0"
+                    Text="&#x2302; Home"
+                    Clicked="OnGoHome"
+                    Style="{StaticResource NavOutlineButton}"/>
+            <VerticalStackLayout Grid.Column="1"
+                                 Margin="20,0,0,0"
+                                 HorizontalOptions="Start"
+                                 VerticalOptions="Center"
+                                 Spacing="1">
+                <Label Text="Shipping"
+                       TextColor="White"
+                       FontSize="16"
+                       FontAttributes="Bold"/>
+                <Label Text="SEAL &amp; VERIFY"
+                       TextColor="#7c8aa3"
+                       FontSize="9"
+                       FontAttributes="Bold"/>
+            </VerticalStackLayout>
+            <!-- Scanned-parcel title, centred in the header (mirrors Order Search) -->
+            <HorizontalStackLayout Grid.Column="1"
+                                   x:Name="HeaderParcelInfo"
+                                   IsVisible="False"
+                                   HorizontalOptions="Center"
+                                   VerticalOptions="Center"
+                                   Spacing="10">
+                <Label x:Name="HeaderParcelOrderLabel" Text="ORDER" TextColor="#7c8aa3" FontSize="13" FontAttributes="Bold" VerticalOptions="Center" IsVisible="False"/>
+                <Label x:Name="HeaderParcelOrderNumber" Text="" TextColor="White" FontSize="15" FontAttributes="Bold" VerticalOptions="Center"/>
+                <Border x:Name="HeaderParcelPlatformBadge" IsVisible="False" BackgroundColor="#33ffffff" StrokeThickness="0" StrokeShape="RoundRectangle 4" Padding="8,3" VerticalOptions="Center">
+                    <Label x:Name="HeaderParcelPlatformLabel" Text="" TextColor="White" FontSize="11" FontAttributes="Bold"/>
+                </Border>
+                <Label x:Name="HeaderParcelTracking" Text="" TextColor="#dbe4f0" FontSize="15" FontFamily="Consolas" VerticalOptions="Center"/>
+            </HorizontalStackLayout>
+            <HorizontalStackLayout Grid.Column="2" Spacing="10" VerticalOptions="Center">
+                <!-- COM port dropdown badge (always reachable, like Order Search) -->
+                <Border x:Name="ComPortBadge"
+                        BackgroundColor="#1Affffff"
+                        Stroke="#30ffffff"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 6"
+                        Padding="12,6"
+                        VerticalOptions="Center">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnComPortBadgeTapped"/>
+                    </Border.GestureRecognizers>
+                    <HorizontalStackLayout Spacing="6">
+                        <Label Text="COM"
+                               TextColor="#cbd5e1"
+                               FontSize="10"
+                               VerticalOptions="Center"/>
+                        <Label x:Name="ComPortBadgeLabel"
+                               Text="None"
+                               TextColor="White"
+                               FontSize="12"
+                               FontAttributes="Bold"
+                               VerticalOptions="Center"/>
+                        <Label Text="&#x25BE;"
+                               TextColor="#cbd5e1"
+                               FontSize="10"
+                               VerticalOptions="Center"/>
+                    </HorizontalStackLayout>
+                </Border>
+                <!-- Operator badge -->
+                <Border x:Name="OperatorHeaderBadge"
+                        IsVisible="False"
+                        BackgroundColor="Transparent"
+                        Stroke="Transparent"
+                        Padding="0"
+                        VerticalOptions="Center">
+                    <Label x:Name="HeaderComputerOperatorLabel"
+                           Text=""
+                           TextColor="White"
+                           FontSize="13"
+                           VerticalOptions="Center"/>
+                </Border>
+            </HorizontalStackLayout>
+        </Grid>
+
+        <!-- Scan history belt (visible once logged in) — mirrors Order Search belt -->
+        <Border x:Name="HistoryBelt"
+                Grid.Row="1"
+                IsVisible="False"
+                BackgroundColor="White"
+                Stroke="#e5e7eb"
+                StrokeThickness="1"
+                StrokeShape="RoundRectangle 0"
+                Padding="0">
+            <Grid ColumnDefinitions="Auto, *" Padding="6,4">
+
+                <!-- Left: packed total + platform/carrier breakdowns (seal-only counts) -->
+                <HorizontalStackLayout Grid.Column="0" Spacing="14" VerticalOptions="Center" Padding="6,0">
+                    <VerticalStackLayout Spacing="0" VerticalOptions="Center">
+                        <Label Text="PACKED" FontSize="9" FontAttributes="Bold" TextColor="#6b7280"/>
+                        <Label x:Name="PackedTotalLabel" Text="0" FontSize="30" FontAttributes="Bold" TextColor="#16a34a"/>
+                    </VerticalStackLayout>
+
+                    <VerticalStackLayout Spacing="6" VerticalOptions="Center">
+                        <!-- Platform row -->
+                        <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
+                            <Border BackgroundColor="#fff1ed" Stroke="#fbcab9" StrokeThickness="1" StrokeShape="RoundRectangle 7" Padding="8,4">
+                                <HorizontalStackLayout Spacing="4" VerticalOptions="Center">
+                                    <BoxView WidthRequest="8" HeightRequest="8" Color="#EE4D2D" CornerRadius="4" VerticalOptions="Center"/>
+                                    <Label x:Name="ShopeeCountLabel" Text="0" FontSize="13" FontAttributes="Bold" TextColor="#EE4D2D" VerticalOptions="Center"/>
+                                    <Label Text="Shopee" FontSize="11" TextColor="#374151" VerticalOptions="Center"/>
+                                </HorizontalStackLayout>
+                            </Border>
+                            <Border BackgroundColor="#eef0fb" Stroke="#c3c8ee" StrokeThickness="1" StrokeShape="RoundRectangle 7" Padding="8,4">
+                                <HorizontalStackLayout Spacing="4" VerticalOptions="Center">
+                                    <BoxView WidthRequest="8" HeightRequest="8" Color="#0F146D" CornerRadius="4" VerticalOptions="Center"/>
+                                    <Label x:Name="LazadaCountLabel" Text="0" FontSize="13" FontAttributes="Bold" TextColor="#0F146D" VerticalOptions="Center"/>
+                                    <Label Text="Lazada" FontSize="11" TextColor="#374151" VerticalOptions="Center"/>
+                                </HorizontalStackLayout>
+                            </Border>
+                            <Border BackgroundColor="#f3f4f6" Stroke="#d1d5db" StrokeThickness="1" StrokeShape="RoundRectangle 7" Padding="8,4">
+                                <HorizontalStackLayout Spacing="4" VerticalOptions="Center">
+                                    <BoxView WidthRequest="8" HeightRequest="8" Color="#000000" CornerRadius="4" VerticalOptions="Center"/>
+                                    <Label x:Name="TiktokCountLabel" Text="0" FontSize="13" FontAttributes="Bold" TextColor="#111827" VerticalOptions="Center"/>
+                                    <Label Text="TikTok" FontSize="11" TextColor="#374151" VerticalOptions="Center"/>
+                                </HorizontalStackLayout>
+                            </Border>
+                        </HorizontalStackLayout>
+
+                        <!-- Carrier row (dynamic, persisted) -->
+                        <HorizontalStackLayout x:Name="CarrierPillStrip" Spacing="6" VerticalOptions="Center"/>
+                    </VerticalStackLayout>
+                </HorizontalStackLayout>
+
+                <!-- Right: carousel of scanned parcels (‹ › to navigate), coloured by status -->
+                <Grid Grid.Column="1" ColumnDefinitions="Auto, *, Auto" ColumnSpacing="4" VerticalOptions="Center">
+                    <Border Grid.Column="0" BackgroundColor="#f3f4f6" Stroke="#e5e7eb" StrokeThickness="1" StrokeShape="RoundRectangle 6" Padding="9,5" VerticalOptions="Center">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnHistoryPrevTapped"/>
+                        </Border.GestureRecognizers>
+                        <Label Text="‹" FontSize="16" FontAttributes="Bold" TextColor="#374151" VerticalOptions="Center" HorizontalTextAlignment="Center"/>
+                    </Border>
+                    <ScrollView Grid.Column="1" x:Name="HistoryScroll"
+                                Orientation="Horizontal"
+                                HorizontalScrollBarVisibility="Never"
+                                VerticalOptions="Center"
+                                Padding="8,0">
+                        <HorizontalStackLayout x:Name="HistoryStrip" Spacing="4" VerticalOptions="Center"/>
+                    </ScrollView>
+                    <Border Grid.Column="2" BackgroundColor="#f3f4f6" Stroke="#e5e7eb" StrokeThickness="1" StrokeShape="RoundRectangle 6" Padding="9,5" VerticalOptions="Center">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnHistoryNextTapped"/>
+                        </Border.GestureRecognizers>
+                        <Label Text="›" FontSize="16" FontAttributes="Bold" TextColor="#374151" VerticalOptions="Center" HorizontalTextAlignment="Center"/>
+                    </Border>
+                </Grid>
+
+            </Grid>
+        </Border>
+
+        <!-- Body: idle prompt -->
+        <VerticalStackLayout x:Name="IdlePrompt"
+                             Grid.Row="2"
+                             BackgroundColor="#f3f4f6"
+                             HorizontalOptions="Fill"
+                             VerticalOptions="Fill"
+                             Spacing="10">
+            <VerticalStackLayout HorizontalOptions="Center"
+                                 VerticalOptions="Center"
+                                 Spacing="10">
+                <Label Text="&#x1F3F7;&#xFE0F;"
+                       FontSize="64"
+                       HorizontalOptions="Center"/>
+                <Label Text="Scan a parcel barcode"
+                       FontSize="26"
+                       FontAttributes="Bold"
+                       TextColor="#111827"
+                       HorizontalOptions="Center"/>
+            </VerticalStackLayout>
+        </VerticalStackLayout>
+
+        <!-- Parcel detail panel: shown after a scan (verdict banner + carrier + contents) -->
+        <Grid x:Name="ParcelPanel"
+              Grid.Row="2"
+              IsVisible="False"
+              BackgroundColor="#eef1f5"
+              RowDefinitions="Auto, *"
+              Padding="14,12">
+
+            <!-- Tracking card (mirrors Order Search): neutral surface, bright colour reserved for the
+                 status badge only. Primary = platform logo + tracking number; secondary = status
+                 badge; tertiary = carrier + item count. -->
+            <Border x:Name="ParcelBanner"
+                    Grid.Row="0"
+                    BackgroundColor="White"
+                    Stroke="#e5e7eb"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 14"
+                    Padding="16,12">
+                <Grid ColumnDefinitions="Auto, *, Auto" ColumnSpacing="14">
+                    <!-- Primary: platform logo -->
+                    <Image x:Name="ParcelPlatformLogo"
+                           Grid.Column="0"
+                           IsVisible="False"
+                           WidthRequest="46" HeightRequest="46"
+                           Aspect="AspectFit"
+                           VerticalOptions="Center"/>
+                    <!-- Primary: tracking number + tertiary logistics row -->
+                    <VerticalStackLayout Grid.Column="1" Spacing="5" VerticalOptions="Center">
+                        <Label x:Name="ParcelTrackingLabel"
+                               Text=""
+                               FontSize="24" FontAttributes="Bold" FontFamily="Consolas"
+                               TextColor="#111827"
+                               LineBreakMode="NoWrap"
+                               VerticalOptions="Center"/>
+                        <HorizontalStackLayout Spacing="10" VerticalOptions="Center">
+                            <Border x:Name="ParcelCarrierPill"
+                                    IsVisible="False"
+                                    BackgroundColor="#f1f5f9" StrokeThickness="0"
+                                    StrokeShape="RoundRectangle 5" Padding="9,3"
+                                    VerticalOptions="Center">
+                                <Label x:Name="ParcelCarrierLabel"
+                                       Text="" FontSize="12" FontAttributes="Bold"
+                                       TextColor="#475569"
+                                       LineBreakMode="TailTruncation" MaxLines="1"
+                                       VerticalOptions="Center"/>
+                            </Border>
+                            <Label x:Name="ParcelMetaLabel"
+                                   Text=""
+                                   FontSize="12" TextColor="#6b7280"
+                                   VerticalOptions="Center"/>
+                        </HorizontalStackLayout>
+                    </VerticalStackLayout>
+                    <!-- Secondary: the only bright element — single status badge -->
+                    <Border x:Name="ParcelStatusBadge"
+                            Grid.Column="2"
+                            BackgroundColor="#16a34a" StrokeThickness="0"
+                            StrokeShape="RoundRectangle 9" Padding="16,10"
+                            VerticalOptions="Center">
+                        <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                            <Label x:Name="ParcelStatusGlyph" Text="&#x2713;" FontSize="20" FontAttributes="Bold" TextColor="White" VerticalOptions="Center"/>
+                            <Label x:Name="ParcelStatusWord" Text="SHIPPED" FontSize="18" FontAttributes="Bold" TextColor="White" VerticalOptions="Center"/>
+                        </HorizontalStackLayout>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- Contents list (compact image cards, built in code) -->
+            <ScrollView x:Name="ParcelScroll" Grid.Row="1" Margin="0,8,0,0" VerticalScrollBarVisibility="Default">
+                <VerticalStackLayout x:Name="ParcelContentsStack" Spacing="8" Padding="0,0,4,0"/>
+            </ScrollView>
+
+            <!-- Empty state (not found) -->
+            <VerticalStackLayout x:Name="ParcelEmpty" Grid.Row="1" IsVisible="False" Spacing="8" HorizontalOptions="Center" VerticalOptions="Center">
+                <Label Text="&#x1F4ED;" FontSize="46" HorizontalOptions="Center"/>
+                <Label Text="No matching order" FontSize="16" FontAttributes="Bold" TextColor="#64748b" HorizontalOptions="Center"/>
+                <Label Text="Nothing to show for this tracking number." FontSize="12" TextColor="#94a3b8" HorizontalOptions="Center"/>
+            </VerticalStackLayout>
+        </Grid>
+
+        <!-- Bottom hint bar (mirrors Order Search footer) -->
+        <Border Grid.Row="3"
+                BackgroundColor="#f9fafb"
+                Stroke="#e5e7eb"
+                StrokeThickness="1"
+                Padding="16,6">
+            <HorizontalStackLayout Spacing="18" VerticalOptions="Center">
+                <Label Text="Scan a parcel to seal &amp; ship" FontSize="11" TextColor="#6b7280" VerticalOptions="Center"/>
+                <Label Text="·" FontSize="11" TextColor="#9ca3af" VerticalOptions="Center"/>
+                <Label Text="Tap a history card to view its detail" FontSize="11" TextColor="#6b7280" VerticalOptions="Center"/>
+            </HorizontalStackLayout>
+        </Border>
+
+        <!-- Welcome banner -->
+        <Border x:Name="WelcomeBanner"
+                Grid.Row="2"
+                IsVisible="False"
+                HorizontalOptions="Center"
+                VerticalOptions="Center"
+                BackgroundColor="#1e3a5f"
+                Stroke="#3b82f6"
+                StrokeThickness="1"
+                StrokeShape="RoundRectangle 12"
+                Padding="36,22"
+                InputTransparent="True"
+                ZIndex="9">
+            <Label x:Name="WelcomeLabel"
+                   Text=""
+                   FontSize="28"
+                   FontAttributes="Bold"
+                   TextColor="White"
+                   HorizontalTextAlignment="Center"/>
+        </Border>
+
+        <!-- Login overlay (covers body only; header Home stays reachable) -->
+        <Grid x:Name="LoginOverlay"
+              Grid.Row="2"
+              BackgroundColor="#CC111827"
+              IsVisible="True"
+              ZIndex="10">
+            <Border HorizontalOptions="Center"
+                    VerticalOptions="Center"
+                    Stroke="#374151"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 12"
+                    BackgroundColor="#1f2937"
+                    Padding="44,36"
+                    WidthRequest="400">
+                <VerticalStackLayout Spacing="16" HorizontalOptions="Fill">
+                    <Label Text="Please scan your badge"
+                           FontSize="22"
+                           FontAttributes="Bold"
+                           TextColor="White"
+                           HorizontalTextAlignment="Center"/>
+                    <BoxView HeightRequest="1" BackgroundColor="#374151" Margin="0,4"/>
+                    <Grid ColumnDefinitions="*, Auto" ColumnSpacing="8">
+                        <Picker x:Name="OverlayComPortPicker"
+                                Grid.Column="0"
+                                Title="Select COM port"
+                                SelectedIndexChanged="OnOverlayComPortSelected"
+                                FontSize="12"
+                                TextColor="#d1d5db"/>
+                        <Button Grid.Column="1"
+                                Text="Refresh"
+                                Clicked="OnOverlayRefreshPorts"
+                                BackgroundColor="#374151"
+                                TextColor="White"
+                                CornerRadius="6"
+                                WidthRequest="72"
+                                FontSize="12"
+                                Padding="0,6"/>
+                    </Grid>
+                    <Label x:Name="OverlayScannerStatusLabel"
+                           Text="No scanner connected"
+                           FontSize="11"
+                           TextColor="#6b7280"/>
+                </VerticalStackLayout>
+            </Border>
+        </Grid>
+
+        <!-- COM port dropdown popover -->
+        <Grid x:Name="ComPortDropdownBackdrop"
+              Grid.Row="0"
+              Grid.RowSpan="4"
+              BackgroundColor="Transparent"
+              IsVisible="False"
+              ZIndex="20"
+              InputTransparent="False">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnComPortDropdownBackdropTapped"/>
+            </Grid.GestureRecognizers>
+            <Border x:Name="ComPortDropdownCard"
+                    HorizontalOptions="End"
+                    VerticalOptions="Start"
+                    Margin="0,48,16,0"
+                    Stroke="#e5e7eb"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 6"
+                    BackgroundColor="White"
+                    Padding="0"
+                    WidthRequest="240"
+                    InputTransparent="False">
+                <Border.Shadow>
+                    <Shadow Brush="#26000000" Offset="0,4" Radius="12"/>
+                </Border.Shadow>
+                <VerticalStackLayout x:Name="ComPortDropdownList"
+                                     Spacing="0"
+                                     Padding="8"/>
+            </Border>
+        </Grid>
+
+    </Grid>
+
+</ContentPage>

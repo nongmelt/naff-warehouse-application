@@ -32,7 +32,7 @@ public partial class App : Application
 
 	protected override Window CreateWindow(IActivationState? activationState)
 	{
-		var window = new Window(new AppShell()) { Title = "Warehouse" };
+		var window = new Window(new AppShell()) { Title = "Warehouse", MinimumWidth = 800 };
 		window.Activated += (_, _) => _windowActive = true;
 		window.Deactivated += (_, _) => _windowActive = false;
 		window.Destroying += OnWindowDestroying;

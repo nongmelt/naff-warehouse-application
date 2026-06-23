@@ -20,13 +20,20 @@ public static class ApiService
 
     private static HttpClient? _http;
     private static string _httpBase = "";
+    private static string _httpCfId = "";
+    private static string _httpCfSecret = "";
 
     private static HttpClient Http
     {
         get
         {
             var url = (AppSettings.ApiUrl?.TrimEnd('/') ?? "http://localhost:8080") + "/";
-            if (_http is null || _httpBase != url)
+            var cfId = AppSettings.CfAccessClientId;
+            var cfSecret = AppSettings.CfAccessClientSecret;
+
+            // Rebuild when the URL or the Cloudflare Access token changes so edits made in
+            // Settings take effect without restarting the app.
+            if (_http is null || _httpBase != url || _httpCfId != cfId || _httpCfSecret != cfSecret)
             {
                 _http?.Dispose();
                 _http = new HttpClient
@@ -34,7 +41,18 @@ public static class ApiService
                     BaseAddress = new Uri(url),
                     Timeout = TimeSpan.FromSeconds(30),
                 };
+
+                // Cloudflare Access service-token headers — only added when present, so the
+                // app works fine against a backend with no Cloudflare Access in front of it
+                // (both values empty/null => no headers sent).
+                if (!string.IsNullOrWhiteSpace(cfId))
+                    _http.DefaultRequestHeaders.Add("CF-Access-Client-Id", cfId);
+                if (!string.IsNullOrWhiteSpace(cfSecret))
+                    _http.DefaultRequestHeaders.Add("CF-Access-Client-Secret", cfSecret);
+
                 _httpBase = url;
+                _httpCfId = cfId;
+                _httpCfSecret = cfSecret;
             }
             return _http;
         }
@@ -263,6 +281,58 @@ public static class ApiService
         }
     }
 
+    public readonly record struct ShipResult(int Status, bool PackedBackfilled, bool AlreadyShipped);
+
+    public static async Task<ShipResult> ShipAsync(
+        string barcode, string? shippedBy = null, int? shippingStationId = null)
+    {
+        try
+        {
+            var body = new { shippedBy = shippedBy?.Replace(' ', '-'), shippingStationId };
+            var json = JsonSerializer.Serialize(body, JsonOpts);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var resp = await Http.PatchAsync(
+                $"packing-lists/scan/{Uri.EscapeDataString(barcode)}/ship", content);
+            var status = (int)resp.StatusCode;
+            if (!resp.IsSuccessStatusCode)
+            {
+                Logger.Log($"ApiService.ShipAsync: HTTP {status}");
+                return new ShipResult(status, false, false);
+            }
+            var node = await resp.Content.ReadFromJsonAsync<JsonNode>(JsonOpts);
+            return new ShipResult(
+                status,
+                node?["packedBackfilled"]?.GetValue<bool>() ?? false,
+                node?["alreadyShipped"]?.GetValue<bool>() ?? false);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.ShipAsync: {ex.Message}");
+            return new ShipResult(0, false, false);
+        }
+    }
+
+    public static async Task<(int Total, List<string?> Platforms)> GetShippedTodayAsync(int stationId)
+    {
+        try
+        {
+            var from = DateTime.Today.ToUniversalTime().ToString("o");
+            var resp = await Http.GetFromJsonAsync<PackedTodayResponse>(
+                $"packing-lists/list?status=Shipped&shippingStationId={stationId}" +
+                $"&from={Uri.EscapeDataString(from)}&limit=1000&offset=0", JsonOpts);
+
+            var platforms = new List<string?>();
+            if (resp?.Items is { } items)
+                foreach (var i in items) platforms.Add(i.Platform);
+            return (resp?.Total ?? platforms.Count, platforms);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.GetShippedTodayAsync: {ex.Message}");
+            return (0, []);
+        }
+    }
+
     public static async Task<bool> UpdateVideoStatusAsync(
         int videoId, string status, string? remoteFilePath = null,
         string? failureReason = null, int? uploadAttempts = null)
@@ -363,6 +433,7 @@ public static class ApiService
             return 0;
         }
     }
+
 
     // ── Manual upload notifications ──────────────────────────────────────────
 
@@ -589,6 +660,13 @@ public static class ApiService
         [property: JsonPropertyName("status")] string Status,
         [property: JsonPropertyName("packedBy")] string? PackedBy,
         [property: JsonPropertyName("packingStationId")] int? PackingStationId);
+
+    private record PackedTodayResponse(
+        [property: JsonPropertyName("total")] int Total,
+        [property: JsonPropertyName("items")] List<PackedTodayItem>? Items);
+
+    private record PackedTodayItem(
+        [property: JsonPropertyName("platform")] string? Platform);
 
     private record VideoRecord(
         [property: JsonPropertyName("id")] int Id);
