@@ -21,6 +21,10 @@ public static class AppSettings
     private const string KeyMinioAccess = "settings.minio.access_key";
     private const string KeyMinioSecret = "settings.minio.secret_key";
     private const string KeyMinioEndpoint = "settings.minio.endpoint";
+    private const string KeyMinioRawBucket = "settings.minio.raw_bucket";
+
+    /// <summary>Default bucket for stranded (orphan) videos with no packing_lists row.</summary>
+    public const string DefaultMinioRawBucket = "warehouse-raw";
 
     private const string KeyCfAccessClientId = "settings.cf.access_client_id";
     private const string KeyCfAccessClientSecret = "settings.cf.access_client_secret";
@@ -115,6 +119,7 @@ public static class AppSettings
                     SeedIfEmpty(KeyMinioAccess, minio, "accessKey");
                     SeedIfEmpty(KeyMinioSecret, minio, "secretKey");
                     SeedIfEmpty(KeyMinioEndpoint, minio, "endpoint");
+                    SeedIfEmpty(KeyMinioRawBucket, minio, "rawBucket");
                     Logger.Log("AppSettings: MinIO fields synced from appsettings.json");
                 }
             }
@@ -290,6 +295,20 @@ public static class AppSettings
     {
         get => Preferences.Default.Get(KeyMinioBucket, string.Empty);
         set => Preferences.Default.Set(KeyMinioBucket, value);
+    }
+
+    /// <summary>
+    /// Bucket for orphan (order-less) videos. Defaults to "warehouse-raw" so the
+    /// orphan path works even on installs whose appsettings.json predates rawBucket.
+    /// </summary>
+    public static string MinioRawBucket
+    {
+        get
+        {
+            var v = Preferences.Default.Get(KeyMinioRawBucket, string.Empty);
+            return string.IsNullOrWhiteSpace(v) ? DefaultMinioRawBucket : v;
+        }
+        set => Preferences.Default.Set(KeyMinioRawBucket, value);
     }
 
     public static string MinioAccessKey

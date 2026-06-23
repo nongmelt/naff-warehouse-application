@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <RootNamespace>app.Tests</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,6 +18,7 @@
   <ItemGroup>
     <Compile Include="..\app\Services\PackVerdict.cs" Link="PackVerdict.cs" />
     <Compile Include="..\app\Services\ShippingHistory.cs" Link="ShippingHistory.cs" />
+    <Compile Include="..\app\Services\OrphanCapture.cs" Link="Services\OrphanCapture.cs" />
   </ItemGroup>
 
 </Project>
