@@ -165,7 +165,11 @@ public sealed class VideoWorkflowRunner
             if (_isRecovery && !_isOrphan)
                 await VideoWorkflowManager.MarkPackedIfEligibleAsync(
                     _ctx.ActiveBarcode, _ctx.LocalFilePath, _ctx.StationId);
-            if (AppSettings.AutoDeleteCompletedVideos)
+            // Orphans always self-delete on completion: their local file has no
+            // cross-check value, and leaving it would make the next recovery pass
+            // re-register + re-PUT into warehouse-raw — resurrecting bytes that
+            // assign/discard may have already deleted. Normal videos keep the flag.
+            if (_isOrphan || AppSettings.AutoDeleteCompletedVideos)
                 TryDeleteLocalFile();
             VideoWorkflowManager.RemoveProgress(_ctx.VideoId!.Value);
         }
