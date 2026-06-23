@@ -1,0 +1,128 @@
+using System.Collections.Generic;
+using app.Services;
+using Xunit;
+
+namespace app.Tests;
+
+public class ShippingHistoryTests
+{
+    [Theory]
+    [InlineData("Standard Delivery - ส่งธรรมดาในประเทศ-SPX Express", "SPX")]
+    [InlineData("J&T Express", "J&T")]
+    [InlineData("LEX TH - STANDARD", "LEX")]
+    [InlineData("Standard Delivery - ส่งธรรมดาในประเทศ-Flash Express", "Flash")]
+    [InlineData("Kerry - STANDARD", "Kerry")]
+    [InlineData("Standard Delivery Bulky - ส่งสินค้าขนาดใหญ่-DHL Domestic Bulky", "DHL")]
+    [InlineData("Instant Delivery - ส่งทันที (แพ็ก 2 ชั่วโมง)", "Instant")]
+    public void CarrierToken_extracts_known_carrier_or_first_word(string input, string expected)
+        => Assert.Equal(expected, ShippingHistory.CarrierToken(input));
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(null)]
+    public void CarrierToken_blank_is_null(string? input)
+        => Assert.Null(ShippingHistory.CarrierToken(input));
+
+    [Theory]
+    [InlineData("Shopee", "Shopee")]
+    [InlineData("shopee-th", "Shopee")]
+    [InlineData("Lazada", "Lazada")]
+    [InlineData("Tiktok", "TikTok")]
+    [InlineData("Amazon", null)]
+    [InlineData(null, null)]
+    public void PlatformKey_canonicalises(string? input, string? expected)
+        => Assert.Equal(expected, ShippingHistory.PlatformKey(input));
+
+    [Fact]
+    public void IsSeal_only_true_for_Ship()
+    {
+        Assert.True(ShippingHistory.IsSeal(PackOutcome.Ship));
+        Assert.False(ShippingHistory.IsSeal(PackOutcome.AlreadyShipped));
+        Assert.False(ShippingHistory.IsSeal(PackOutcome.Blocked));
+        Assert.False(ShippingHistory.IsSeal(PackOutcome.NotFound));
+        Assert.False(ShippingHistory.IsSeal(PackOutcome.Cancelled));
+        Assert.False(ShippingHistory.IsSeal(PackOutcome.SaveFailed));
+    }
+
+    [Fact]
+    public void CarrierToken_pure_thai_with_no_known_carrier_is_null()
+    {
+        Assert.Null(ShippingHistory.CarrierToken("ส่งธรรมดาในประเทศ"));
+    }
+
+    private static ShipScan Scan(int seq, string plat, string ship, PackOutcome o) =>
+        new(seq, $"TK{seq}", plat, ship, o);
+
+    [Fact]
+    public void PlatformTally_counts_only_sealed_scans()
+    {
+        var scans = new List<ShipScan>
+        {
+            Scan(1, "Shopee", "SPX Express", PackOutcome.Ship),
+            Scan(2, "Shopee", "SPX Express", PackOutcome.Ship),
+            Scan(3, "Shopee", "SPX Express", PackOutcome.AlreadyShipped), // not a seal
+            Scan(4, "Lazada", "LEX TH",      PackOutcome.Ship),
+            Scan(5, "Tiktok", "J&T Express", PackOutcome.Blocked),       // not a seal
+        };
+        var (shopee, lazada, tiktok) = ShippingHistory.PlatformTally(scans);
+        Assert.Equal(2, shopee);
+        Assert.Equal(1, lazada);
+        Assert.Equal(0, tiktok);
+    }
+
+    [Fact]
+    public void CarrierTally_counts_only_sealed_scans_ordered_by_count()
+    {
+        var scans = new List<ShipScan>
+        {
+            Scan(1, "Shopee", "SPX Express", PackOutcome.Ship),
+            Scan(2, "Shopee", "SPX Express", PackOutcome.Ship),
+            Scan(3, "Tiktok", "J&T Express", PackOutcome.Ship),
+            Scan(4, "Shopee", "SPX Express", PackOutcome.AlreadyShipped), // excluded
+            Scan(5, "Lazada", "",            PackOutcome.Ship),          // no carrier -> excluded
+        };
+        var tally = ShippingHistory.CarrierTally(scans);
+        Assert.Equal(2, tally.Count);
+        Assert.Equal(("SPX", 2), tally[0]);
+        Assert.Equal(("J&T", 1), tally[1]);
+    }
+
+    [Fact]
+    public void SealedCount_counts_only_Pack()
+    {
+        var scans = new List<ShipScan>
+        {
+            Scan(1, "Shopee", "SPX", PackOutcome.Ship),
+            Scan(2, "Shopee", "SPX", PackOutcome.AlreadyShipped),
+            Scan(3, "Lazada", "LEX", PackOutcome.Ship),
+        };
+        Assert.Equal(2, ShippingHistory.SealedCount(scans));
+    }
+
+    [Fact]
+    public void SeedScans_are_pack_seals_with_no_shipping()
+    {
+        var seeds = ShippingHistory.SeedScans(
+            new string?[] { "Shopee", "shopee-th", "Lazada", "Tiktok", "Amazon", null });
+
+        Assert.All(seeds, s => Assert.Equal(PackOutcome.Ship, s.Outcome));
+        Assert.All(seeds, s => Assert.Null(s.Shipping));
+
+        // Every seeded row counts as a sealed parcel.
+        Assert.Equal(6, ShippingHistory.SealedCount(seeds));
+
+        // Platform breakdown buckets by canonical key; unknown ("Amazon") and null are excluded.
+        var (shopee, lazada, tiktok) = ShippingHistory.PlatformTally(seeds);
+        Assert.Equal(2, shopee);
+        Assert.Equal(1, lazada);
+        Assert.Equal(1, tiktok);
+
+        // No shipping_options on seeds → no carrier breakdown from the seed.
+        Assert.Empty(ShippingHistory.CarrierTally(seeds));
+    }
+
+    [Fact]
+    public void SeedScans_empty_input_is_empty()
+        => Assert.Empty(ShippingHistory.SeedScans(System.Array.Empty<string?>()));
+}

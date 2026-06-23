@@ -169,37 +169,37 @@
                     </VerticalStackLayout>
                 </Border>
 
-                <!-- Shipping card (scan-to-ship) -->
-                <Border x:Name="ShippingCard"
+                <!-- Pack Station card (no-video) -->
+                <Border x:Name="PackCard"
                         Stroke="#e5e7eb"
                         StrokeThickness="1"
                         StrokeShape="RoundRectangle 12"
                         BackgroundColor="White"
                         Padding="36,32">
                     <Border.GestureRecognizers>
-                        <TapGestureRecognizer Tapped="OnGoToShipping"/>
+                        <TapGestureRecognizer Tapped="OnGoToPack"/>
                         <PointerGestureRecognizer
-                            PointerEntered="OnShippingCardEntered"
-                            PointerExited="OnShippingCardExited"
-                            PointerPressed="OnShippingCardPressed"
-                            PointerReleased="OnShippingCardReleased"/>
+                            PointerEntered="OnPackCardEntered"
+                            PointerExited="OnPackCardExited"
+                            PointerPressed="OnPackCardPressed"
+                            PointerReleased="OnPackCardReleased"/>
                     </Border.GestureRecognizers>
                     <VerticalStackLayout InputTransparent="True"
-                                         x:Name="ShippingStack"
+                                         x:Name="PackStack"
                                          Spacing="14"
                                          HorizontalOptions="Center">
-                        <Label x:Name="ShippingIcon"  Text="&#x1F3F7;&#xFE0F;" FontSize="44" HorizontalOptions="Center"/>
-                        <Label x:Name="ShippingTitle" Text="Shipping"
+                        <Label x:Name="PackIcon"  Text="&#x1F3F7;&#xFE0F;" FontSize="44" HorizontalOptions="Center"/>
+                        <Label x:Name="PackTitle" Text="Shipping"
                                FontSize="16"
                                FontAttributes="Bold"
                                TextColor="#111827"
                                HorizontalOptions="Center"/>
-                        <Label x:Name="ShippingDesc"  Text="Confirm QC'd parcels and&#10;mark shipped to the carrier"
+                        <Label x:Name="PackDesc"  Text="Confirm QC'd parcels and&#10;mark shipped to the carrier"
                                FontSize="12"
                                TextColor="#6b7280"
                                HorizontalOptions="Center"
                                HorizontalTextAlignment="Center"/>
-                        <Label x:Name="ShippingArrow"
+                        <Label x:Name="PackArrow"
                                Text="Open →"
                                FontSize="12"
                                TextColor="#9ca3af"

@@ -45,13 +45,14 @@ public static class VideoWorkflowManager
         string  trackingNumber,
         string? @operator,
         int?    stationId,
-        bool    isRecovery = false)
+        bool    isRecovery = false,
+        bool    isOrphan   = false)
     {
         _active.AddOrUpdate(
             videoId,
             addValueFactory: id =>
             {
-                var runner = new VideoWorkflowRunner(id, localFilePath, trackingNumber, @operator, stationId, isRecovery);
+                var runner = new VideoWorkflowRunner(id, localFilePath, trackingNumber, @operator, stationId, isRecovery, isOrphan);
                 return Task.Run(() => runner.RunAsync()).ContinueWith(_ => Prune(id));
             },
             updateValueFactory: (id, existing) =>
@@ -61,7 +62,7 @@ public static class VideoWorkflowManager
                     Logger.Log($"[VideoWorkflowManager] video {id} already has an active runner — skipping");
                     return existing;
                 }
-                var runner = new VideoWorkflowRunner(id, localFilePath, trackingNumber, @operator, stationId, isRecovery);
+                var runner = new VideoWorkflowRunner(id, localFilePath, trackingNumber, @operator, stationId, isRecovery, isOrphan);
                 return Task.Run(() => runner.RunAsync()).ContinueWith(_ => Prune(id));
             });
     }
@@ -201,38 +202,82 @@ public static class VideoWorkflowManager
                 {
                     var stem = Path.GetFileNameWithoutExtension(filePath);
                     var trackingNumber = ParseTrackingFromFileName(stem);
+                    var operatorLabel = ParseStationLabelFromFileName(stem);
 
-                    // Hotfix 1.4.4.1: only recover an orphan local file (no packing_videos
-                    // record) when its tracking number matches an existing packing_lists row.
-                    // SearchAsync is a fuzzy q-search, so require an exact case-insensitive
-                    // TrackingNumber match. This also guards against duplicate records during
-                    // an API outage: backend down → SearchAsync returns empty → no match → skip.
-                    var matches = await ApiService.SearchAsync(trackingNumber);
-                    var packingListExists = matches.Any(p =>
-                        string.Equals(p.TrackingNumber, trackingNumber, StringComparison.OrdinalIgnoreCase));
-                    if (!packingListExists)
+                    // SearchAsync is a fuzzy q-search; require an exact case-insensitive
+                    // TrackingNumber match to treat the file as recoverable against an
+                    // existing packing_lists row. SearchResultAsync distinguishes a
+                    // genuine empty response from an errored call so we never orphan on
+                    // an API outage (decision #3).
+                    var search = await ApiService.SearchResultAsync(trackingNumber);
+                    if (!search.Succeeded)
                     {
-                        Logger.Log($"[VideoWorkflowManager] recovery: tracking '{trackingNumber}' not found in packing_lists — skipping orphan: {filePath}");
+                        Logger.Log($"[VideoWorkflowManager] recovery: search errored for '{trackingNumber}' — leaving on disk: {filePath}");
                         skipped++;
                         continue;
                     }
 
-                    var operatorLabel = ParseStationLabelFromFileName(stem);
-                    Logger.Log($"[VideoWorkflowManager] recovery: no backend record but packing list found — creating for: {filePath}");
+                    var packingListExists = search.Results.Any(p =>
+                        string.Equals(p.TrackingNumber, trackingNumber, StringComparison.OrdinalIgnoreCase));
 
-                    var videoId = await ApiService.CreateVideoRecordAsync(
-                        trackingNumber, filePath, stationId, operatorLabel);
-
-                    if (videoId > 0)
+                    if (packingListExists)
                     {
-                        // packing_lists status is synced to Packed on completion (VideoWorkflowRunner).
-                        Start(videoId, filePath, trackingNumber, operatorLabel, stationId, isRecovery: true);
-                        recovered++;
+                        Logger.Log($"[VideoWorkflowManager] recovery: no backend record but packing list found — creating for: {filePath}");
+                        var videoId = await ApiService.CreateVideoRecordAsync(
+                            trackingNumber, filePath, stationId, operatorLabel);
+
+                        if (videoId > 0)
+                        {
+                            // packing_lists status is synced to Packed on completion (VideoWorkflowRunner).
+                            Start(videoId, filePath, trackingNumber, operatorLabel, stationId, isRecovery: true);
+                            recovered++;
+                        }
+                        else
+                        {
+                            Logger.Log($"[VideoWorkflowManager] recovery: failed to create record for {filePath}");
+                            failed++;
+                        }
                     }
                     else
                     {
-                        Logger.Log($"[VideoWorkflowManager] recovery: failed to create record for {filePath}");
-                        failed++;
+                        // Succeeded AND empty (definitive: no packing_lists row) → orphan path.
+                        // Register the orphan row, then run the shared workflow against
+                        // warehouse-raw (isOrphan: true). The register is idempotent on
+                        // object_key and the MinIO PUT overwrites, so re-running recovery
+                        // is safe.
+                        DateTime recordedAtUtc;
+                        try { recordedAtUtc = File.GetLastWriteTimeUtc(filePath); }
+                        catch { recordedAtUtc = DateTime.UtcNow; }
+
+                        var rawBucket = AppSettings.MinioRawBucket?.Trim();
+                        if (string.IsNullOrWhiteSpace(rawBucket))
+                        {
+                            Logger.Log($"[VideoWorkflowManager] recovery: raw bucket not configured — leaving on disk: {filePath}");
+                            skipped++;
+                        }
+                        else
+                        {
+                            var objectKey = OrphanCapture.BuildRawObjectKey(filePath, DateTime.Now);
+                            long fileSize = 0;
+                            try { fileSize = new FileInfo(filePath).Length; } catch { /* best-effort */ }
+
+                            var orphanId = await ApiService.CreateOrphanVideoAsync(
+                                objectKey, rawBucket, trackingNumber, stationId, operatorLabel,
+                                filePath, Path.GetFileName(filePath), recordedAtUtc, fileSize);
+
+                            if (orphanId > 0)
+                            {
+                                Start(orphanId, filePath, trackingNumber, operatorLabel, stationId,
+                                      isRecovery: true, isOrphan: true);
+                                Logger.Log($"[VideoWorkflowManager] recovery: '{trackingNumber}' not in packing_lists — orphan workflow started: {filePath}");
+                                recovered++;
+                            }
+                            else
+                            {
+                                Logger.Log($"[VideoWorkflowManager] recovery: orphan register failed for '{trackingNumber}' — leaving on disk: {filePath}");
+                                skipped++;
+                            }
+                        }
                     }
                 }
             }

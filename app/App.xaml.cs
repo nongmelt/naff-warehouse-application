@@ -49,7 +49,7 @@ public partial class App : Application
 			root = new AppShell();
 		}
 
-		var window = new Window(root) { Title = "Warehouse" };
+		var window = new Window(root) { Title = "Warehouse", MinimumWidth = 800 };
 		window.Activated += (_, _) => _windowActive = true;
 		window.Deactivated += (_, _) => _windowActive = false;
 		window.Destroying += OnWindowDestroying;

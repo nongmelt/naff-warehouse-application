@@ -121,7 +121,7 @@ public partial class OrderSearchPage
         HideLoginOverlay();
         _ = ShowWelcomeAnimationAsync(adminName);
         _ = Toast.Make("Logged in as admin").Show();
-        Logger.Log("OrderSearch: Operator logged in as admin (Ctrl+Shift+A+M bypass)");
+        Logger.Log("OrderSearch: Operator logged in as admin");
 
         // Resolve a real operator id/nickname if an "admin" operator exists in the
         // backend, so Packed/Checked attribution uses a valid id (mirrors badge login).

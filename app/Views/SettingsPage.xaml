@@ -475,6 +475,37 @@
                                                         </VerticalStackLayout>
                                                 </Border>
 
+                                                <!-- Cloudflare Access service token card -->
+                                                <Border Stroke="#d1d5db"
+                                                        StrokeThickness="1"
+                                                        StrokeShape="RoundRectangle 8"
+                                                        BackgroundColor="White"
+                                                        Padding="24">
+                                                        <VerticalStackLayout Spacing="12">
+                                                                <Label Text="Cloudflare Access service token"
+                                                                       FontAttributes="Bold"
+                                                                       FontSize="15"
+                                                                       TextColor="#111827"/>
+                                                                <Label Text="Optional. When the backend or MinIO sits behind Cloudflare Access, these are sent as the CF-Access-Client-Id / CF-Access-Client-Secret headers on both API and S3 upload requests. Leave both blank if Cloudflare Access is not used. When blank, the CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET environment variables are used instead."
+                                                                       FontSize="12"
+                                                                       TextColor="#6b7280"/>
+                                                                <Label Text="Client ID"
+                                                                       FontSize="12"
+                                                                       TextColor="#6b7280"/>
+                                                                <Entry x:Name="CfAccessClientIdEntry"
+                                                                       Placeholder="xxxxxxxxxxxx.access"
+                                                                       FontSize="13"
+                                                                       VerticalOptions="Center"/>
+                                                                <Label Text="Client Secret"
+                                                                       FontSize="12"
+                                                                       TextColor="#6b7280"/>
+                                                                <Entry x:Name="CfAccessClientSecretEntry"
+                                                                       FontSize="13"
+                                                                       IsPassword="True"
+                                                                       VerticalOptions="Center"/>
+                                                        </VerticalStackLayout>
+                                                </Border>
+
                                                 <!-- Save button -->
                                                 <Button Text="Save &amp; Test"
                                                         Clicked="OnSaveApi"
