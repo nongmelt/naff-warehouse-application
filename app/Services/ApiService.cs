@@ -334,11 +334,12 @@ public static class ApiService
     public readonly record struct ShipResult(int Status, bool PackedBackfilled, bool AlreadyShipped);
 
     public static async Task<ShipResult> ShipAsync(
-        string barcode, string? shippedBy = null, int? shippingStationId = null)
+        string barcode, string? shippedBy = null, int? shippingStationId = null,
+        bool force = false, string? forcedBy = null)
     {
         try
         {
-            var body = new { shippedBy = shippedBy?.Replace(' ', '-'), shippingStationId };
+            var body = new { shippedBy = shippedBy?.Replace(' ', '-'), shippingStationId, force, forcedBy };
             var json = JsonSerializer.Serialize(body, JsonOpts);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             var resp = await Http.PatchAsync(
