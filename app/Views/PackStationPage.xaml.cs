@@ -22,6 +22,11 @@ public partial class PackStationPage : ContentPage
     // Guards the async SearchAsync -> write round-trip against rapid double-scans.
     private bool _processing;
 
+    // Force-ship: set when the operator confirms a force; the NEXT scan is the supervisor badge.
+    private bool _awaitingSupervisorForce;
+    private string? _forceTracking;
+    private PackingList? _forceMatch;
+
     public PackStationPage()
     {
         InitializeComponent();
@@ -197,6 +202,14 @@ public partial class PackStationPage : ContentPage
 
     private async Task HandleScanAsync(string line)
     {
+        // Supervisor-force capture: the scan after a confirmed force is the supervisor badge.
+        if (_awaitingSupervisorForce)
+        {
+            _awaitingSupervisorForce = false;
+            await ForceShipAsync(_forceTracking!, _forceMatch, line);
+            return;
+        }
+
         // Operator badge? -> toggle login/logout. Checked before any tracking handling.
         if (AppSettings.TryParseOperatorBarcode(line) is { })
         {
@@ -303,12 +316,73 @@ public partial class PackStationPage : ContentPage
                 Logger.Log($"PackStation: {tracking} -> Shipped by {packer}");
             }
 
+            // Not QC-cleared but otherwise valid → a supervisor may force it through.
+            if (PackVerdict.IsForceable(verdict))
+            {
+                var ok = await DisplayAlert(
+                    "Force ship?",
+                    $"{tracking} is not QC-cleared. A supervisor must approve a force-ship.",
+                    "Force", "Cancel");
+                if (ok)
+                {
+                    _forceTracking = tracking;
+                    _forceMatch = match;
+                    _awaitingSupervisorForce = true;
+                    UpdateOverlayScannerStatus($"Scan SUPERVISOR badge to force-ship {tracking}");
+                    return; // wait for the supervisor scan; do not flash the blocked panel
+                }
+            }
+
             AddScanToHistory(match, tracking, verdict.Outcome);
             ShowParcelPanel(match, verdict, packerName);
         }
         finally
         {
             _processing = false;
+        }
+    }
+
+    private async Task ForceShipAsync(string tracking, PackingList? match, string supervisorBadge)
+    {
+        if (_processing) return;
+        _processing = true;
+        try
+        {
+            var stationId = await AppSettings.EnsureStationIdAsync();
+            var result = await ApiService.ShipAsync(
+                tracking, _currentOperator, shippingStationId: stationId,
+                force: true, forcedBy: supervisorBadge);
+
+            // Server is authoritative. Backend writes the forced audit, so we do NOT emit a
+            // normal "shipped" StationEvents here (avoids a duplicate ship event).
+            var v = result.Status switch
+            {
+                200 when !result.AlreadyShipped =>
+                    new PackVerdictResult(PackOutcome.Ship, true, "FORCED", "Force-shipped (supervisor)", "✓", PackVerdict.ColorGreen),
+                200 =>
+                    new PackVerdictResult(PackOutcome.AlreadyShipped, false, "ALREADY SHIPPED", "Already shipped", "↻", PackVerdict.ColorGrey),
+                403 =>
+                    new PackVerdictResult(PackOutcome.Blocked, false, "FORCE DENIED", "Not an active supervisor", "✕", PackVerdict.ColorRed),
+                410 =>
+                    new PackVerdictResult(PackOutcome.Cancelled, false, "CANCELLED", "Order cancelled", "✕", PackVerdict.ColorRed),
+                404 =>
+                    new PackVerdictResult(PackOutcome.NotFound, false, "NOT FOUND", "No matching order", "?", PackVerdict.ColorRed),
+                409 =>
+                    new PackVerdictResult(PackOutcome.Blocked, false, "BLOCKED", "Cannot force this parcel", "!", PackVerdict.ColorAmber),
+                _ => PackVerdict.SaveFailed(),
+            };
+
+            Logger.Log($"PackStation: force ship {tracking} by sup -> HTTP {result.Status}");
+            AddScanToHistory(match, tracking, v.Outcome);
+            ShowParcelPanel(match, v, _currentOperatorFirstName);
+            UpdateOverlayScannerStatus(
+                v.Outcome == PackOutcome.Ship ? $"Force-shipped {tracking}" : "Scan a parcel");
+        }
+        finally
+        {
+            _processing = false;
+            _forceTracking = null;
+            _forceMatch = null;
         }
     }
 
