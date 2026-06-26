@@ -16,7 +16,7 @@ public partial class PackStationPage : ContentPage
     // This raw staff-code string is what gets written as packed_by.
     private string? _currentOperator;
     private string? _currentOperatorFirstName; // resolved display name (UI only)
-    private bool _currentOperatorIsSupervisor; // true when the logged-in operator's role == "supervisor"
+    private volatile bool _currentOperatorIsSupervisor; // true when the logged-in operator's role == "supervisor"
 
     private IDispatcherTimer? _inactivityTimer;
 
@@ -226,6 +226,7 @@ public partial class PackStationPage : ContentPage
         if (_processing) return;
         _processing = true;
         var packer = _currentOperator!;
+        var supervisorCode = _currentOperator!;
         var packerName = _currentOperatorFirstName;
         try
         {
@@ -317,7 +318,7 @@ public partial class PackStationPage : ContentPage
                     "Force", "Cancel");
                 if (ok)
                 {
-                    await ForceShipAsync(tracking, match);
+                    await ForceShipAsync(tracking, match, supervisorCode);
                     return;
                 }
                 // Cancel → fall through to show the blocked panel
@@ -334,12 +335,12 @@ public partial class PackStationPage : ContentPage
 
     // Called from within HandlePackScanAsync's try block (which already holds _processing).
     // Do NOT add a _processing guard here — the caller owns the lock.
-    private async Task ForceShipAsync(string tracking, PackingList? match)
+    private async Task ForceShipAsync(string tracking, PackingList? match, string supervisorCode)
     {
         var stationId = await AppSettings.EnsureStationIdAsync();
         var result = await ApiService.ShipAsync(
-            tracking, _currentOperator, shippingStationId: stationId,
-            force: true, forcedBy: _currentOperator);
+            tracking, supervisorCode, shippingStationId: stationId,
+            force: true, forcedBy: supervisorCode);
 
         // Server is authoritative. Backend writes the forced audit, so we do NOT emit a
         // normal "shipped" StationEvents here (avoids a duplicate ship event).
@@ -360,7 +361,7 @@ public partial class PackStationPage : ContentPage
             _ => PackVerdict.SaveFailed(),
         };
 
-        Logger.Log($"PackStation: force ship {tracking} by supervisor {_currentOperator} -> HTTP {result.Status}");
+        Logger.Log($"PackStation: force ship {tracking} by supervisor {supervisorCode} -> HTTP {result.Status}");
         AddScanToHistory(match, tracking, v.Outcome);
         ShowParcelPanel(match, v, _currentOperatorFirstName);
         UpdateOverlayScannerStatus(
