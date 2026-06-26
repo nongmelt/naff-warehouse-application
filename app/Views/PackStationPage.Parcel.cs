@@ -15,6 +15,10 @@ public partial class PackStationPage
         // logged in, don't surface the panel underneath the login overlay.
         if (_currentOperator is null) return;
 
+        // Audio feedback: success tone (880 Hz / 120 ms) on ship, error tone (220 Hz / 320 ms)
+        // for every other outcome — mirrors the web dashboard beeps. Fire-and-forget.
+        Sound.PlayFor(verdict.Outcome);
+
         IdlePrompt.IsVisible = false;
         ParcelPanel.IsVisible = true;
 
