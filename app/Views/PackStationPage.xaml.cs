@@ -226,7 +226,6 @@ public partial class PackStationPage : ContentPage
         if (_processing) return;
         _processing = true;
         var packer = _currentOperator!;
-        var supervisorCode = _currentOperator!;
         var packerName = _currentOperatorFirstName;
         try
         {
@@ -309,23 +308,14 @@ public partial class PackStationPage : ContentPage
                 Logger.Log($"PackStation: {tracking} -> Shipped by {packer}");
             }
 
-            // Not QC-cleared but otherwise valid → logged-in supervisor may force it through.
-            if (PackVerdict.IsForceable(verdict) && _currentOperatorIsSupervisor)
-            {
-                var ok = await DisplayAlert(
-                    "Force ship?",
-                    $"{tracking} is not QC-cleared. Force-ship as supervisor {_currentOperatorFirstName ?? _currentOperator}?",
-                    "Force", "Cancel");
-                if (ok)
-                {
-                    await ForceShipAsync(tracking, match, supervisorCode);
-                    return;
-                }
-                // Cancel → fall through to show the blocked panel
-            }
+            // Not QC-cleared but otherwise valid → a logged-in supervisor may force it through.
+            // Rather than prompt on scan, surface the blocked panel with an amber Force-ship
+            // button; the confirmation happens only if the supervisor taps it (OnForceShipClicked).
+            var offerForce = PackVerdict.IsForceable(verdict) && _currentOperatorIsSupervisor;
 
             AddScanToHistory(match, tracking, verdict.Outcome);
             ShowParcelPanel(match, verdict, packerName);
+            if (offerForce) ShowForceOffer(tracking, match);
         }
         finally
         {
@@ -333,8 +323,64 @@ public partial class PackStationPage : ContentPage
         }
     }
 
-    // Called from within HandlePackScanAsync's try block (which already holds _processing).
-    // Do NOT add a _processing guard here — the caller owns the lock.
+    // ── Supervisor force-ship offer ──────────────────────────────────────────────
+    // A not-QC-cleared parcel scanned by a logged-in supervisor is shown with an amber
+    // Force-ship button rather than an immediate prompt. These hold the parcel the button
+    // would act on; OnForceShipClicked confirms, then force-ships.
+    private string? _pendingForceTracking;
+    private PackingList? _pendingForceMatch;
+
+    private void ShowForceOffer(string tracking, PackingList? match)
+    {
+        _pendingForceTracking = tracking;
+        _pendingForceMatch = match;
+        ForceShipButton.Text = $"⚠ Force ship {tracking}";
+        ForceShipButton.IsVisible = true;
+    }
+
+    private void HideForceOffer()
+    {
+        _pendingForceTracking = null;
+        _pendingForceMatch = null;
+        ForceShipButton.IsVisible = false;
+    }
+
+    // Tap on the amber Force-ship button: confirm, then force-ship as the current supervisor.
+    private async void OnForceShipClicked(object? sender, EventArgs e)
+    {
+        if (_processing) return;
+        var tracking = _pendingForceTracking;
+        if (tracking is null) return;
+        var match = _pendingForceMatch;
+
+        // An inactivity logout could land between showing the panel and this tap.
+        if (_currentOperator is null || !_currentOperatorIsSupervisor)
+        {
+            HideForceOffer();
+            return;
+        }
+
+        BumpActivity();
+        var ok = await DisplayAlert(
+            "Force ship?",
+            $"{tracking} is not QC-cleared. Force-ship as supervisor {_currentOperatorFirstName ?? _currentOperator}?",
+            "Force", "Cancel");
+        if (!ok) return;
+
+        _processing = true;
+        try
+        {
+            HideForceOffer();
+            await ForceShipAsync(tracking, match, _currentOperator!);
+        }
+        finally
+        {
+            _processing = false;
+        }
+    }
+
+    // Called from OnForceShipClicked (which holds _processing). Also reused after the scan
+    // path when the supervisor opts in. Do NOT add a _processing guard here — the caller owns it.
     private async Task ForceShipAsync(string tracking, PackingList? match, string supervisorCode)
     {
         var stationId = await AppSettings.EnsureStationIdAsync();
@@ -347,7 +393,7 @@ public partial class PackStationPage : ContentPage
         var v = result.Status switch
         {
             200 when !result.AlreadyShipped =>
-                new PackVerdictResult(PackOutcome.Ship, true, "FORCED", "Force-shipped (supervisor)", "✓", PackVerdict.ColorGreen),
+                new PackVerdictResult(PackOutcome.Ship, true, "FORCE-SHIPPED", "Forced by supervisor", "✓", PackVerdict.ColorGreen),
             200 =>
                 new PackVerdictResult(PackOutcome.AlreadyShipped, false, "ALREADY SHIPPED", "Already shipped", "↻", PackVerdict.ColorGrey),
             403 =>
