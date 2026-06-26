@@ -339,7 +339,7 @@ public static class ApiService
     {
         try
         {
-            var body = new { shippedBy = shippedBy?.Replace(' ', '-'), shippingStationId, force, forcedBy };
+            var body = new { shippedBy = shippedBy?.Replace(' ', '-'), shippingStationId, force, forcedBy = forcedBy?.Replace(' ', '-') };
             var json = JsonSerializer.Serialize(body, JsonOpts);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             var resp = await Http.PatchAsync(
