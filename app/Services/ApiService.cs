@@ -83,21 +83,21 @@ public static class ApiService
         }
     }
 
-    public static async Task<(string? FirstName, int? Id)> GetOperatorInfoAsync(string staffCode)
+    public static async Task<(string? FirstName, int? Id, string? Role)> GetOperatorInfoAsync(string staffCode)
     {
         try
         {
             var resp = await Http.GetAsync($"operator-lists/by-staff-code/{Uri.EscapeDataString(staffCode)}");
-            if (!resp.IsSuccessStatusCode) return (null, null);
+            if (!resp.IsSuccessStatusCode) return (null, null, null);
             var node = await resp.Content.ReadFromJsonAsync<JsonNode>(JsonOpts);
             var name = node?["nickname"]?.GetValue<string>()
                     ?? node?["firstName"]?.GetValue<string>();
-            return (name, node?["id"]?.GetValue<int>());
+            return (name, node?["id"]?.GetValue<int>(), node?["role"]?.GetValue<string>());
         }
         catch (Exception ex)
         {
             Logger.Log($"ApiService.GetOperatorInfoAsync: {ex.Message}");
-            return (null, null);
+            return (null, null, null);
         }
     }
 

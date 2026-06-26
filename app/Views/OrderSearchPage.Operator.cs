@@ -127,7 +127,7 @@ public partial class OrderSearchPage
         // backend, so Packed/Checked attribution uses a valid id (mirrors badge login).
         _ = Task.Run(async () =>
         {
-            var (firstName, operatorId) = await ApiService.GetOperatorInfoAsync(adminName);
+            var (firstName, operatorId, _) = await ApiService.GetOperatorInfoAsync(adminName);
             if (_currentOperator != adminName) return;
             _currentOperatorId = operatorId;
             if (firstName is not null)

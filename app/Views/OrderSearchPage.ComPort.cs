@@ -252,7 +252,7 @@ public partial class OrderSearchPage
                             Logger.Log($"OrderSearch: Operator logged in — {line}");
                             _ = Task.Run(async () =>
                             {
-                                var (firstName, operatorId) = await ApiService.GetOperatorInfoAsync(line);
+                                var (firstName, operatorId, _) = await ApiService.GetOperatorInfoAsync(line);
                                 if (firstName is null || _currentOperator != line) return;
                                 _currentOperatorFirstName = firstName;
                                 _currentOperatorId = operatorId;
