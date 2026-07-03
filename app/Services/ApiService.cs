@@ -83,21 +83,21 @@ public static class ApiService
         }
     }
 
-    public static async Task<(string? FirstName, int? Id)> GetOperatorInfoAsync(string staffCode)
+    public static async Task<(string? FirstName, int? Id, string? Role)> GetOperatorInfoAsync(string staffCode)
     {
         try
         {
             var resp = await Http.GetAsync($"operator-lists/by-staff-code/{Uri.EscapeDataString(staffCode)}");
-            if (!resp.IsSuccessStatusCode) return (null, null);
+            if (!resp.IsSuccessStatusCode) return (null, null, null);
             var node = await resp.Content.ReadFromJsonAsync<JsonNode>(JsonOpts);
             var name = node?["nickname"]?.GetValue<string>()
                     ?? node?["firstName"]?.GetValue<string>();
-            return (name, node?["id"]?.GetValue<int>());
+            return (name, node?["id"]?.GetValue<int>(), node?["role"]?.GetValue<string>());
         }
         catch (Exception ex)
         {
             Logger.Log($"ApiService.GetOperatorInfoAsync: {ex.Message}");
-            return (null, null);
+            return (null, null, null);
         }
     }
 
@@ -170,18 +170,39 @@ public static class ApiService
 
     // ── Search ────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Outcome of a search that distinguishes a successful (possibly empty) response
+    /// from a failed call. <see cref="Succeeded"/> is false only when the HTTP call
+    /// itself errored (network/timeout/non-2xx) — never for a genuine empty match.
+    /// </summary>
+    public readonly record struct SearchOutcome(bool Succeeded, List<PackingList> Results);
+
     public static async Task<List<PackingList>> SearchAsync(string input)
+        => (await SearchResultAsync(input)).Results;
+
+    /// <summary>
+    /// Search variant for the orphan-recovery path: returns Succeeded=true with an
+    /// (empty) list only when the backend genuinely responded; Succeeded=false on
+    /// any error so the caller can leave the file on disk instead of orphaning it.
+    /// </summary>
+    public static async Task<SearchOutcome> SearchResultAsync(string input)
     {
         try
         {
             var url = $"packing-lists?q={Uri.EscapeDataString(input)}";
-            var list = await Http.GetFromJsonAsync<List<PackingList>>(url, JsonOpts);
-            return list ?? [];
+            var resp = await Http.GetAsync(url);
+            if (!resp.IsSuccessStatusCode)
+            {
+                Logger.Log($"ApiService.SearchResultAsync: HTTP {(int)resp.StatusCode}");
+                return new SearchOutcome(false, []);
+            }
+            var list = await resp.Content.ReadFromJsonAsync<List<PackingList>>(JsonOpts);
+            return new SearchOutcome(true, list ?? []);
         }
         catch (Exception ex)
         {
-            Logger.Log($"ApiService.SearchAsync: {ex.Message}");
-            return [];
+            Logger.Log($"ApiService.SearchResultAsync: {ex.Message}");
+            return new SearchOutcome(false, []);
         }
     }
 
@@ -229,10 +250,14 @@ public static class ApiService
     // ── Videos ────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Creates a video record in the backend (status = "recorded") and returns
-    /// the new record id, or -1 on failure.
+    /// Creates a video record in the backend and classifies the outcome:
+    /// Created (2xx, with id), NoPackingList (HTTP 404 = definitive: no packing_lists
+    /// row → caller routes to the orphan path), or Failed (any other code / network
+    /// error → caller leaves the file on disk and retries later). 404 is the ONLY
+    /// orphan signal; 422 (sqlx FK/constraint) and 5xx map to Failed so we never
+    /// orphan on an ambiguous failure.
     /// </summary>
-    public static async Task<int> CreateVideoRecordAsync(
+    public static async Task<CreateVideoResult> CreateVideoResultAsync(
         string trackingNumber, string filePath, int? stationId, string @operator)
     {
         try
@@ -241,19 +266,44 @@ public static class ApiService
             var json = JsonSerializer.Serialize(body, JsonOpts);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             var resp = await Http.PostAsync("videos", content);
-            if (!resp.IsSuccessStatusCode)
+
+            var kind = OrphanCapture.ClassifyCreateVideoStatus((int)resp.StatusCode);
+            if (kind == CreateVideoResultKind.Created)
             {
-                Logger.Log($"ApiService.CreateVideoRecordAsync: HTTP {(int)resp.StatusCode}");
-                return -1;
+                var result = await resp.Content.ReadFromJsonAsync<VideoRecord>(JsonOpts);
+                if (result is not null && result.Id > 0)
+                    return CreateVideoResult.Created(result.Id);
+                Logger.Log("ApiService.CreateVideoResultAsync: 2xx but missing/invalid id in body");
+                return CreateVideoResult.Failed;
             }
-            var result = await resp.Content.ReadFromJsonAsync<VideoRecord>(JsonOpts);
-            return result?.Id ?? -1;
+
+            if (kind == CreateVideoResultKind.NoPackingList)
+            {
+                Logger.Log($"ApiService.CreateVideoResultAsync: HTTP 404 for '{trackingNumber}' — no packing_lists row (orphan)");
+                return CreateVideoResult.NoPackingList;
+            }
+
+            Logger.Log($"ApiService.CreateVideoResultAsync: HTTP {(int)resp.StatusCode} — leaving on disk");
+            return CreateVideoResult.Failed;
         }
         catch (Exception ex)
         {
-            Logger.Log($"ApiService.CreateVideoRecordAsync: {ex.Message}");
-            return -1;
+            Logger.Log($"ApiService.CreateVideoResultAsync: {ex.Message}");
+            return CreateVideoResult.Failed;
         }
+    }
+
+    /// <summary>
+    /// Backwards-compatible wrapper: returns the new record id, or -1 on failure
+    /// (including 404). Existing call sites that only need ">0" keep working.
+    /// New callers that must distinguish a 404 should use
+    /// <see cref="CreateVideoResultAsync"/>.
+    /// </summary>
+    public static async Task<int> CreateVideoRecordAsync(
+        string trackingNumber, string filePath, int? stationId, string @operator)
+    {
+        var result = await CreateVideoResultAsync(trackingNumber, filePath, stationId, @operator);
+        return result.Kind == CreateVideoResultKind.Created ? result.VideoId : -1;
     }
 
     /// <summary>
@@ -284,11 +334,12 @@ public static class ApiService
     public readonly record struct ShipResult(int Status, bool PackedBackfilled, bool AlreadyShipped);
 
     public static async Task<ShipResult> ShipAsync(
-        string barcode, string? shippedBy = null, int? shippingStationId = null)
+        string barcode, string? shippedBy = null, int? shippingStationId = null,
+        bool force = false, string? forcedBy = null)
     {
         try
         {
-            var body = new { shippedBy = shippedBy?.Replace(' ', '-'), shippingStationId };
+            var body = new { shippedBy = shippedBy?.Replace(' ', '-'), shippingStationId, force, forcedBy = forcedBy?.Replace(' ', '-') };
             var json = JsonSerializer.Serialize(body, JsonOpts);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             var resp = await Http.PatchAsync(
@@ -350,6 +401,68 @@ public static class ApiService
         catch (Exception ex)
         {
             Logger.Log($"ApiService.UpdateVideoStatusAsync: {ex.Message}");
+            return false;
+        }
+    }
+
+    // ── Orphan videos ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Registers an orphan video (no packing_lists row) via POST /orphan-videos.
+    /// Idempotent on objectKey server-side. Returns the new/existing row id, or
+    /// -1 on any failure (caller leaves the file on disk).
+    /// </summary>
+    public static async Task<int> CreateOrphanVideoAsync(
+        string objectKey, string bucket, string? scannedText, int? stationId,
+        string? @operator, string filePath, string fileName,
+        DateTime recordedAtUtc, long fileSize)
+    {
+        try
+        {
+            var body = new CreateOrphanRequest(
+                objectKey, bucket, scannedText, stationId,
+                @operator?.Replace(' ', '-'),
+                recordedAtUtc.ToUniversalTime().ToString("o"),
+                fileSize, filePath, fileName);
+            var json = JsonSerializer.Serialize(body, JsonOpts);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var resp = await Http.PostAsync("orphan-videos", content);
+            if (!resp.IsSuccessStatusCode)
+            {
+                Logger.Log($"ApiService.CreateOrphanVideoAsync: HTTP {(int)resp.StatusCode} for {objectKey}");
+                return -1;
+            }
+            var result = await resp.Content.ReadFromJsonAsync<OrphanVideoRecord>(JsonOpts);
+            return result?.Id ?? -1;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.CreateOrphanVideoAsync: {ex.Message}");
+            return -1;
+        }
+    }
+
+    /// <summary>
+    /// PATCH /orphan-videos/{id}/status — twin of UpdateVideoStatusAsync, used by
+    /// VideoWorkflowRunner when running an orphan capture.
+    /// </summary>
+    public static async Task<bool> UpdateOrphanVideoStatusAsync(
+        int id, string status, string? remoteFilePath = null,
+        string? failureReason = null, int? uploadAttempts = null)
+    {
+        try
+        {
+            var body = new UpdateVideoStatusRequest(status, remoteFilePath, failureReason, uploadAttempts);
+            var json = JsonSerializer.Serialize(body, JsonOpts);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var resp = await Http.PatchAsync($"orphan-videos/{id}/status", content);
+            if (!resp.IsSuccessStatusCode)
+                Logger.Log($"ApiService.UpdateOrphanVideoStatusAsync: HTTP {(int)resp.StatusCode}");
+            return resp.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.UpdateOrphanVideoStatusAsync: {ex.Message}");
             return false;
         }
     }
@@ -700,4 +813,23 @@ public static class ApiService
         [property: JsonPropertyName("sellerSku")] string SellerSku,
         [property: JsonPropertyName("imagePath")] string? ImagePath,
         [property: JsonPropertyName("qcNotes")] string? QcNotes = null);
+
+    // DTOs for the orphan create round-trip.
+    private record CreateOrphanRequest(
+        [property: JsonPropertyName("objectKey")]   string  ObjectKey,
+        [property: JsonPropertyName("bucket")]      string  Bucket,
+        [property: JsonPropertyName("scannedText")] string? ScannedText,
+        [property: JsonPropertyName("stationId")]   int?    StationId,
+        [property: JsonPropertyName("operator")]    string? Operator,
+        [property: JsonPropertyName("recordedAt")]  string  RecordedAt,
+        [property: JsonPropertyName("fileSize")]    long    FileSize,
+        [property: JsonPropertyName("filePath")]    string  FilePath,
+        [property: JsonPropertyName("fileName")]    string  FileName);
+
+    public sealed class OrphanVideoRecord
+    {
+        [JsonPropertyName("id")]          public int    Id          { get; set; }
+        [JsonPropertyName("status")]      public string? Status     { get; set; }
+        [JsonPropertyName("matchStatus")] public string? MatchStatus { get; set; }
+    }
 }

@@ -277,6 +277,24 @@
                 <Label Text="No matching order" FontSize="16" FontAttributes="Bold" TextColor="#64748b" HorizontalOptions="Center"/>
                 <Label Text="Nothing to show for this tracking number." FontSize="12" TextColor="#94a3b8" HorizontalOptions="Center"/>
             </VerticalStackLayout>
+
+            <!-- Supervisor force-ship: shown (amber) only when a not-QC-cleared parcel is scanned
+                 by a logged-in supervisor. Floats over the bottom of the contents; tapping it
+                 asks for confirmation, then force-ships (OnForceShipClicked). -->
+            <Button x:Name="ForceShipButton"
+                    Grid.Row="1"
+                    IsVisible="False"
+                    Clicked="OnForceShipClicked"
+                    Text="&#x26A0; Force ship"
+                    FontSize="16" FontAttributes="Bold"
+                    TextColor="White"
+                    BackgroundColor="#f59e0b"
+                    CornerRadius="12"
+                    Padding="22,0"
+                    HeightRequest="52"
+                    HorizontalOptions="Center"
+                    VerticalOptions="End"
+                    Margin="0,0,0,12"/>
         </Grid>
 
         <!-- Bottom hint bar (mirrors Order Search footer) -->

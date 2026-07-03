@@ -684,10 +684,10 @@ public partial class StationView : ContentView, IDisposable
                     else
                     {
                         var stationId = await AppSettings.EnsureStationIdAsync();
-                        var videoId = await ApiService.CreateVideoRecordAsync(
+                        var result = await ApiService.CreateVideoResultAsync(
                             resetBarcode!, filePath, stationId, EffectiveOperator);
 
-                        if (videoId > 0)
+                        if (result.Kind == CreateVideoResultKind.Created)
                         {
                             StationEvents.Emit(
                                 workflowName: "Packing",
@@ -700,15 +700,20 @@ public partial class StationView : ContentView, IDisposable
                                 @operator: EffectiveOperator,
                                 payload: new Dictionary<string, object?>
                                 {
-                                    ["videoId"] = videoId,
+                                    ["videoId"] = result.VideoId,
                                 });
                             VideoWorkflowManager.Start(
-                                videoId, filePath, resetBarcode!,
+                                result.VideoId, filePath, resetBarcode!,
                                 EffectiveOperator, stationId);
+                        }
+                        else if (result.Kind == CreateVideoResultKind.NoPackingList)
+                        {
+                            Logger.Log($"Station {_stationId}: no packing list for '{resetBarcode}' — capturing as orphan via workflow");
+                            await StartOrphanWorkflowAsync(filePath, resetBarcode!, stationId, recordingStartedAt);
                         }
                         else
                         {
-                            Logger.Log($"Station {_stationId}: failed to create video record for reset, skipping upload");
+                            Logger.Log($"Station {_stationId}: failed to create video record for reset, leaving on disk");
                         }
                     }
                 }
@@ -769,10 +774,10 @@ public partial class StationView : ContentView, IDisposable
                     else
                     {
                         var stationId = await AppSettings.EnsureStationIdAsync();
-                        var videoId = await ApiService.CreateVideoRecordAsync(
+                        var result = await ApiService.CreateVideoResultAsync(
                             finishedBarcode!, filePath, stationId, EffectiveOperator);
 
-                        if (videoId > 0)
+                        if (result.Kind == CreateVideoResultKind.Created)
                         {
                             StationEvents.Emit(
                                 workflowName: "Packing",
@@ -785,15 +790,20 @@ public partial class StationView : ContentView, IDisposable
                                 @operator: EffectiveOperator,
                                 payload: new Dictionary<string, object?>
                                 {
-                                    ["videoId"] = videoId,
+                                    ["videoId"] = result.VideoId,
                                 });
                             VideoWorkflowManager.Start(
-                                videoId, filePath, finishedBarcode!,
+                                result.VideoId, filePath, finishedBarcode!,
                                 EffectiveOperator, stationId);
+                        }
+                        else if (result.Kind == CreateVideoResultKind.NoPackingList)
+                        {
+                            Logger.Log($"Station {_stationId}: no packing list for '{finishedBarcode}' — capturing as orphan via workflow");
+                            await StartOrphanWorkflowAsync(filePath, finishedBarcode!, stationId, recordingStartedAt);
                         }
                         else
                         {
-                            Logger.Log($"Station {_stationId}: failed to create video record, skipping upload");
+                            Logger.Log($"Station {_stationId}: failed to create video record, leaving on disk");
                         }
                     }
                 }
@@ -1042,6 +1052,37 @@ public partial class StationView : ContentView, IDisposable
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Registers an order-less recording as an orphan_videos row, then runs the
+    /// shared VideoWorkflowRunner against warehouse-raw + the /orphan-videos
+    /// status route (isOrphan: true). Best-effort: a failed register leaves the
+    /// file on disk for the next recovery pass.
+    /// </summary>
+    private async Task StartOrphanWorkflowAsync(
+        string filePath, string scannedText, int? stationId, DateTime recordedAtUtc)
+    {
+        var rawBucket = AppSettings.MinioRawBucket?.Trim();
+        if (string.IsNullOrWhiteSpace(rawBucket))
+        {
+            Logger.Log($"Station {_stationId}: raw bucket not configured — leaving orphan on disk");
+            return;
+        }
+
+        var objectKey = OrphanCapture.BuildRawObjectKey(filePath, DateTime.Now);
+        long fileSize = 0;
+        try { fileSize = new FileInfo(filePath).Length; } catch { /* best-effort */ }
+
+        var orphanId = await ApiService.CreateOrphanVideoAsync(
+            objectKey, rawBucket, scannedText, stationId, EffectiveOperator,
+            filePath, Path.GetFileName(filePath), recordedAtUtc, fileSize);
+
+        if (orphanId > 0)
+            VideoWorkflowManager.Start(
+                orphanId, filePath, scannedText, EffectiveOperator, stationId, isOrphan: true);
+        else
+            Logger.Log($"Station {_stationId}: orphan register failed for '{scannedText}' — leaving on disk");
+    }
 
     private void UpdateStatus(string text) =>
         TryDispatchUI(() => StatusLabel.Text = text);

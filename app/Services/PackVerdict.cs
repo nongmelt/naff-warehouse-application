@@ -61,6 +61,14 @@ public static class PackVerdict
         return new(PackOutcome.Blocked, false, "AWAITING QC", "Not yet QC'd", "!", ColorAmber);
     }
 
+    /// <summary>
+    /// True when a Blocked verdict is the "not yet QC'd / not packable" gate — the only
+    /// state a supervisor may force past. QC Hold, Cancelled, NotFound, AlreadyShipped and
+    /// a normal Ship are never forceable. Mirrors the backend force scope.
+    /// </summary>
+    public static bool IsForceable(PackVerdictResult v) =>
+        v.Outcome == PackOutcome.Blocked && v.Word == "AWAITING QC";
+
     /// <summary>Verdict shown when the REST write itself fails (network / server error).</summary>
     public static PackVerdictResult SaveFailed() =>
         new(PackOutcome.SaveFailed, false, "SAVE FAILED", "Could not reach server", "!", ColorRed);

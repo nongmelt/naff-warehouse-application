@@ -29,6 +29,7 @@ public sealed class VideoWorkflowRunner
     private readonly WorkflowEngine _engine;
     private readonly WorkflowContext _ctx;
     private readonly bool _isRecovery;
+    private readonly bool _isOrphan;
 
     private string? _bucket;
     private string? _objectName;
@@ -39,9 +40,11 @@ public sealed class VideoWorkflowRunner
         string trackingNumber,
         string? @operator,
         int? stationId,
-        bool isRecovery = false)
+        bool isRecovery = false,
+        bool isOrphan = false)
     {
         _isRecovery = isRecovery;
+        _isOrphan = isOrphan;
         _engine = new WorkflowEngine(VideoWorkflow.Build());
         _ctx = new WorkflowContext
         {
@@ -78,8 +81,7 @@ public sealed class VideoWorkflowRunner
             var sw = Stopwatch.StartNew();
             try
             {
-                await ApiService.UpdateVideoStatusAsync(
-                    _ctx.VideoId!.Value, "Uploading", uploadAttempts: _ctx.UploadAttempt + 1);
+                await SetStatusAsync("Uploading", uploadAttempts: _ctx.UploadAttempt + 1);
 
                 var (_, sizeBytes) = await DoMinioUploadAsync(ct);
                 sw.Stop();
@@ -89,8 +91,7 @@ public sealed class VideoWorkflowRunner
                 _ctx.UploadDurationMs = sw.ElapsedMilliseconds;
                 _ctx.VideoFileSizeBytes = sizeBytes;
 
-                await ApiService.UpdateVideoStatusAsync(
-                    _ctx.VideoId.Value, "Uploaded", uploadAttempts: _ctx.UploadAttempt + 1);
+                await SetStatusAsync("Uploaded", uploadAttempts: _ctx.UploadAttempt + 1);
             }
             catch (Exception ex)
             {
@@ -145,13 +146,11 @@ public sealed class VideoWorkflowRunner
             if (exists)
             {
                 var remoteFilePath = $"{_bucket}/{_objectName}";
-                await ApiService.UpdateVideoStatusAsync(
-                    _ctx.VideoId!.Value, "Completed", remoteFilePath: remoteFilePath);
+                await SetStatusAsync("Completed", remoteFilePath: remoteFilePath);
             }
             else
             {
-                await ApiService.UpdateVideoStatusAsync(
-                    _ctx.VideoId!.Value, "Failed", failureReason: "remote_missing");
+                await SetStatusAsync("Failed", failureReason: "remote_missing");
             }
 
             await _engine.FireAsync("verify_remote", _ctx);
@@ -163,21 +162,23 @@ public sealed class VideoWorkflowRunner
             VideoWorkflowManager.ReportProgress(_ctx.VideoId!.Value, fileName, "Completed", _ctx.UploadAttempt);
             // Hotfix 1.4.4.1: a recovered upload that verifies Completed advances its packing
             // list to "Packed" (when still pre-Packed and present in packing_lists).
-            if (_isRecovery)
+            if (_isRecovery && !_isOrphan)
                 await VideoWorkflowManager.MarkPackedIfEligibleAsync(
                     _ctx.ActiveBarcode, _ctx.LocalFilePath, _ctx.StationId);
-            if (AppSettings.AutoDeleteCompletedVideos)
+            // Orphans always self-delete on completion: their local file has no
+            // cross-check value, and leaving it would make the next recovery pass
+            // re-register + re-PUT into warehouse-raw — resurrecting bytes that
+            // assign/discard may have already deleted. Normal videos keep the flag.
+            if (_isOrphan || AppSettings.AutoDeleteCompletedVideos)
                 TryDeleteLocalFile();
             VideoWorkflowManager.RemoveProgress(_ctx.VideoId!.Value);
         }
         else if (_engine.CurrentState == "failed")
         {
             VideoWorkflowManager.ReportProgress(_ctx.VideoId!.Value, fileName, "Failed", _ctx.UploadAttempt);
-            await ApiService.UpdateVideoStatusAsync(
-                _ctx.VideoId!.Value, "Failed",
-                failureReason: _ctx.FailureReason,
-                uploadAttempts: _ctx.UploadAttempt);
-            await ApiService.NotifyManualUploadNeededAsync(_ctx.VideoId!.Value);
+            await SetStatusAsync("Failed",
+                failureReason: _ctx.FailureReason, uploadAttempts: _ctx.UploadAttempt);
+            await NotifyManualUploadAsync();
             VideoWorkflowManager.RemoveProgress(_ctx.VideoId!.Value);
         }
     }
@@ -192,6 +193,21 @@ public sealed class VideoWorkflowRunner
         if (_engine.CurrentState == "uploading")
             await RunAsync(ct);
     }
+
+    // ── Endpoint routing (packing video vs orphan) ──────────────────────────
+    private Task<bool> SetStatusAsync(
+        string status, string? remoteFilePath = null,
+        string? failureReason = null, int? uploadAttempts = null)
+        => _isOrphan
+            ? ApiService.UpdateOrphanVideoStatusAsync(
+                _ctx.VideoId!.Value, status, remoteFilePath, failureReason, uploadAttempts)
+            : ApiService.UpdateVideoStatusAsync(
+                _ctx.VideoId!.Value, status, remoteFilePath, failureReason, uploadAttempts);
+
+    private Task<bool> NotifyManualUploadAsync()
+        => _isOrphan
+            ? Task.FromResult(true)  // no orphan manual-upload channel; status='Failed' is the signal
+            : ApiService.NotifyManualUploadNeededAsync(_ctx.VideoId!.Value);
 
     // ── MinIO helpers ────────────────────────────────────────────────────────
 
@@ -278,7 +294,7 @@ public sealed class VideoWorkflowRunner
 
     private async Task<(string objectName, long sizeBytes)> DoMinioUploadAsync(CancellationToken ct)
     {
-        var bucket = AppSettings.MinioBucket?.Trim();
+        var bucket = (_isOrphan ? AppSettings.MinioRawBucket : AppSettings.MinioBucket)?.Trim();
         if (string.IsNullOrWhiteSpace(bucket))
             throw new InvalidOperationException("MinIO bucket not configured");
 

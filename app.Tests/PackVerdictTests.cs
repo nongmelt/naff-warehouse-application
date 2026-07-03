@@ -90,4 +90,36 @@ public class PackVerdictTests
         Assert.Equal("SAVE FAILED", v.Word);
         Assert.Equal(PackVerdict.ColorRed, v.Color);
     }
+
+    [Theory]
+    [InlineData("To be packed")]
+    [InlineData(null)]
+    public void Awaiting_qc_is_forceable(string? status)
+    {
+        var v = PackVerdict.Evaluate(found: true, cancelled: false, packingStatus: status, allItemsCleared: false);
+        Assert.True(PackVerdict.IsForceable(v));
+    }
+
+    [Fact]
+    public void Qc_hold_is_not_forceable()
+    {
+        var v = PackVerdict.Evaluate(found: true, cancelled: false, packingStatus: "QC Hold", allItemsCleared: true);
+        Assert.False(PackVerdict.IsForceable(v));
+    }
+
+    [Theory]
+    [InlineData("Packed")]
+    [InlineData("QC Passed")]
+    public void Shippable_is_not_forceable(string status)
+    {
+        var v = PackVerdict.Evaluate(found: true, cancelled: false, packingStatus: status, allItemsCleared: true);
+        Assert.False(PackVerdict.IsForceable(v)); // ships normally, nothing to force
+    }
+
+    [Fact]
+    public void Cancelled_and_notfound_are_not_forceable()
+    {
+        Assert.False(PackVerdict.IsForceable(PackVerdict.Evaluate(found: false, cancelled: false, packingStatus: null, allItemsCleared: false)));
+        Assert.False(PackVerdict.IsForceable(PackVerdict.Evaluate(found: true, cancelled: true, packingStatus: "Packing", allItemsCleared: false)));
+    }
 }
