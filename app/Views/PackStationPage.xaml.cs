@@ -16,6 +16,7 @@ public partial class PackStationPage : ContentPage
     // This raw staff-code string is what gets written as packed_by.
     private string? _currentOperator;
     private string? _currentOperatorFirstName; // resolved display name (UI only)
+    private volatile bool _currentOperatorIsSupervisor; // true when the logged-in operator's role == "supervisor"
 
     private IDispatcherTimer? _inactivityTimer;
 
@@ -97,6 +98,7 @@ public partial class PackStationPage : ContentPage
     {
         _currentOperator = badge;
         _currentOperatorFirstName = null;
+        _currentOperatorIsSupervisor = false;
         StartInactivityTimer();
         StationWsClient.SendOperatorLogin(badge, SessionKind.Packing);
         UpdateNavOperatorUI(badge);
@@ -107,8 +109,10 @@ public partial class PackStationPage : ContentPage
         Logger.Log($"PackStation: Operator logged in — {badge}");
         _ = Task.Run(async () =>
         {
-            var (firstName, _) = await ApiService.GetOperatorInfoAsync(badge);
-            if (firstName is null || _currentOperator != badge) return;
+            var (firstName, _, role) = await ApiService.GetOperatorInfoAsync(badge);
+            if (_currentOperator != badge) return;
+            _currentOperatorIsSupervisor = string.Equals(role, "supervisor", StringComparison.OrdinalIgnoreCase);
+            if (firstName is null) return;
             _currentOperatorFirstName = firstName;
             MainThread.BeginInvokeOnMainThread(() =>
             {
@@ -124,6 +128,7 @@ public partial class PackStationPage : ContentPage
         var displayName = _currentOperatorFirstName ?? _currentOperator;
         _currentOperator = null;
         _currentOperatorFirstName = null;
+        _currentOperatorIsSupervisor = false;
         StopInactivityTimer();
         StationWsClient.SendOperatorLogout();
         UpdateNavOperatorUI(null);
@@ -303,13 +308,110 @@ public partial class PackStationPage : ContentPage
                 Logger.Log($"PackStation: {tracking} -> Shipped by {packer}");
             }
 
+            // Not QC-cleared but otherwise valid → a logged-in supervisor may force it through.
+            // Rather than prompt on scan, surface the blocked panel with an amber Force-ship
+            // button; the confirmation happens only if the supervisor taps it (OnForceShipClicked).
+            var offerForce = PackVerdict.IsForceable(verdict) && _currentOperatorIsSupervisor;
+
             AddScanToHistory(match, tracking, verdict.Outcome);
             ShowParcelPanel(match, verdict, packerName);
+            if (offerForce) ShowForceOffer(tracking, match);
         }
         finally
         {
             _processing = false;
         }
+    }
+
+    // ── Supervisor force-ship offer ──────────────────────────────────────────────
+    // A not-QC-cleared parcel scanned by a logged-in supervisor is shown with an amber
+    // Force-ship button rather than an immediate prompt. These hold the parcel the button
+    // would act on; OnForceShipClicked confirms, then force-ships.
+    private string? _pendingForceTracking;
+    private PackingList? _pendingForceMatch;
+
+    private void ShowForceOffer(string tracking, PackingList? match)
+    {
+        _pendingForceTracking = tracking;
+        _pendingForceMatch = match;
+        ForceShipButton.Text = $"⚠ Force ship {tracking}";
+        ForceShipButton.IsVisible = true;
+    }
+
+    private void HideForceOffer()
+    {
+        _pendingForceTracking = null;
+        _pendingForceMatch = null;
+        ForceShipButton.IsVisible = false;
+    }
+
+    // Tap on the amber Force-ship button: confirm, then force-ship as the current supervisor.
+    private async void OnForceShipClicked(object? sender, EventArgs e)
+    {
+        if (_processing) return;
+        var tracking = _pendingForceTracking;
+        if (tracking is null) return;
+        var match = _pendingForceMatch;
+
+        // An inactivity logout could land between showing the panel and this tap.
+        if (_currentOperator is null || !_currentOperatorIsSupervisor)
+        {
+            HideForceOffer();
+            return;
+        }
+
+        BumpActivity();
+        var ok = await DisplayAlert(
+            "Force ship?",
+            $"{tracking} is not QC-cleared. Force-ship as supervisor {_currentOperatorFirstName ?? _currentOperator}?",
+            "Force", "Cancel");
+        if (!ok) return;
+
+        _processing = true;
+        try
+        {
+            HideForceOffer();
+            await ForceShipAsync(tracking, match, _currentOperator!);
+        }
+        finally
+        {
+            _processing = false;
+        }
+    }
+
+    // Called from OnForceShipClicked (which holds _processing). Also reused after the scan
+    // path when the supervisor opts in. Do NOT add a _processing guard here — the caller owns it.
+    private async Task ForceShipAsync(string tracking, PackingList? match, string supervisorCode)
+    {
+        var stationId = await AppSettings.EnsureStationIdAsync();
+        var result = await ApiService.ShipAsync(
+            tracking, supervisorCode, shippingStationId: stationId,
+            force: true, forcedBy: supervisorCode);
+
+        // Server is authoritative. Backend writes the forced audit, so we do NOT emit a
+        // normal "shipped" StationEvents here (avoids a duplicate ship event).
+        var v = result.Status switch
+        {
+            200 when !result.AlreadyShipped =>
+                new PackVerdictResult(PackOutcome.Ship, true, "FORCE-SHIPPED", "Forced by supervisor", "✓", PackVerdict.ColorGreen),
+            200 =>
+                new PackVerdictResult(PackOutcome.AlreadyShipped, false, "ALREADY SHIPPED", "Already shipped", "↻", PackVerdict.ColorGrey),
+            403 =>
+                new PackVerdictResult(PackOutcome.Blocked, false, "FORCE DENIED", "Not an active supervisor", "✕", PackVerdict.ColorRed),
+            410 =>
+                new PackVerdictResult(PackOutcome.Cancelled, false, "CANCELLED", "Order cancelled", "✕", PackVerdict.ColorRed),
+            404 =>
+                new PackVerdictResult(PackOutcome.NotFound, false, "NOT FOUND", "No matching order", "?", PackVerdict.ColorRed),
+            409 =>
+                new PackVerdictResult(PackOutcome.Blocked, false, "BLOCKED", "Cannot force this parcel", "!", PackVerdict.ColorAmber),
+            _ => PackVerdict.SaveFailed(),
+        };
+
+        Logger.Log($"PackStation: force ship {tracking} by supervisor {supervisorCode} -> HTTP {result.Status}");
+        AddScanToHistory(match, tracking, v.Outcome);
+        ShowParcelPanel(match, v, _currentOperatorFirstName);
+        UpdateOverlayScannerStatus(
+            v.Outcome == PackOutcome.Ship ? $"Force-shipped {tracking}" : "Scan a parcel");
     }
 
 }

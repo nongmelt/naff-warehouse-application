@@ -15,8 +15,13 @@ public partial class PackStationPage
         // logged in, don't surface the panel underneath the login overlay.
         if (_currentOperator is null) return;
 
+        // Audio feedback: a single success tone on ship, a synthesised error-pop alert for every
+        // other outcome. Fire-and-forget.
+        Sound.PlayFor(verdict.Outcome);
+
         IdlePrompt.IsVisible = false;
         ParcelPanel.IsVisible = true;
+        HideForceOffer();   // reset; the scan path re-shows it when forceable + supervisor
 
         // Already-shipped parcels are historical → grey item cards. Freshly-shipped / picking
         // parcels colour each line by its own verification state (green/orange) in BuildParcelCard.
@@ -84,6 +89,7 @@ public partial class PackStationPage
         ParcelPanel.IsVisible = false;
         HeaderParcelInfo.IsVisible = false;
         ParcelContentsStack.Children.Clear();
+        HideForceOffer();
         IdlePrompt.IsVisible = true;
     }
 
