@@ -23,6 +23,11 @@ public partial class PackStationPage : ContentPage
     // Guards the async SearchAsync -> write round-trip against rapid double-scans.
     private bool _processing;
 
+    // Ship/Returns toggle (mirrors Order Search's AppMode). Session-only — always starts on
+    // Ship when the page is constructed.
+    public enum PackMode { Ship, Returns }
+    private PackMode _currentMode = PackMode.Ship;
+
     public PackStationPage()
     {
         InitializeComponent();
@@ -233,6 +238,12 @@ public partial class PackStationPage : ContentPage
             var rows = await ApiService.SearchAsync(tracking);
             var match = rows.FirstOrDefault(r =>
                 string.Equals(r.TrackingNumber, tracking, StringComparison.OrdinalIgnoreCase));
+
+            if (_currentMode == PackMode.Returns)
+            {
+                await HandleReturnScanAsync(tracking, match);
+                return;
+            }
 
             var verdict = PackVerdict.Evaluate(
                 found: match != null,

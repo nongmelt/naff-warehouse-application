@@ -337,6 +337,31 @@ public partial class PackStationPage
         // Don't steal arrows while typing in any Entry / TextBox (mirrors Order Search).
         if (e.OriginalSource is Microsoft.UI.Xaml.Controls.TextBox) return;
 
+        // Returns confirm overlay: 1-5 select a reason chip, Enter confirms (once a reason is
+        // chosen), Esc cancels. Mirrors OrderSearchPage.Keyboard.cs's Returns-mode block.
+        if (ReturnsConfirmOverlay.IsVisible)
+        {
+            if (e.Key >= Windows.System.VirtualKey.Number1 && e.Key <= Windows.System.VirtualKey.Number5)
+            {
+                var idx = (int)e.Key - (int)Windows.System.VirtualKey.Number1;
+                if (idx < ReturnReasons.Length) SelectReasonChip(ReturnReasons[idx]);
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Windows.System.VirtualKey.Enter && ReturnsConfirmBtn.IsEnabled)
+            {
+                OnReturnConfirmClicked(null, EventArgs.Empty);
+                e.Handled = true;
+                return;
+            }
+            if (e.Key == Windows.System.VirtualKey.Escape)
+            {
+                HideReturnsConfirm();
+                e.Handled = true;
+                return;
+            }
+        }
+
         // ← newer · → older : step the read-only history carousel. Pure review — NavigateHistory
         // opens the cached parcel and never calls ShipAsync, so arrows can't ship or change QC.
         var isLeft = e.Key == Windows.System.VirtualKey.Left;

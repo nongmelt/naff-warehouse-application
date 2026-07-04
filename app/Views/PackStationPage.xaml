@@ -40,7 +40,8 @@
                        TextColor="White"
                        FontSize="16"
                        FontAttributes="Bold"/>
-                <Label Text="SEAL &amp; VERIFY"
+                <Label x:Name="PageSubtitleLabel"
+                       Text="SEAL &amp; VERIFY"
                        TextColor="#7c8aa3"
                        FontSize="9"
                        FontAttributes="Bold"/>
@@ -60,6 +61,34 @@
                 <Label x:Name="HeaderParcelTracking" Text="" TextColor="#dbe4f0" FontSize="15" FontFamily="Consolas" VerticalOptions="Center"/>
             </HorizontalStackLayout>
             <HorizontalStackLayout Grid.Column="2" Spacing="10" VerticalOptions="Center">
+                <!-- Ship/Returns mode badge (mirrors Order Search's ModeBadge) -->
+                <Border x:Name="PackModeBadge"
+                        BackgroundColor="#1Affffff"
+                        Stroke="#30ffffff"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 6"
+                        Padding="12,6"
+                        VerticalOptions="Center">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnPackModeBadgeTapped"/>
+                    </Border.GestureRecognizers>
+                    <HorizontalStackLayout Spacing="6">
+                        <Label Text="MODE"
+                               TextColor="#94a3b8"
+                               FontSize="10"
+                               VerticalOptions="Center"/>
+                        <Label x:Name="PackModeLabel"
+                               Text="SHIP"
+                               TextColor="White"
+                               FontSize="12"
+                               FontAttributes="Bold"
+                               VerticalOptions="Center"/>
+                        <Label Text="&#x25BE;"
+                               TextColor="#94a3b8"
+                               FontSize="10"
+                               VerticalOptions="Center"/>
+                    </HorizontalStackLayout>
+                </Border>
                 <!-- COM port dropdown badge (always reachable, like Order Search) -->
                 <Border x:Name="ComPortBadge"
                         BackgroundColor="#1Affffff"
@@ -295,6 +324,24 @@
                     HorizontalOptions="Center"
                     VerticalOptions="End"
                     Margin="0,0,0,12"/>
+
+            <!-- Supervisor undo-return: shown (amber) when a logged-in supervisor scans an
+                 already-Returned parcel in Returns mode. Tapping asks for confirmation, then
+                 restores the parcel to Shipped (OnUndoReturnClicked). -->
+            <Button x:Name="UndoReturnButton"
+                    Grid.Row="1"
+                    IsVisible="False"
+                    Clicked="OnUndoReturnClicked"
+                    Text="&#x2B8C; Undo return"
+                    FontSize="16" FontAttributes="Bold"
+                    TextColor="White"
+                    BackgroundColor="#d97706"
+                    CornerRadius="12"
+                    Padding="22,0"
+                    HeightRequest="52"
+                    HorizontalOptions="Center"
+                    VerticalOptions="End"
+                    Margin="0,0,0,12"/>
         </Grid>
 
         <!-- Bottom hint bar (mirrors Order Search footer) -->
@@ -405,6 +452,149 @@
                 <VerticalStackLayout x:Name="ComPortDropdownList"
                                      Spacing="0"
                                      Padding="8"/>
+            </Border>
+        </Grid>
+
+        <!-- Ship/Returns mode dropdown popover (mirrors Order Search's ModeDropdownBackdrop) -->
+        <Grid x:Name="PackModeDropdownBackdrop"
+              Grid.Row="0"
+              Grid.RowSpan="4"
+              BackgroundColor="Transparent"
+              IsVisible="False"
+              ZIndex="20"
+              InputTransparent="False">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnPackModeDropdownBackdropTapped"/>
+            </Grid.GestureRecognizers>
+            <Border x:Name="PackModeDropdownCard"
+                    HorizontalOptions="End"
+                    VerticalOptions="Start"
+                    Margin="0,48,140,0"
+                    Stroke="#e5e7eb"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 6"
+                    BackgroundColor="White"
+                    Padding="0"
+                    WidthRequest="220"
+                    InputTransparent="False">
+                <Border.Shadow>
+                    <Shadow Brush="#26000000" Offset="0,4" Radius="12"/>
+                </Border.Shadow>
+                <VerticalStackLayout Spacing="0" Padding="8">
+                    <!-- Ship mode -->
+                    <Border x:Name="PackModeOptionShip"
+                            BackgroundColor="#f5f5ff"
+                            Stroke="Transparent"
+                            StrokeShape="RoundRectangle 6"
+                            Padding="16">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnPackModeSelectShip"/>
+                        </Border.GestureRecognizers>
+                        <Grid ColumnDefinitions="*, Auto">
+                            <VerticalStackLayout Grid.Column="0" Spacing="4">
+                                <Label Text="Ship"
+                                       TextColor="#4338ca"
+                                       FontSize="15"
+                                       FontAttributes="Bold"/>
+                                <Label Text="scan &amp; dispatch"
+                                       TextColor="#9ca3af"
+                                       FontSize="11"
+                                       FontFamily="Consolas"/>
+                            </VerticalStackLayout>
+                            <Label x:Name="PackModeCheckShip"
+                                   Grid.Column="1"
+                                   Text="✓"
+                                   TextColor="#4338ca"
+                                   FontSize="16"
+                                   FontAttributes="Bold"
+                                   VerticalOptions="Center"/>
+                        </Grid>
+                    </Border>
+                    <!-- Returns mode -->
+                    <Border x:Name="PackModeOptionReturns"
+                            BackgroundColor="Transparent"
+                            StrokeThickness="0"
+                            Padding="16"
+                            StrokeShape="RoundRectangle 6">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnPackModeSelectReturns"/>
+                        </Border.GestureRecognizers>
+                        <Grid ColumnDefinitions="*, Auto">
+                            <VerticalStackLayout Spacing="2">
+                                <Label Text="Returns"
+                                       FontSize="15"
+                                       FontAttributes="Bold"
+                                       TextColor="#4338ca"/>
+                                <Label Text="scan &amp; return"
+                                       FontSize="11"
+                                       FontFamily="Consolas"
+                                       TextColor="#9ca3af"/>
+                            </VerticalStackLayout>
+                            <Label x:Name="PackModeCheckReturns"
+                                   Grid.Column="1"
+                                   Text="✓"
+                                   TextColor="#4338ca"
+                                   FontSize="16"
+                                   FontAttributes="Bold"
+                                   VerticalOptions="Center"
+                                   IsVisible="False"/>
+                        </Grid>
+                    </Border>
+                </VerticalStackLayout>
+            </Border>
+        </Grid>
+
+        <!-- Returns confirm overlay: reason chips required before a Ship-mode-detected
+             Shipped parcel is written to Returned. No write happens until Confirm is tapped. -->
+        <Grid x:Name="ReturnsConfirmOverlay"
+              Grid.Row="0"
+              Grid.RowSpan="4"
+              BackgroundColor="#B3000000"
+              IsVisible="False"
+              ZIndex="30">
+            <Border BackgroundColor="White"
+                    StrokeShape="RoundRectangle 12"
+                    StrokeThickness="0"
+                    WidthRequest="520"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center"
+                    Padding="24">
+                <VerticalStackLayout Spacing="14">
+                    <Label Text="Return parcel?"
+                           FontSize="20"
+                           FontAttributes="Bold"
+                           TextColor="#dc2626"/>
+                    <Label x:Name="ReturnsConfirmSummary"
+                           FontSize="14"
+                           TextColor="#374151"/>
+                    <Label Text="Order will be cancelled and marked Returned."
+                           FontSize="12"
+                           TextColor="#9ca3af"/>
+                    <FlexLayout x:Name="ReturnsReasonChips"
+                                Wrap="Wrap"
+                                JustifyContent="Start"/>
+                    <Editor x:Name="ReturnsNotesEditor"
+                            Placeholder="Note (optional)"
+                            HeightRequest="60"
+                            BackgroundColor="#f3f4f6"
+                            TextColor="#111827"/>
+                    <HorizontalStackLayout Spacing="12" HorizontalOptions="End">
+                        <Button Text="Cancel"
+                                Clicked="OnReturnCancelClicked"
+                                BackgroundColor="#e5e7eb"
+                                TextColor="#111827"
+                                CornerRadius="8"
+                                Padding="20,10"/>
+                        <Button x:Name="ReturnsConfirmBtn"
+                                Text="Confirm return"
+                                Clicked="OnReturnConfirmClicked"
+                                IsEnabled="False"
+                                BackgroundColor="#dc2626"
+                                TextColor="White"
+                                CornerRadius="8"
+                                Padding="20,10"/>
+                    </HorizontalStackLayout>
+                </VerticalStackLayout>
             </Border>
         </Grid>
 
