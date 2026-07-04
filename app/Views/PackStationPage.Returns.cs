@@ -28,8 +28,12 @@ public partial class PackStationPage
 
     // ── Mode dropdown ─────────────────────────────────────────────────────────────
 
-    private void OnPackModeBadgeTapped(object? sender, EventArgs e) =>
-        PackModeDropdownBackdrop.IsVisible = !PackModeDropdownBackdrop.IsVisible;
+    private void OnPackModeBadgeTapped(object? sender, EventArgs e)
+    {
+        var opening = !PackModeDropdownBackdrop.IsVisible;
+        if (opening) ComPortDropdownBackdrop.IsVisible = false; // close the sibling overlay first
+        PackModeDropdownBackdrop.IsVisible = opening;
+    }
 
     private void OnPackModeDropdownBackdropTapped(object? sender, EventArgs e) =>
         PackModeDropdownBackdrop.IsVisible = false;
@@ -57,6 +61,9 @@ public partial class PackStationPage
 
     private async Task HandleReturnScanAsync(string tracking, PackingList? match)
     {
+        // Ignore scans while the confirm dialog is open — operator must Confirm/Cancel first.
+        if (ReturnsConfirmOverlay.IsVisible) return;
+
         var rv = ReturnVerdict.Evaluate(match != null, match?.PackingStatus);
 
         switch (rv.Outcome)
@@ -86,6 +93,8 @@ public partial class PackStationPage
     // Map a return verdict onto the existing parcel panel + belt (display only, no write).
     private void ShowReturnDisplay(PackingList? match, string tracking, PackOutcome beltOutcome, ReturnVerdictResult rv)
     {
+        // Clear any undo button armed for a previously-scanned parcel before showing this one.
+        HideUndoOffer();
         var display = new PackVerdictResult(beltOutcome, false, rv.Word, rv.Sub, rv.Glyph, rv.Color);
         AddScanToHistory(match, tracking, beltOutcome);
         ShowParcelPanel(match, display, _currentOperatorFirstName);
@@ -200,6 +209,8 @@ public partial class PackStationPage
                 400 => new PackVerdictResult(PackOutcome.Blocked, false, "REASON REQUIRED", "Pick a reason", "!", ReturnVerdict.ColorRed),
                 _ => PackVerdict.SaveFailed(),
             };
+            // Clear any undo button armed for a previously-scanned parcel before showing this one.
+            HideUndoOffer();
             AddScanToHistory(match, tracking, v.Outcome);
             ShowParcelPanel(match, v, _currentOperatorFirstName);
         }

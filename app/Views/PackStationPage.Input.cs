@@ -99,6 +99,7 @@ public partial class PackStationPage
     private void OnComPortBadgeTapped(object sender, TappedEventArgs e)
     {
         BuildComPortDropdown();
+        PackModeDropdownBackdrop.IsVisible = false; // close the sibling overlay first
         ComPortDropdownBackdrop.IsVisible = true;
     }
 
