@@ -20,6 +20,7 @@
     <Compile Include="..\app\Services\ShippingHistory.cs" Link="ShippingHistory.cs" />
     <Compile Include="..\app\Services\OrphanCapture.cs" Link="Services\OrphanCapture.cs" />
     <Compile Include="..\app\Services\Sound.cs" Link="Services\Sound.cs" />
+    <Compile Include="..\app\Services\ReturnVerdict.cs" Link="Services\ReturnVerdict.cs" />
   </ItemGroup>
 
 </Project>
