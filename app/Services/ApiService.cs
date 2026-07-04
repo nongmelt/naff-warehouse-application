@@ -741,6 +741,115 @@ public static class ApiService
         }
     }
 
+    public readonly record struct ReturnScanResult(int Status, bool AlreadyReturned);
+
+    /// <summary>PATCH packing-lists/scan/{barcode}/return — mark shipped parcel Returned.</summary>
+    public static async Task<ReturnScanResult> ReturnScanAsync(
+        string barcode, string? returnedBy, int? returnStationId,
+        int? operatorId, string reason, string? notes)
+    {
+        try
+        {
+            var body = new
+            {
+                returnedBy = returnedBy?.Replace(' ', '-'),
+                returnStationId,
+                operatorId,
+                reason,
+                notes,
+            };
+            var json = JsonSerializer.Serialize(body, JsonOpts);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var resp = await Http.PatchAsync(
+                $"packing-lists/scan/{Uri.EscapeDataString(barcode)}/return", content);
+            var status = (int)resp.StatusCode;
+            if (!resp.IsSuccessStatusCode)
+            {
+                Logger.Log($"ApiService.ReturnScanAsync: HTTP {status}");
+                return new ReturnScanResult(status, false);
+            }
+            var node = await resp.Content.ReadFromJsonAsync<JsonNode>(JsonOpts);
+            return new ReturnScanResult(status, node?["alreadyReturned"]?.GetValue<bool>() ?? false);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.ReturnScanAsync: {ex.Message}");
+            return new ReturnScanResult(0, false);
+        }
+    }
+
+    /// <summary>PATCH .../return/undo — supervisor-only. Returns raw HTTP status (0 = network error).</summary>
+    public static async Task<int> UndoReturnAsync(string barcode, string undoneBy, int? stationId)
+    {
+        try
+        {
+            var body = new { undoneBy = undoneBy.Replace(' ', '-'), stationId };
+            var json = JsonSerializer.Serialize(body, JsonOpts);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var resp = await Http.PatchAsync(
+                $"packing-lists/scan/{Uri.EscapeDataString(barcode)}/return/undo", content);
+            if (!resp.IsSuccessStatusCode)
+                Logger.Log($"ApiService.UndoReturnAsync: HTTP {(int)resp.StatusCode}");
+            return (int)resp.StatusCode;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.UndoReturnAsync: {ex.Message}");
+            return 0;
+        }
+    }
+
+    public record ReturnItemDto(
+        [property: JsonPropertyName("sellerSku")] string SellerSku,
+        [property: JsonPropertyName("productName")] string? ProductName,
+        [property: JsonPropertyName("expectedQty")] int ExpectedQty,
+        [property: JsonPropertyName("sellableQty")] int SellableQty,
+        [property: JsonPropertyName("damagedQty")] int DamagedQty);
+
+    /// <summary>GET returns/{tracking}/items — expected contents + restock counts.</summary>
+    public static async Task<List<ReturnItemDto>> GetReturnItemsAsync(string tracking)
+    {
+        try
+        {
+            var resp = await Http.GetAsync($"returns/{Uri.EscapeDataString(tracking)}/items");
+            if (!resp.IsSuccessStatusCode)
+            {
+                Logger.Log($"ApiService.GetReturnItemsAsync: HTTP {(int)resp.StatusCode}");
+                return [];
+            }
+            return await resp.Content.ReadFromJsonAsync<List<ReturnItemDto>>(JsonOpts) ?? [];
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.GetReturnItemsAsync: {ex.Message}");
+            return [];
+        }
+    }
+
+    /// <summary>PUT returns/{tracking}/items — scan-increment one SKU. Null on failure.</summary>
+    public static async Task<ReturnItemDto?> UpsertReturnItemAsync(
+        string tracking, string sellerSku, int sellableDelta, int damagedDelta, int? operatorId)
+    {
+        try
+        {
+            var body = new { sellerSku, sellableDelta, damagedDelta, operatorId };
+            var json = JsonSerializer.Serialize(body, JsonOpts);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var resp = await Http.PutAsync($"returns/{Uri.EscapeDataString(tracking)}/items", content);
+            if (!resp.IsSuccessStatusCode)
+            {
+                Logger.Log($"ApiService.UpsertReturnItemAsync: HTTP {(int)resp.StatusCode}");
+                return null;
+            }
+            return await resp.Content.ReadFromJsonAsync<ReturnItemDto>(JsonOpts);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.UpsertReturnItemAsync: {ex.Message}");
+            return null;
+        }
+    }
+
     // ── Private DTOs ──────────────────────────────────────────────────────────
 
     private record StatusRequest(
