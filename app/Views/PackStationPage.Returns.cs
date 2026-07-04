@@ -13,7 +13,7 @@ namespace app.Views;
 public partial class PackStationPage
 {
     private static readonly string[] ReturnReasons =
-        ["Customer request", "Damaged package", "Duplicate order", "Wrong product", "Other"];
+        ["Cancelled", "Damaged package", "Duplicate order", "Wrong product", "Other"];
 
     private string? _pendingReturnTracking;
     private PackingList? _pendingReturnMatch;
