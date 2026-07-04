@@ -223,10 +223,10 @@ public partial class PackStationPage : ContentPage
         }
 
         var tracking = AppSettings.NormalizeTrackingNumber(line);
-        await HandlePackScanAsync(tracking);
+        await HandlePackScanAsync(tracking, line);
     }
 
-    private async Task HandlePackScanAsync(string tracking)
+    private async Task HandlePackScanAsync(string tracking, string? rawInput = null)
     {
         if (_processing) return;
         _processing = true;
@@ -241,7 +241,7 @@ public partial class PackStationPage : ContentPage
 
             if (_currentMode == PackMode.Returns)
             {
-                await HandleReturnScanAsync(tracking, match);
+                await HandleReturnScanAsync(tracking, match, rawInput ?? tracking);
                 return;
             }
 

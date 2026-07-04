@@ -344,6 +344,28 @@
                     Margin="0,0,0,12"/>
         </Grid>
 
+        <!-- Restock items panel: shown in Returns mode after a Return/AlreadyReturned parcel
+             resolves. Lets the operator scan items back in as SELLABLE or DAMAGED; each row
+             tracks expected/sellable/damaged/missing per SKU (HandleReturnItemScanAsync). -->
+        <Border x:Name="ReturnItemsPanel" IsVisible="False"
+                Grid.Row="2" HorizontalOptions="End" VerticalOptions="Start"
+                Margin="0,12,12,0" Padding="16" WidthRequest="420"
+                BackgroundColor="White" Stroke="#e5e7eb" StrokeThickness="1"
+                StrokeShape="RoundRectangle 10">
+            <VerticalStackLayout Spacing="10">
+                <Label Text="RESTOCK — SCAN ITEMS" FontSize="12" FontAttributes="Bold" TextColor="#6b7280"/>
+                <HorizontalStackLayout Spacing="8">
+                    <Button x:Name="RestockSellableBtn" Text="SELLABLE" Clicked="OnRestockSellable"
+                            BackgroundColor="#16a34a" TextColor="White" FontSize="12" CornerRadius="8" Padding="14,8"/>
+                    <Button x:Name="RestockDamagedBtn" Text="DAMAGED" Clicked="OnRestockDamaged"
+                            BackgroundColor="#f3f4f6" TextColor="#6b7280" FontSize="12" CornerRadius="8" Padding="14,8"/>
+                </HorizontalStackLayout>
+                <ScrollView MaximumHeightRequest="420">
+                    <VerticalStackLayout x:Name="ReturnItemsList" Spacing="6"/>
+                </ScrollView>
+            </VerticalStackLayout>
+        </Border>
+
         <!-- Bottom hint bar (mirrors Order Search footer) -->
         <Border Grid.Row="3"
                 BackgroundColor="#f9fafb"

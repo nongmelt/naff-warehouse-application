@@ -21,11 +21,6 @@ public partial class PackStationPage
     private string? _pendingUndoTracking;
     private readonly List<Border> _reasonChipBorders = [];
 
-    // TEMP STUB (Task 11): the restock items panel is implemented in Task 12. Until that lands,
-    // this is a no-op so the AlreadyReturned / post-confirm call sites below compile and run.
-    // Task 12 replaces this stub with the real panel loader.
-    private Task LoadReturnItemsPanelAsync(string _) => Task.CompletedTask;
-
     // ── Mode dropdown ─────────────────────────────────────────────────────────────
 
     private void OnPackModeBadgeTapped(object? sender, EventArgs e)
@@ -54,17 +49,28 @@ public partial class PackStationPage
         HideUndoOffer();
         HideReturnsConfirm();
         HideParcelPanel();
+        HideReturnItemsPanel();
         Logger.Log($"PackStation: mode -> {mode}");
     }
 
     // ── Return scan ───────────────────────────────────────────────────────────────
 
-    private async Task HandleReturnScanAsync(string tracking, PackingList? match)
+    private async Task HandleReturnScanAsync(string tracking, PackingList? match, string rawInput)
     {
         // Ignore scans while the confirm dialog is open — operator must Confirm/Cancel first.
         if (ReturnsConfirmOverlay.IsVisible) return;
 
         var rv = ReturnVerdict.Evaluate(match != null, match?.PackingStatus);
+
+        // A genuinely NEW tracking resolving as returnable/already-returned replaces the active
+        // restock panel state. Only reset here — NotFound may legitimately be a SKU scan against
+        // the CURRENTLY active tracking, so it must leave _activeReturnTracking alone.
+        if (rv.Outcome is ReturnOutcome.Return or ReturnOutcome.AlreadyReturned
+            && _activeReturnTracking != null
+            && !string.Equals(_activeReturnTracking, tracking, StringComparison.OrdinalIgnoreCase))
+        {
+            HideReturnItemsPanel();
+        }
 
         switch (rv.Outcome)
         {
@@ -81,6 +87,7 @@ public partial class PackStationPage
                 return;
 
             case ReturnOutcome.NotFound:
+                if (_activeReturnTracking != null && await HandleReturnItemScanAsync(rawInput)) return;
                 ShowReturnDisplay(match, tracking, PackOutcome.NotFound, rv);
                 return;
 
@@ -98,6 +105,115 @@ public partial class PackStationPage
         var display = new PackVerdictResult(beltOutcome, false, rv.Word, rv.Sub, rv.Glyph, rv.Color);
         AddScanToHistory(match, tracking, beltOutcome);
         ShowParcelPanel(match, display, _currentOperatorFirstName);
+    }
+
+    // ── Restock items panel ───────────────────────────────────────────────
+
+    private enum RestockCondition { Sellable, Damaged }
+    private RestockCondition _restockCondition = RestockCondition.Sellable;
+    private string? _activeReturnTracking;
+    private List<ApiService.ReturnItemDto> _returnItems = [];
+
+    private void OnRestockSellable(object? sender, EventArgs e) => SetRestockCondition(RestockCondition.Sellable);
+    private void OnRestockDamaged(object? sender, EventArgs e) => SetRestockCondition(RestockCondition.Damaged);
+
+    private void SetRestockCondition(RestockCondition c)
+    {
+        _restockCondition = c;
+        var sellable = c == RestockCondition.Sellable;
+        RestockSellableBtn.BackgroundColor = sellable ? Color.FromArgb("#16a34a") : Color.FromArgb("#f3f4f6");
+        RestockSellableBtn.TextColor = sellable ? Colors.White : Color.FromArgb("#6b7280");
+        RestockDamagedBtn.BackgroundColor = sellable ? Color.FromArgb("#f3f4f6") : Color.FromArgb("#dc2626");
+        RestockDamagedBtn.TextColor = sellable ? Color.FromArgb("#6b7280") : Colors.White;
+    }
+
+    private async Task LoadReturnItemsPanelAsync(string tracking)
+    {
+        _activeReturnTracking = tracking;
+        _returnItems = await ApiService.GetReturnItemsAsync(tracking);
+        SetRestockCondition(RestockCondition.Sellable);
+        RenderReturnItems();
+        ReturnItemsPanel.IsVisible = true;
+    }
+
+    private void HideReturnItemsPanel()
+    {
+        ReturnItemsPanel.IsVisible = false;
+        _activeReturnTracking = null;
+        _returnItems = [];
+    }
+
+    private void RenderReturnItems()
+    {
+        ReturnItemsList.Children.Clear();
+        foreach (var item in _returnItems)
+        {
+            var missing = Math.Max(0, item.ExpectedQty - item.SellableQty - item.DamagedQty);
+            var done = missing == 0 && item.ExpectedQty > 0;
+            var row = new Border
+            {
+                StrokeShape = new RoundRectangle { CornerRadius = 8 },
+                Stroke = done ? Color.FromArgb("#86efac") : Color.FromArgb("#e5e7eb"),
+                StrokeThickness = 1,
+                BackgroundColor = done ? Color.FromArgb("#f0fdf4") : Color.FromArgb("#f9fafb"),
+                Padding = new Thickness(12, 8),
+                Content = new Grid
+                {
+                    ColumnDefinitions = [new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto)],
+                    Children =
+                    {
+                        new VerticalStackLayout
+                        {
+                            Spacing = 2,
+                            Children =
+                            {
+                                new Label { Text = item.ProductName ?? item.SellerSku, FontSize = 13, FontAttributes = FontAttributes.Bold, TextColor = Color.FromArgb("#111827") },
+                                new Label { Text = item.SellerSku, FontSize = 11, FontFamily = "Consolas", TextColor = Color.FromArgb("#9ca3af") },
+                            },
+                        },
+                        CountersLabel(item, missing),
+                    },
+                },
+            };
+            var counters = (Label)((Grid)row.Content).Children[1];
+            Grid.SetColumn(counters, 1);
+            ReturnItemsList.Children.Add(row);
+        }
+    }
+
+    private static Label CountersLabel(ApiService.ReturnItemDto item, int missing)
+    {
+        var text = $"✓{item.SellableQty}  ✕{item.DamagedQty}  /{item.ExpectedQty}";
+        if (missing > 0) text += $"  (missing {missing})";
+        return new Label
+        {
+            Text = text,
+            FontSize = 13,
+            FontFamily = "Consolas",
+            VerticalOptions = LayoutOptions.Center,
+            TextColor = missing > 0 ? Color.FromArgb("#d97706") : Color.FromArgb("#16a34a"),
+        };
+    }
+
+    /// <summary>Try to treat a scan as a restock item scan. True when consumed.</summary>
+    private async Task<bool> HandleReturnItemScanAsync(string sku)
+    {
+        if (_activeReturnTracking is null) return false;
+        var match = _returnItems.FirstOrDefault(i =>
+            string.Equals(i.SellerSku, sku.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (match is null) return false;
+
+        var updated = await ApiService.UpsertReturnItemAsync(
+            _activeReturnTracking, match.SellerSku,
+            sellableDelta: _restockCondition == RestockCondition.Sellable ? 1 : 0,
+            damagedDelta: _restockCondition == RestockCondition.Damaged ? 1 : 0,
+            operatorId: null);
+        if (updated is null) return true; // consumed but failed — keep panel, log already written
+
+        var idx = _returnItems.FindIndex(i => i.SellerSku == match.SellerSku);
+        if (idx >= 0) _returnItems[idx] = updated;
+        RenderReturnItems();
+        return true;
     }
 
     // ── Confirm overlay ───────────────────────────────────────────────────────────
