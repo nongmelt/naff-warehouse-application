@@ -76,15 +76,6 @@ public partial class OrderSearchPage
 
         _ = ResolveOperatorNicknamesAsync(rows);
 
-        // Returns mode: toggle empty → loaded state
-        if (_currentMode == AppMode.Returns)
-        {
-            bool hasResults = rows.Count > 0;
-            ReturnsEmptyState.IsVisible = !hasResults;
-            ReturnsSuccessCard.IsVisible = false;
-            ReturnsActionForm.IsVisible = hasResults;
-        }
-
         await EnrichProductItemsAsync();
 
         // Mark orders that were "To be packed" or "QC Hold" on arrival — only these count in the session card
@@ -644,16 +635,6 @@ public partial class OrderSearchPage
             var hasVerified = Results.Any(o => o.HasProducts && o.ParsedProducts.Any(p => p.Quantity != p.OriginalQuantity));
             var isHold = string.Equals(order.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase);
             ResetButton.IsVisible = !isQcPassed && (hasVerified || isHold);
-
-            // Carrier pill — visible in Returns mode when shipping_options exists
-            var carrier = order.ShippingOptions;
-            var showCarrier = _currentMode == AppMode.Returns && !string.IsNullOrWhiteSpace(carrier);
-            TrackingCarrierPill.IsVisible = showCarrier;
-            if (showCarrier)
-            {
-                TrackingCarrierLabel.Text = carrier;
-                TrackingCarrierDotLabel.Text = carrier![..1].ToUpperInvariant();
-            }
         });
     }
 

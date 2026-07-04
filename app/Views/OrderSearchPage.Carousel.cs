@@ -71,21 +71,7 @@ public partial class OrderSearchPage
 
             Color bgInactive, bgHover, strokeInactive, titleInactive, idxInactive;
 
-            // Returns mode: color by return type instead of QC status
-            if (_currentMode == AppMode.Returns && _sessionReturnType.TryGetValue(i, out var retType))
-            {
-                if (retType == "return")
-                {
-                    bgInactive = Color.FromArgb("#fef2f2"); bgHover = Color.FromArgb("#fee2e2");
-                    strokeInactive = Color.FromArgb("#fecaca"); titleInactive = Color.FromArgb("#991b1b"); idxInactive = Color.FromArgb("#fca5a5");
-                }
-                else
-                {
-                    bgInactive = Color.FromArgb("#fdf4ff"); bgHover = Color.FromArgb("#fae8ff");
-                    strokeInactive = Color.FromArgb("#e9d5ff"); titleInactive = Color.FromArgb("#86198f"); idxInactive = Color.FromArgb("#d8b4fe");
-                }
-            }
-            else if (sessionStatus == "preProcessed")
+            if (sessionStatus == "preProcessed")
             {
                 bgInactive = Color.FromArgb("#f9fafb"); bgHover = Color.FromArgb("#f3f4f6");
                 strokeInactive = Color.FromArgb("#e5e7eb"); titleInactive = Color.FromArgb("#6b7280"); idxInactive = Color.FromArgb("#9ca3af");
@@ -169,25 +155,6 @@ public partial class OrderSearchPage
                 LineBreakMode = LineBreakMode.NoWrap,
                 VerticalOptions = LayoutOptions.Center,
             });
-
-            // Carrier label in Returns mode
-            if (_currentMode == AppMode.Returns)
-            {
-                var carrierName = _sessions[i].Data.FirstOrDefault()?.ShippingOptions;
-                if (!string.IsNullOrWhiteSpace(carrierName))
-                {
-                    row.Children.Add(new Label
-                    {
-                        Text = carrierName,
-                        FontSize = 9,
-                        FontAttributes = FontAttributes.Bold,
-                        TextColor = Color.FromArgb("#6b7280"),
-                        BackgroundColor = Color.FromArgb("#f3f4f6"),
-                        Padding = new Thickness(4, 1),
-                        VerticalOptions = LayoutOptions.Center,
-                    });
-                }
-            }
 
             var card = new Border
             {

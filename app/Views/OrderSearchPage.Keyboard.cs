@@ -91,59 +91,11 @@ public partial class OrderSearchPage
             return;
         }
 
-        if (e.Key == Windows.System.VirtualKey.Escape && ReturnSuccessOverlay.IsVisible)
-        {
-            _ = DismissReturnSuccessAsync();
-            e.Handled = true;
-            return;
-        }
-
         if (e.Key == Windows.System.VirtualKey.Escape && CompletionSummaryOverlay.IsVisible)
         {
             _ = DismissCompletionSummaryAsync();
             e.Handled = true;
             return;
-        }
-
-        // Returns mode keyboard shortcuts
-        if (_currentMode == AppMode.Returns)
-        {
-            if (e.Key == Windows.System.VirtualKey.R)
-            {
-                OnSelectReturnType(null, EventArgs.Empty);
-                e.Handled = true;
-                return;
-            }
-            if (e.Key == Windows.System.VirtualKey.P)
-            {
-                OnSelectPendingPickupType(null, EventArgs.Empty);
-                e.Handled = true;
-                return;
-            }
-            if (e.Key == Windows.System.VirtualKey.Enter && _selectedReturnReason is not null)
-            {
-                OnConfirmReturn(null, EventArgs.Empty);
-                e.Handled = true;
-                return;
-            }
-            if (e.Key == Windows.System.VirtualKey.Escape)
-            {
-                OnSkipReturn(null, EventArgs.Empty);
-                e.Handled = true;
-                return;
-            }
-            if (e.Key >= Windows.System.VirtualKey.Number1 && e.Key <= Windows.System.VirtualKey.Number5)
-            {
-                var idx = (int)e.Key - (int)Windows.System.VirtualKey.Number1;
-                var reasons = _returnsActionType == "return" ? _returnReasons : _pickupReasons;
-                if (idx < reasons.Length)
-                {
-                    _selectedReturnReason = reasons[idx];
-                    BuildReturnReasonChips();
-                }
-                e.Handled = true;
-                return;
-            }
         }
 
         // Enter → apply pending qty (entry always shows target verified count)

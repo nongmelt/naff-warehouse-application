@@ -15,28 +15,16 @@ namespace app.Views;
 [SupportedOSPlatform("windows")]
 public partial class OrderSearchPage : ContentPage
 {
-    private enum AppMode { QC, Returns }
-
     private record ComPortEntry(string PortName, string DisplayName);
 
     private SerialPort? _serialPort;
     private string? _selectedPortName;
     private List<ComPortEntry> _comPorts = [];
     private bool _isSearching;
-    private AppMode _currentMode = AppMode.QC;
     private IDispatcherTimer? _comHeartbeatTimer;
     private long _lastSerialDataTicks;
     private int _historyNavIndex = -1;
-
-    // Returns mode state
-    private string _returnsActionType = "return";
-    private string? _selectedReturnReason;
     private int? _currentOperatorId;
-    private int _returnsReturnedCount;
-    private int _returnsPendingCount;
-    private readonly Dictionary<int, string> _sessionReturnType = new();
-    private readonly string[] _returnReasons = ["Customer request", "Damaged package", "Duplicate order", "Wrong product", "Other"];
-    private readonly string[] _pickupReasons = ["Full capacity", "Carrier no-show", "Incomplete paperwork", "Other"];
 
     // Search-session navigation (back / forward through previous scans)
     private record SearchSession(string Query, List<PackingList> Data);
@@ -142,7 +130,6 @@ public partial class OrderSearchPage : ContentPage
     {
         InitializeComponent();
         BindingContext = this;
-        ApplyMode(_currentMode);
         RefreshHistoryItems();
         UpdateHistoryHeader();
 

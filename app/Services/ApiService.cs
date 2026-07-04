@@ -686,61 +686,6 @@ public static class ApiService
 
     // ── Returns ──────────────────────────────────────────────────────────────
 
-    public static async Task<bool> CreateReturnRecordAsync(
-        string trackingNumber, string recordType, string? reason,
-        string? notes, string? shippingOptions, string? platform,
-        int? operatorId, int? stationId)
-    {
-        try
-        {
-            var body = new { trackingNumber, recordType, reason, notes, shippingOptions, platform, operatorId, stationId };
-            var resp = await Http.PostAsJsonAsync("returns", body, JsonOpts);
-            if (!resp.IsSuccessStatusCode)
-                Logger.Log($"ApiService.CreateReturnRecordAsync: HTTP {(int)resp.StatusCode}");
-            return resp.IsSuccessStatusCode;
-        }
-        catch (Exception ex)
-        {
-            Logger.Log($"ApiService.CreateReturnRecordAsync: {ex.Message}");
-            return false;
-        }
-    }
-
-    public static async Task<bool> UpsertCarrierParcelCountAsync(string shippingOptions, int actualCount, int? operatorId)
-    {
-        try
-        {
-            var body = new { shippingOptions, actualCount, operatorId };
-            var json = JsonSerializer.Serialize(body, JsonOpts);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var resp = await Http.PutAsync("returns/carrier-counts", content);
-            if (!resp.IsSuccessStatusCode)
-                Logger.Log($"ApiService.UpsertCarrierParcelCountAsync: HTTP {(int)resp.StatusCode}");
-            return resp.IsSuccessStatusCode;
-        }
-        catch (Exception ex)
-        {
-            Logger.Log($"ApiService.UpsertCarrierParcelCountAsync: {ex.Message}");
-            return false;
-        }
-    }
-
-    public static async Task<bool> BackfillExpectedCarrierCountsAsync()
-    {
-        try
-        {
-            var resp = await Http.PostAsync("returns/carrier-counts/backfill", null);
-            if (!resp.IsSuccessStatusCode)
-                Logger.Log($"ApiService.BackfillExpectedCarrierCountsAsync: HTTP {(int)resp.StatusCode}");
-            return resp.IsSuccessStatusCode;
-        }
-        catch (Exception ex)
-        {
-            Logger.Log($"ApiService.BackfillExpectedCarrierCountsAsync: {ex.Message}");
-            return false;
-        }
-    }
-
     public readonly record struct ReturnScanResult(int Status, bool AlreadyReturned);
 
     /// <summary>PATCH packing-lists/scan/{barcode}/return — mark shipped parcel Returned.</summary>
