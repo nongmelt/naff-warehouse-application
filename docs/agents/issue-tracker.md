@@ -35,6 +35,16 @@ gh issue close <number> --reason completed
 gh issue close <number> --reason "not planned"
 ```
 
+## Wayfinding operations
+
+Wayfinder maps live in this root repo (features usually span both submodules).
+
+- **Map**: issue labelled `wayfinder:map`. Tickets: `wayfinder:research|prototype|grilling|task`.
+- **Children**: native sub-issues — `gh api -X POST repos/{repo}/issues/<map>/sub_issues -F sub_issue_id=<issue DB id>` (`-F`, not `-f`: the API requires an integer; get the id via `gh api repos/{repo}/issues/<n> --jq .id`).
+- **Blocking**: native dependencies — `gh api -X POST repos/{repo}/issues/<n>/dependencies/blocked_by -F issue_id=<DB id>`.
+- **Frontier query**: open, unassigned sub-issues of the map with no open blockers — `gh api repos/{repo}/issues/<n>/dependencies/blocked_by` returns the blockers; a ticket is takeable when that list has no open entries.
+- **Claim**: assign the issue to yourself before any work.
+
 ## Conventions
 
 - Every new issue gets `needs-triage` label by default
