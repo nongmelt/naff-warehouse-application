@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Open Backlog — rose section, three states</title>
+<style>
+/* ============ product tokens (light) ============ */
+:root{
+  --background:#F3F0EE; --foreground:#141413;
+  --card:#FFFFFF; --lifted:#FCFBFA;
+  --muted:#F4F4F4; --muted-foreground:#696969;
+  --border:#E8E2DA; --accent:#F37338;
+  --ink:#141413; --canvas:#F3F0EE; --slate:#696969; --dust:#D1CDC7;
+  --shadow-md:0px 12px 32px rgba(0,0,0,.06);
+  --shadow-sm:0px 4px 24px rgba(0,0,0,.04);
+
+  /* rose = overdue (backlog family) */
+  --bl-bar:#E11D48; --bl-head:#BE123C; --bl-count:#E11D48;
+  --bl-chip-bg:#FFE4E6; --bl-chip-fg:#9F1239;
+  --bl-sel:rgba(225,29,72,.05);
+  --bl-bulk-bg:#FFF1F2; --bl-bulk-border:rgba(225,29,72,.25);
+  --bl-warn-bg:rgba(225,29,72,.06); --bl-warn-border:rgba(225,29,72,.30);
+
+  /* amber = "this date is pre-window" (shared with carryover) */
+  --amber:#B45309;
+
+  /* real StatusBadge colours */
+  --badge-packed-bg:#DBEAFE; --badge-packed-fg:#1D4ED8;
+  --badge-tbp-bg:#F4F4F4;    --badge-tbp-fg:#696969;
+
+  --shopee-icon:#EE4D2D; --lazada-icon:#0F136D; --tiktok-icon:#141413;
+  --scrim:rgba(20,20,19,.40);
+  --anno:#BE123C; --anno-bg:rgba(225,29,72,.06); --anno-border:rgba(225,29,72,.35);
+  --mono-fg:#141413;
+}
+/* dark tokens — applied by system preference unless .light overrides */
+@media (prefers-color-scheme: dark){
+  :root:not(.light){
+    --background:#141413; --foreground:#F3F0EE;
+    --card:#1E1E1D; --lifted:#1E1E1D;
+    --muted:#262627; --muted-foreground:#A8A8A8;
+    --border:#333332;
+    --ink:#F3F0EE; --canvas:#141413; --slate:#A8A8A8; --dust:#555555;
+    --shadow-md:0px 8px 26px rgba(0,0,0,.46);
+    --shadow-sm:0px 1px 3px rgba(0,0,0,.5);
+    --bl-bar:#F43F5E; --bl-head:#FDA4AF; --bl-count:#FB7185;
+    --bl-chip-bg:rgba(159,18,57,.4); --bl-chip-fg:#FDA4AF;
+    --bl-sel:rgba(244,63,94,.10);
+    --bl-bulk-bg:rgba(159,18,57,.20); --bl-bulk-border:rgba(244,63,94,.35);
+    --bl-warn-bg:rgba(244,63,94,.10); --bl-warn-border:rgba(244,63,94,.40);
+    --amber:#FBBF24;
+    --badge-packed-bg:rgba(30,58,138,.4); --badge-packed-fg:#93C5FD;
+    --badge-tbp-bg:#262627; --badge-tbp-fg:#A8A8A8;
+    --lazada-icon:#5B7FFF; --tiktok-icon:#E8E2DA;
+    --scrim:rgba(0,0,0,.55);
+    --anno:#FB7185; --anno-bg:rgba(244,63,94,.08); --anno-border:rgba(244,63,94,.35);
+    --mono-fg:#F3F0EE;
+  }
+}
+/* explicit override from the toggle button */
+.dark{
+  --background:#141413; --foreground:#F3F0EE;
+  --card:#1E1E1D; --lifted:#1E1E1D;
+  --muted:#262627; --muted-foreground:#A8A8A8;
+  --border:#333332;
+  --ink:#F3F0EE; --canvas:#141413; --slate:#A8A8A8; --dust:#555555;
+  --shadow-md:0px 8px 26px rgba(0,0,0,.46);
+  --shadow-sm:0px 1px 3px rgba(0,0,0,.5);
+  --bl-bar:#F43F5E; --bl-head:#FDA4AF; --bl-count:#FB7185;
+  --bl-chip-bg:rgba(159,18,57,.4); --bl-chip-fg:#FDA4AF;
+  --bl-sel:rgba(244,63,94,.10);
+  --bl-bulk-bg:rgba(159,18,57,.20); --bl-bulk-border:rgba(244,63,94,.35);
+  --bl-warn-bg:rgba(244,63,94,.10); --bl-warn-border:rgba(244,63,94,.40);
+  --amber:#FBBF24;
+  --badge-packed-bg:rgba(30,58,138,.4); --badge-packed-fg:#93C5FD;
+  --badge-tbp-bg:#262627; --badge-tbp-fg:#A8A8A8;
+  --lazada-icon:#5B7FFF; --tiktok-icon:#E8E2DA;
+  --scrim:rgba(0,0,0,.55);
+  --anno:#FB7185; --anno-bg:rgba(244,63,94,.08); --anno-border:rgba(244,63,94,.35);
+  --mono-fg:#F3F0EE;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--background); color:var(--foreground);
+  font-family:"Sofia Sans",Arial,sans-serif; font-weight:450;
+  font-size:15px; line-height:1.5;
+  padding:32px 24px 80px;
+  transition:background .25s,color .25s;
+}
+.wrap{max-width:1240px;margin:0 auto}
+.mono{font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ============ mockup chrome (annotations, not product) ============ */
+.mhead{display:flex;align-items:flex-start;gap:24px;flex-wrap:wrap;margin-bottom:8px}
+.mhead-left{flex:1;min-width:300px}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--anno);margin-bottom:8px}
+.eyebrow .mono{font-size:11px;text-transform:none;letter-spacing:0;color:var(--muted-foreground);font-weight:500}
+h1{font-size:38px;font-weight:700;letter-spacing:-.02em;line-height:1.08}
+h1 .rose{background:var(--bl-chip-bg);color:var(--bl-chip-fg);border-radius:999px;padding:2px 16px;white-space:nowrap}
+.sub{margin-top:10px;font-size:16px;color:var(--muted-foreground);max-width:700px}
+.sub b{color:var(--foreground)}
+.mhead-right{display:flex;flex-direction:column;align-items:flex-end;gap:10px;padding-top:6px}
+.theme-btn{
+  display:inline-flex;align-items:center;gap:8px;cursor:pointer;
+  background:var(--card);border:1px solid var(--border);border-radius:999px;
+  padding:7px 14px;font:inherit;font-size:13px;font-weight:600;color:var(--foreground);
+  box-shadow:var(--shadow-sm);
+}
+.theme-btn:hover{border-color:var(--accent)}
+.hint{
+  display:inline-flex;align-items:center;gap:8px;max-width:340px;
+  background:var(--anno-bg);border:1px dashed var(--anno-border);border-radius:16px;
+  padding:6px 14px;font-size:13px;font-weight:600;color:var(--anno);
+}
+
+section{margin-top:40px}
+.shead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.snum{font-size:13px;font-weight:800;color:var(--anno);letter-spacing:.04em}
+h2{font-size:21px;font-weight:700;letter-spacing:-.01em}
+.chip{border-radius:999px;padding:2px 10px;font-size:11px;font-weight:700;letter-spacing:.02em}
+.chip.d{background:var(--anno-bg);color:var(--anno);border:1px dashed var(--anno-border)}
+.snote{font-size:13.5px;color:var(--muted-foreground);max-width:880px;margin-bottom:14px}
+.snote b{color:var(--foreground)}
+.demo{border:1px dashed var(--anno-border);border-radius:20px;padding:26px 24px 30px}
+
+/* ============ the BacklogSection card ============ */
+.bl{
+  border:1px solid var(--border);
+  border-left:3px solid var(--bl-bar);
+  border-radius:12px;background:var(--card);
+  box-shadow:var(--shadow-md);overflow:hidden;
+}
+.bl-sum{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:14px 20px 12px}
+.bl-eyebrow{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--bl-head)}
+.bl-count{font-size:30px;font-weight:700;letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums;color:var(--bl-count)}
+.bl-def{font-size:13.5px;color:var(--muted-foreground)}
+.bl-def b{color:var(--foreground);font-weight:600}
+.bl-chev{
+  margin-left:auto;align-self:center;cursor:pointer;border:0;background:none;font:inherit;
+  font-size:15px;line-height:1;font-weight:600;color:var(--muted-foreground);
+  border-radius:8px;padding:6px 10px;
+}
+.bl-chev:hover{background:var(--muted);color:var(--foreground)}
+.bl-chev:focus-visible,.blchip:focus-visible,.flt:focus-visible,
+.btn-danger:focus-visible,.btn-text:focus-visible,.btn-ghost:focus-visible,
+.pbtn:focus-visible,.dlg select:focus-visible,.dlg textarea:focus-visible{
+  outline:2px solid var(--bl-bar);outline-offset:2px;
+}
+
+/* stage chips + table-only filters */
+.bl-chips{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:0 20px 12px}
+.bl-chips .lbl{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted-foreground);margin-right:4px}
+.blchip{
+  cursor:pointer;border:1px solid var(--border);background:var(--lifted);
+  font:inherit;font-size:12px;font-weight:600;color:var(--muted-foreground);
+  border-radius:999px;padding:3px 11px;font-variant-numeric:tabular-nums;
+}
+.blchip:hover{border-color:var(--anno-border);color:var(--foreground)}
+.blchip.active{background:var(--bl-chip-bg);color:var(--bl-chip-fg);border-color:transparent;box-shadow:0 0 0 2px var(--bl-bar)}
+.bl-filters{margin-left:auto;display:flex;align-items:center;gap:6px}
+.flt{
+  font:inherit;font-size:12px;font-weight:600;color:var(--muted-foreground);
+  background:var(--lifted);border:1px solid var(--border);border-radius:8px;
+  padding:3px 8px;cursor:pointer;
+}
+.flt:hover{border-color:var(--anno-border);color:var(--foreground)}
+
+/* bulk action bar — appears when >=1 row is checked */
+.bulk{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  background:var(--bl-bulk-bg);
+  border-top:1px solid var(--bl-bulk-border);border-bottom:1px solid var(--bl-bulk-border);
+  padding:8px 20px;
+}
+.btn-danger{
+  cursor:pointer;border:0;border-radius:8px;background:var(--bl-bar);color:#fff;
+  font:inherit;font-size:12.5px;font-weight:700;padding:6px 14px;
+}
+.btn-danger:hover{background:#BE123C}
+.dark .btn-danger:hover{background:#E11D48}
+.btn-text{
+  cursor:pointer;border:0;background:none;font:inherit;
+  font-size:12.5px;font-weight:600;color:var(--muted-foreground);
+  border-radius:8px;padding:6px 8px;
+}
+.btn-text:hover{background:var(--muted);color:var(--foreground)}
+
+/* table title */
+.tbl-head{display:flex;align-items:baseline;gap:8px;padding:12px 20px 8px}
+.tbl-head h3{font-size:15px;font-weight:700;letter-spacing:-.01em}
+.tbl-head .cnt{font-size:13px;color:var(--muted-foreground);font-variant-numeric:tabular-nums}
+
+/* packing table — real PackingTable columns + checkbox + Age */
+.oflow{overflow-x:auto}
+table.plist{width:100%;min-width:1120px;border-collapse:collapse;font-size:13.5px}
+.plist thead{background:var(--lifted);font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted-foreground)}
+.plist th{padding:9px 10px;text-align:left;font-weight:600;white-space:nowrap;border-top:1px solid var(--border)}
+.plist tbody tr{border-top:1px solid var(--border)}
+.plist tbody tr:hover{background:rgba(59,130,246,.05)}
+.plist tbody tr.sel{background:var(--bl-sel)}
+.plist td{padding:9px 10px;vertical-align:middle;white-space:nowrap}
+.ck{width:34px;text-align:center}
+.ck input{accent-color:var(--bl-bar);width:15px;height:15px;cursor:pointer;vertical-align:middle}
+.rownum{font-family:ui-monospace,monospace;font-size:12px;color:var(--slate);text-align:center}
+.tnum{font-family:"Geist Mono",ui-monospace,monospace;font-size:12px;font-weight:600;color:var(--mono-fg)}
+.pcell{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted-foreground);font-weight:600}
+.tship{font-size:12.5px;color:var(--muted-foreground)}
+.badge{display:inline-flex;align-items:center;border-radius:999px;padding:2px 10px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.badge.packed{background:var(--badge-packed-bg);color:var(--badge-packed-fg)}
+.badge.tbp{background:var(--badge-tbp-bg);color:var(--badge-tbp-fg)}
+.tperson{font-size:12.5px;color:var(--foreground)}
+.tperson .stn{color:var(--slate);font-size:11.5px}
+.tnone{color:var(--dust)}
+.tdate{color:var(--slate);font-size:12.5px;font-variant-numeric:tabular-nums}
+.tdate.amber{color:var(--amber);font-weight:600}
+.age{color:var(--bl-count);font-weight:700;font-size:12.5px;font-variant-numeric:tabular-nums}
+.glyph{display:inline-flex;align-items:center;justify-content:center;border-radius:3px;font-size:8px;font-weight:700;color:#fff;width:16px;height:16px;flex:none}
+.glyph.shopee{background:var(--shopee-icon)}
+.glyph.lazada{background:var(--lazada-icon)}
+.glyph.tiktok{background:var(--tiktok-icon)}
+.dark .glyph.tiktok{color:#141413}
+
+/* card footer */
+.bl-foot{
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  border-top:1px solid var(--border);padding:10px 20px;
+}
+.showing{font-size:12.5px;color:var(--muted-foreground);font-variant-numeric:tabular-nums}
+.bl-note{font-size:11.5px;color:var(--muted-foreground)}
+.bl-note b{color:var(--foreground);font-weight:600}
+.pager{margin-left:auto;display:flex;align-items:center;gap:4px}
+.pbtn{
+  cursor:pointer;border:1px solid var(--border);background:var(--card);
+  font:inherit;font-size:12px;font-weight:600;color:var(--muted-foreground);
+  border-radius:8px;padding:3px 10px;
+}
+.pbtn:hover{border-color:var(--bl-bar);color:var(--foreground)}
+.pbtn[disabled]{opacity:.35;cursor:default}
+.pbtn[disabled]:hover{border-color:var(--border);color:var(--muted-foreground)}
+
+/* ============ cancel confirm dialog ============ */
+.dlgstage{position:relative;border-radius:12px}
+.dlgstage .bl{box-shadow:none}
+.scrim{
+  position:absolute;inset:0;z-index:5;background:var(--scrim);
+  display:flex;align-items:center;justify-content:center;padding:24px;
+  border-radius:12px;
+}
+.dlg{
+  width:min(480px,100%);background:var(--card);border:1px solid var(--border);
+  border-radius:16px;box-shadow:var(--shadow-md);padding:22px 24px;
+}
+.dlg h3{font-size:17px;font-weight:700;letter-spacing:-.01em}
+.dlg-warn{
+  margin-top:12px;font-size:13.5px;font-weight:600;line-height:1.45;color:var(--bl-head);
+  background:var(--bl-warn-bg);border:1px solid var(--bl-warn-border);
+  border-radius:10px;padding:10px 12px;
+}
+.field{margin-top:14px}
+.field label{display:block;font-size:12.5px;font-weight:700;color:var(--muted-foreground);margin-bottom:5px}
+.dlg select,.dlg textarea{
+  width:100%;font:inherit;font-size:13.5px;color:var(--foreground);
+  background:var(--lifted);border:1px solid var(--border);border-radius:8px;
+  padding:8px 10px;
+}
+.dlg textarea{resize:vertical;min-height:64px}
+.dlg-actions{margin-top:18px;display:flex;justify-content:flex-end;gap:8px}
+.btn-ghost{
+  cursor:pointer;border:1px solid var(--border);background:var(--card);border-radius:8px;
+  font:inherit;font-size:13px;font-weight:600;color:var(--foreground);padding:7px 14px;
+}
+.btn-ghost:hover{background:var(--muted)}
+
+footer{margin-top:56px;font-size:12.5px;color:var(--muted-foreground);border-top:1px solid var(--border);padding-top:16px}
+footer b{color:var(--foreground);font-weight:600}
+footer .mono{font-size:11.5px}
+footer a{color:var(--anno)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="mhead">
+    <div class="mhead-left">
+      <div class="eyebrow">Mockup · 2026-07-14 · open backlog · <span class="mono">sibling of carryover v7 — rose means overdue, amber stays carryover</span></div>
+      <h1>Show the parcels that <span class="rose">never left</span></h1>
+      <p class="sub">A standing section on the dashboard: every parcel <b>submitted since Shipping go-live (3 Jul)</b> that has <b>not shipped</b>, grouped by the stage where it stopped, with bulk cancel for orders the platforms cancelled without telling us. <b>Independent of the date filter</b> — always as of now.</p>
+    </div>
+    <div class="mhead-right">
+      <button class="theme-btn" id="themeToggle" type="button">◐ <span id="themeLabel">Dark preview</span></button>
+      <span class="hint">Three states stacked below — in the product it is ONE card, collapsed by default</span>
+    </div>
+  </div>
+
+  <!-- ================= 1: COLLAPSED ================= -->
+  <section>
+    <div class="shead">
+      <span class="snum">STATE 1</span><h2>Collapsed — the default</h2>
+      <span class="chip d">one line · rose left border · summary from GET /dashboard/backlog</span>
+    </div>
+    <p class="snote">One quiet line until the manager needs it. The rose border says <b>overdue</b>; the number is the whole story. Sits between the pipeline track and the main packing table, and ignores the date filter above it.</p>
+    <div class="demo">
+      <div class="bl">
+        <div class="bl-sum">
+          <span class="bl-eyebrow">Open backlog</span>
+          <span class="bl-count">1,660</span>
+          <span class="bl-def">parcels not yet shipped · submitted before today · oldest <b>3 Jul 2026</b></span>
+          <button class="bl-chev" type="button" aria-label="Expand open backlog" aria-expanded="false">▾</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 2: EXPANDED ================= -->
+  <section>
+    <div class="shead">
+      <span class="snum">STATE 2</span><h2>Expanded — Packed cohort, 2 rows checked</h2>
+      <span class="chip d">chips = stage partition · selects filter the table only · oldest first</span>
+    </div>
+    <p class="snote">The chips mirror the summary endpoint's stage partition — <b>where each parcel stopped</b>. The two dropdowns narrow the table and its total only; chip counts never re-query. Checking rows summons the bulk bar. <b>Submitted At stays amber</b> (the product-wide colour for "this date is old"); <b>Age is rose</b> because here old means overdue.</p>
+    <div class="demo">
+      <div class="bl">
+        <div class="bl-sum">
+          <span class="bl-eyebrow">Open backlog</span>
+          <span class="bl-count">1,660</span>
+          <span class="bl-def">parcels not yet shipped · submitted before today · oldest <b>3 Jul 2026</b></span>
+          <button class="bl-chev" type="button" aria-label="Collapse open backlog" aria-expanded="true">▴</button>
+        </div>
+
+        <div class="bl-chips">
+          <span class="lbl">Stopped at:</span>
+          <button class="blchip" type="button">All · 1,660</button>
+          <button class="blchip" type="button">Submitted · 95</button>
+          <button class="blchip" type="button">QC Hold · 4</button>
+          <button class="blchip" type="button">QC Passed · 33</button>
+          <button class="blchip active" type="button">Packed · 1,528</button>
+          <span class="bl-filters">
+            <select class="flt" aria-label="Filter by shipping option">
+              <option>All shipping</option>
+              <option>Standard Delivery</option>
+              <option>Express Delivery</option>
+              <option>Bulky</option>
+            </select>
+            <select class="flt" aria-label="Filter by current status">
+              <option>All statuses</option>
+              <option>To be packed</option>
+              <option>Packing</option>
+              <option>Packed</option>
+              <option>QC Hold</option>
+              <option>QC Passed</option>
+              <option>Shipped</option>
+              <option>Returned</option>
+            </select>
+          </span>
+        </div>
+
+        <div class="bulk" role="region" aria-label="Bulk actions">
+          <button class="btn-danger" type="button">Cancel 2 parcels</button>
+          <button class="btn-text" type="button">Clear selection</button>
+        </div>
+
+        <div class="tbl-head">
+          <h3>Backlog parcels</h3>
+          <span class="cnt">1,528 total</span>
+        </div>
+
+        <div class="oflow">
+        <table class="plist">
+          <thead><tr>
+            <th class="ck"><input type="checkbox" data-indeterminate aria-label="Select all on this page"></th>
+            <th style="width:36px">#</th><th>Tracking Number</th><th>Platform</th><th>Shipping</th><th>Status</th>
+            <th>Checked by</th><th>Packed by</th><th>Shipped by</th><th>Submitted At</th><th>Updated</th><th>Age</th>
+          </tr></thead>
+          <tbody>
+            <tr class="sel">
+              <td class="ck"><input type="checkbox" checked aria-label="Select TH0412345678"></td>
+              <td class="rownum">1</td><td class="tnum">TH0412345678</td>
+              <td><span class="pcell"><span class="glyph shopee">S</span>Shopee</span></td><td class="tship">Standard Delivery</td>
+              <td><span class="badge packed">Packed</span></td>
+              <td class="tperson">Nok <span class="stn">· ST-2</span></td><td class="tperson">Beam <span class="stn">· ST-1</span></td><td class="tperson tnone">—</td>
+              <td class="tdate amber">03 Jul, 14:22</td><td class="tdate">07 Jul, 16:40</td><td class="age">11d · idle 7d</td>
+            </tr>
+            <tr class="sel">
+              <td class="ck"><input type="checkbox" checked aria-label="Select TH0412398821"></td>
+              <td class="rownum">2</td><td class="tnum">TH0412398821</td>
+              <td><span class="pcell"><span class="glyph lazada">L</span>Lazada</span></td><td class="tship">Standard Delivery</td>
+              <td><span class="badge packed">Packed</span></td>
+              <td class="tperson">Ploy <span class="stn">· ST-2</span></td><td class="tperson">Mint <span class="stn">· ST-1</span></td><td class="tperson tnone">—</td>
+              <td class="tdate amber">04 Jul, 09:51</td><td class="tdate">07 Jul, 18:05</td><td class="age">10d · idle 7d</td>
+            </tr>
+            <tr>
+              <td class="ck"><input type="checkbox" aria-label="Select TH0412467905"></td>
+              <td class="rownum">3</td><td class="tnum">TH0412467905</td>
+              <td><span class="pcell"><span class="glyph tiktok">T</span>Tiktok</span></td><td class="tship">Express Delivery</td>
+              <td><span class="badge packed">Packed</span></td>
+              <td class="tperson">Nok <span class="stn">· ST-2</span></td><td class="tperson">Beam <span class="stn">· ST-1</span></td><td class="tperson tnone">—</td>
+              <td class="tdate amber">05 Jul, 19:37</td><td class="tdate">09 Jul, 11:26</td><td class="age">9d · idle 5d</td>
+            </tr>
+            <tr>
+              <td class="ck"><input type="checkbox" aria-label="Select TH0412551342"></td>
+              <td class="rownum">4</td><td class="tnum">TH0412551342</td>
+              <td><span class="pcell"><span class="glyph shopee">S</span>Shopee</span></td><td class="tship">Standard Delivery</td>
+              <td><span class="badge tbp">To be packed</span></td>
+              <td class="tperson tnone">—</td><td class="tperson tnone">—</td><td class="tperson tnone">—</td>
+              <td class="tdate amber">07 Jul, 08:14</td><td class="tdate">07 Jul, 08:14</td><td class="age">7d · idle 7d</td>
+            </tr>
+            <tr>
+              <td class="ck"><input type="checkbox" aria-label="Select TH0412609773"></td>
+              <td class="rownum">5</td><td class="tnum">TH0412609773</td>
+              <td><span class="pcell"><span class="glyph lazada">L</span>Lazada</span></td><td class="tship">Standard Delivery</td>
+              <td><span class="badge packed">Packed</span></td>
+              <td class="tperson">Ploy <span class="stn">· ST-2</span></td><td class="tperson">Mint <span class="stn">· ST-1</span></td><td class="tperson tnone">—</td>
+              <td class="tdate amber">09 Jul, 15:03</td><td class="tdate">10 Jul, 10:47</td><td class="age">5d · idle 4d</td>
+            </tr>
+          </tbody>
+        </table>
+        </div>
+
+        <div class="bl-foot">
+          <span class="showing">Showing 1–5 of 1,528</span>
+          <span class="bl-note">backlog since <b>3 Jul 2026</b> (Shipping go-live) · cancelled orders excluded · independent of the date filter above</span>
+          <span class="pager">
+            <button class="pbtn" type="button" disabled>‹ Prev</button>
+            <button class="pbtn" type="button">Next ›</button>
+          </span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 3: CANCEL DIALOG ================= -->
+  <section>
+    <div class="shead">
+      <span class="snum">STATE 3</span><h2>Cancel confirm — whole-order cascade warning</h2>
+      <span class="chip d">POST /dashboard/alerts/backlog/resolve · order_status only · no undo</span>
+    </div>
+    <p class="snote">Cancelling cascades to the <b>whole order</b> — every sibling parcel, even shipped ones — so the dialog says exactly that before the manager commits. Operator attribution and the optional note land in <span class="mono">workflow_events</span>. "Keep them" is the safe way out; the destructive verb stays on the red button and matches its outcome.</p>
+    <div class="demo">
+      <div class="dlgstage">
+        <!-- dimmed expanded card behind the dialog -->
+        <div class="bl" inert aria-hidden="true">
+          <div class="bl-sum">
+            <span class="bl-eyebrow">Open backlog</span>
+            <span class="bl-count">1,660</span>
+            <span class="bl-def">parcels not yet shipped · submitted before today · oldest <b>3 Jul 2026</b></span>
+            <button class="bl-chev" type="button" tabindex="-1">▴</button>
+          </div>
+          <div class="bl-chips">
+            <span class="lbl">Stopped at:</span>
+            <button class="blchip" type="button" tabindex="-1">All · 1,660</button>
+            <button class="blchip" type="button" tabindex="-1">Submitted · 95</button>
+            <button class="blchip" type="button" tabindex="-1">QC Hold · 4</button>
+            <button class="blchip" type="button" tabindex="-1">QC Passed · 33</button>
+            <button class="blchip active" type="button" tabindex="-1">Packed · 1,528</button>
+          </div>
+          <div class="bulk">
+            <button class="btn-danger" type="button" tabindex="-1">Cancel 2 parcels</button>
+            <button class="btn-text" type="button" tabindex="-1">Clear selection</button>
+          </div>
+          <div class="tbl-head"><h3>Backlog parcels</h3><span class="cnt">1,528 total</span></div>
+          <div class="oflow">
+          <table class="plist">
+            <thead><tr>
+              <th class="ck"><input type="checkbox" tabindex="-1"></th>
+              <th style="width:36px">#</th><th>Tracking Number</th><th>Platform</th><th>Shipping</th><th>Status</th>
+              <th>Checked by</th><th>Packed by</th><th>Shipped by</th><th>Submitted At</th><th>Updated</th><th>Age</th>
+            </tr></thead>
+            <tbody>
+              <tr class="sel">
+                <td class="ck"><input type="checkbox" checked tabindex="-1"></td>
+                <td class="rownum">1</td><td class="tnum">TH0412345678</td>
+                <td><span class="pcell"><span class="glyph shopee">S</span>Shopee</span></td><td class="tship">Standard Delivery</td>
+                <td><span class="badge packed">Packed</span></td>
+                <td class="tperson">Nok <span class="stn">· ST-2</span></td><td class="tperson">Beam <span class="stn">· ST-1</span></td><td class="tperson tnone">—</td>
+                <td class="tdate amber">03 Jul, 14:22</td><td class="tdate">07 Jul, 16:40</td><td class="age">11d · idle 7d</td>
+              </tr>
+              <tr class="sel">
+                <td class="ck"><input type="checkbox" checked tabindex="-1"></td>
+                <td class="rownum">2</td><td class="tnum">TH0412398821</td>
+                <td><span class="pcell"><span class="glyph lazada">L</span>Lazada</span></td><td class="tship">Standard Delivery</td>
+                <td><span class="badge packed">Packed</span></td>
+                <td class="tperson">Ploy <span class="stn">· ST-2</span></td><td class="tperson">Mint <span class="stn">· ST-1</span></td><td class="tperson tnone">—</td>
+                <td class="tdate amber">04 Jul, 09:51</td><td class="tdate">07 Jul, 18:05</td><td class="age">10d · idle 7d</td>
+              </tr>
+              <tr>
+                <td class="ck"><input type="checkbox" tabindex="-1"></td>
+                <td class="rownum">3</td><td class="tnum">TH0412467905</td>
+                <td><span class="pcell"><span class="glyph tiktok">T</span>Tiktok</span></td><td class="tship">Express Delivery</td>
+                <td><span class="badge packed">Packed</span></td>
+                <td class="tperson">Nok <span class="stn">· ST-2</span></td><td class="tperson">Beam <span class="stn">· ST-1</span></td><td class="tperson tnone">—</td>
+                <td class="tdate amber">05 Jul, 19:37</td><td class="tdate">09 Jul, 11:26</td><td class="age">9d · idle 5d</td>
+              </tr>
+            </tbody>
+          </table>
+          </div>
+        </div>
+
+        <!-- overlay + dialog -->
+        <div class="scrim">
+          <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+            <h3 id="dlgTitle">Cancel 2 parcels · 2 orders</h3>
+            <p class="dlg-warn">Cancelling marks the whole order as cancelled on every parcel, including any already shipped. This cannot be undone here.</p>
+            <div class="field">
+              <label for="dlgOperator">Operator</label>
+              <select id="dlgOperator">
+                <option>Select operator…</option>
+                <option selected>Nok</option>
+                <option>Ploy</option>
+                <option>Beam</option>
+                <option>Mint</option>
+                <option>Golf</option>
+                <option>Aum</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="dlgNote">Note (optional)</label>
+              <textarea id="dlgNote" placeholder="e.g. cancelled by buyer on Shopee, 12 Jul"></textarea>
+            </div>
+            <div class="dlg-actions">
+              <button class="btn-ghost" type="button">Keep them</button>
+              <button class="btn-danger" type="button">Cancel orders</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p><b>Colour contract:</b> rose (<span class="mono">#E11D48</span> bar/count · <span class="mono">#BE123C</span> eyebrow) = overdue, this section only. Amber stays reserved for pre-window dates — Submitted At uses the same amber as the carryover drill-down (<a href="2026-07-12-carryover-v7-inline-expand.html">sibling mockup</a>), so the two sections read as one product. <b>Counts</b> from the 2026-07-14 snapshot oracle: All 1,660 · Submitted 95 · QC Hold 4 · QC Passed 33 · Packed 1,528 (the 3 status-string "Packing" rows fold into Submitted under event-time stage grouping in the real build). Row contents (tracking numbers, operators, dates) are illustrative; Age = now − submitted, idle = now − last stage event, both computed client-side.</p>
+  </footer>
+</div>
+
+<script>
+/* theme: follow system by default; button forces .light/.dark */
+const root=document.documentElement;
+const btn=document.getElementById('themeToggle');
+const label=document.getElementById('themeLabel');
+const mq=window.matchMedia('(prefers-color-scheme: dark)');
+const isDark=()=>root.classList.contains('dark')||(mq.matches&&!root.classList.contains('light'));
+function paint(){label.textContent=isDark()?'Light preview':'Dark preview';}
+btn.addEventListener('click',()=>{
+  const d=isDark();
+  root.classList.toggle('dark',!d);
+  root.classList.toggle('light',d);
+  paint();
+});
+mq.addEventListener('change',paint);
+paint();
+
+/* select-all checkbox shows the indeterminate dash (2 of 5 checked) */
+document.querySelectorAll('input[data-indeterminate]').forEach(cb=>{cb.indeterminate=true;});
+</script>
+</body>
+</html>
