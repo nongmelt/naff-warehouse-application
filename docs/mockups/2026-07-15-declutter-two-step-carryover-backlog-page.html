@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>De-clutter v2 — Slim carryover table + backlog stat relocation (wayfinder #64)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sofia+Sans:wght@400..800&display=swap" rel="stylesheet">
+<style>
+/* ============ product tokens (same set as 2026-07-12 mockups) ============ */
+:root{
+  --background:#F3F0EE; --foreground:#141413;
+  --card:#FFFFFF; --lifted:#FCFBFA;
+  --muted:#F4F4F4; --muted-foreground:#696969;
+  --border:#E8E2DA; --accent:#F37338;
+  --dust:#D1CDC7;
+  --shadow-md:0px 12px 32px rgba(0,0,0,.06);
+  --shadow-sm:0px 4px 24px rgba(0,0,0,.04);
+  --pill-new-bg:#EFF6FF; --pill-new-fg:#2563EB;
+  --pill-carry-bg:#FEF3C7; --pill-carry-fg:#92400E;
+  --pill-pass-bg:#D1FAE5; --pill-pass-fg:#065F46;
+  --pill-hold-bg:#FEE2E2; --pill-hold-fg:#991B1B;
+  --v-carry-bar:#D97706; --v-carry-head:#B45309; --v-carry-count:#D97706;
+  --carry-cell-bg:rgba(217,119,6,.10); --carry-time:#B45309;
+  --rose-bar:#E11D48; --rose-head:#BE123C; --rose-count:#E11D48;
+  --rose-chip-bg:#FFE4E6; --rose-chip-fg:#9F1239;
+  --disc-parcels-bg:#FFF0E8; --disc-parcels-fg:#F37338;
+  --disc-qc-bg:#D1FAE5;      --disc-qc-fg:#059669;
+  --disc-packed-bg:#E0E7FF;  --disc-packed-fg:#4F46E5;
+  --disc-shipped-bg:#D1FAE5; --disc-shipped-fg:#10B981;
+  --disc-video-bg:#EDE9FE;   --disc-video-fg:#7C3AED;
+  --orders-fg:#2563EB;
+  --anno:#B45309; --anno-bg:rgba(217,119,6,.08); --anno-border:rgba(217,119,6,.35);
+  --ok-bg:#D1FAE5; --ok-fg:#065F46;
+}
+.dark{
+  --background:#141413; --foreground:#F3F0EE;
+  --card:#1E1E1D; --lifted:#1E1E1D;
+  --muted:#262627; --muted-foreground:#A8A8A8;
+  --border:#333332; --dust:#555555;
+  --shadow-md:0px 8px 26px rgba(0,0,0,.46);
+  --shadow-sm:0px 1px 3px rgba(0,0,0,.5);
+  --pill-new-bg:rgba(30,58,138,.4); --pill-new-fg:#93C5FD;
+  --pill-carry-bg:rgba(120,53,15,.4); --pill-carry-fg:#FCD34D;
+  --pill-pass-bg:rgba(6,78,59,.4); --pill-pass-fg:#86EFAC;
+  --pill-hold-bg:rgba(127,29,29,.4); --pill-hold-fg:#FCA5A5;
+  --v-carry-head:#FCD34D; --v-carry-count:#FCD34D;
+  --carry-cell-bg:rgba(245,158,11,.12); --carry-time:#FCD34D;
+  --rose-bar:#F43F5E; --rose-head:#FDA4AF; --rose-count:#FB7185;
+  --rose-chip-bg:rgba(136,19,55,.4); --rose-chip-fg:#FDA4AF;
+  --disc-parcels-bg:rgba(124,45,18,.3);
+  --disc-qc-bg:rgba(6,78,59,.3);      --disc-qc-fg:#4ADE80;
+  --disc-packed-bg:rgba(49,46,129,.3);--disc-packed-fg:#818CF8;
+  --disc-shipped-bg:rgba(6,78,59,.3); --disc-shipped-fg:#34D399;
+  --disc-video-bg:rgba(76,29,149,.3); --disc-video-fg:#A78BFA;
+  --orders-fg:#60A5FA;
+  --anno:#FBBF24; --anno-bg:rgba(245,158,11,.08); --anno-border:rgba(245,158,11,.35);
+  --ok-bg:rgba(6,78,59,.35); --ok-fg:#86EFAC;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--background); color:var(--foreground);
+  font-family:"Sofia Sans",Arial,sans-serif; font-weight:450;
+  font-size:15px; line-height:1.5;
+  padding:32px 24px 80px;
+  transition:background .25s,color .25s;
+}
+.wrap{max-width:1240px;margin:0 auto}
+.tnum{font-variant-numeric:tabular-nums}
+
+/* ============ mockup chrome ============ */
+.mhead{display:flex;align-items:flex-start;gap:24px;flex-wrap:wrap;margin-bottom:8px}
+.mhead-left{flex:1;min-width:300px}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--anno);margin-bottom:8px}
+h1{font-size:38px;font-weight:700;letter-spacing:-.02em;line-height:1.08}
+h1 .amber{background:var(--pill-carry-bg);color:var(--pill-carry-fg);border-radius:999px;padding:2px 16px;white-space:nowrap}
+h1 .rose{background:var(--rose-chip-bg);color:var(--rose-chip-fg);border-radius:999px;padding:2px 16px;white-space:nowrap}
+.sub{margin-top:10px;font-size:16px;color:var(--muted-foreground);max-width:740px}
+.sub b{color:var(--foreground)}
+.mhead-right{display:flex;flex-direction:column;align-items:flex-end;gap:10px;padding-top:6px}
+.theme-btn{
+  display:inline-flex;align-items:center;gap:8px;cursor:pointer;
+  background:var(--card);border:1px solid var(--border);border-radius:999px;
+  padding:7px 14px;font:inherit;font-size:13px;font-weight:600;color:var(--foreground);
+  box-shadow:var(--shadow-sm);
+}
+.theme-btn:hover{border-color:var(--accent)}
+.hint{
+  display:inline-flex;align-items:center;gap:8px;max-width:340px;
+  background:var(--anno-bg);border:1px dashed var(--anno-border);border-radius:16px;
+  padding:6px 14px;font-size:13px;font-weight:600;color:var(--anno);
+}
+section{margin-top:44px}
+.shead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.snum{font-size:13px;font-weight:800;color:var(--anno);letter-spacing:.04em}
+h2{font-size:21px;font-weight:700;letter-spacing:-.01em}
+.snote{font-size:13.5px;color:var(--muted-foreground);max-width:880px;margin-bottom:14px}
+.snote b{color:var(--foreground)}
+.demo{border:1px dashed var(--anno-border);border-radius:20px;padding:26px 24px 30px}
+.anno{
+  display:flex;gap:8px;align-items:flex-start;max-width:880px;margin-top:14px;
+  background:var(--anno-bg);border:1px dashed var(--anno-border);border-radius:12px;
+  padding:9px 14px;font-size:13px;font-weight:600;color:var(--anno);
+}
+.anno .q{flex-shrink:0}
+.vtoggle{display:inline-flex;gap:6px;margin-left:auto}
+.vtoggle button{
+  cursor:pointer;font:inherit;font-size:12.5px;font-weight:700;
+  border:1px solid var(--border);background:var(--card);color:var(--muted-foreground);
+  border-radius:999px;padding:4px 12px;
+}
+.vtoggle button.on{border-color:var(--anno);color:var(--anno);background:var(--anno-bg)}
+.optlabel{font-size:12px;font-weight:700;color:var(--muted-foreground);letter-spacing:.04em;margin:22px 0 8px}
+.optlabel:first-child{margin-top:0}
+/* dashboard header tabs (replaces Order Pipeline title + subtitle) */
+.dashhead{display:flex;align-items:flex-end;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--border)}
+.dtab{
+  cursor:pointer;font:inherit;font-size:14px;font-weight:700;
+  border:0;background:none;color:var(--muted-foreground);
+  padding:8px 14px;border-bottom:2px solid transparent;margin-bottom:-1px;
+  display:inline-flex;align-items:baseline;gap:7px;
+}
+.dtab:hover{color:var(--foreground)}
+.dtab.on{color:var(--foreground);border-bottom-color:var(--accent)}
+.dtab.rose .bl{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--rose-head)}
+.dtab.rose .bc{font-size:15px;font-weight:700;color:var(--rose-count)}
+.dtab.rose.on{border-bottom-color:var(--rose-bar)}
+.viewpane{display:none}
+.viewpane.on{display:block}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ============ toolbar (for §3 variant A) ============ */
+.toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.tb-title{font-size:17px;font-weight:700}
+.tb-chip{border:1px solid var(--border);background:var(--card);border-radius:999px;padding:4px 12px;font-size:12.5px;font-weight:600;color:var(--muted-foreground)}
+.bstat-chip{
+  display:inline-flex;align-items:baseline;gap:7px;cursor:pointer;
+  border:1px solid var(--border);border-left:3px solid var(--rose-bar);
+  background:var(--card);border-radius:999px;padding:4px 14px;box-shadow:var(--shadow-sm);
+}
+.bstat-chip:hover{background:var(--lifted)}
+.bstat-chip .bl{font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--rose-head)}
+.bstat-chip .bc{font-size:16px;font-weight:700;color:var(--rose-count)}
+.bstat-chip .go{font-size:12px;color:var(--muted-foreground)}
+
+/* ============ pipeline track ============ */
+.track{position:relative;display:flex;border-radius:12px;border:1px solid var(--border);background:var(--card);box-shadow:var(--shadow-md)}
+.stage{
+  position:relative;flex:1;display:flex;flex-direction:column;align-items:center;
+  padding:16px;text-align:center;border-right:1px solid var(--border);cursor:default;
+}
+.stage:first-child{border-radius:12px 0 0 12px}
+.stage:last-child{border-radius:0 12px 12px 0;border-right:0}
+.stage:hover{background:var(--lifted)}
+.stage:not(:last-child)::after{
+  content:"";position:absolute;right:-9px;top:50%;z-index:2;transform:translateY(-50%);
+  border:8px solid transparent;border-right-width:0;border-left-color:var(--border);
+}
+.disc{width:46px;height:46px;border-radius:999px;display:flex;align-items:center;justify-content:center;margin-bottom:10px;font-size:20px}
+.count{font-size:36px;font-weight:700;letter-spacing:-.02em;line-height:1}
+.count small{font-size:20px;font-weight:600}
+.slabel{margin-top:4px;margin-bottom:8px;font-size:13px;font-weight:600;color:var(--muted-foreground)}
+.pills{display:flex;flex-wrap:wrap;justify-content:center;gap:6px}
+.pill{border-radius:999px;padding:2px 10px;font-size:12px;font-weight:600;white-space:nowrap}
+.pill.new{background:var(--pill-new-bg);color:var(--pill-new-fg)}
+.pill.carry{background:var(--pill-carry-bg);color:var(--pill-carry-fg)}
+.pill.carry.clicky{cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+.pill.carry.clicky:hover{box-shadow:0 0 0 2px rgba(217,119,6,.4)}
+.pill.carry.clicky.active{box-shadow:0 0 0 2px var(--v-carry-bar)}
+.pill.carry .car{font-size:9px;transition:transform .2s}
+.pill.carry.active .car{transform:rotate(180deg)}
+.pill.pass{background:var(--pill-pass-bg);color:var(--pill-pass-fg)}
+.pill.hold{background:var(--pill-hold-bg);color:var(--pill-hold-fg)}
+.pill.rose{background:var(--rose-chip-bg);color:var(--rose-chip-fg);cursor:pointer}
+.pill.rose:hover{box-shadow:0 0 0 2px rgba(225,29,72,.35)}
+
+/* ============ carryover drilldown (original container, slim table) ============ */
+.bandwrap{position:relative;display:none}
+.bandwrap.open{display:block}
+.notch{
+  position:absolute;top:-1px;z-index:3;margin-left:-9px;
+  border:9px solid transparent;border-top-width:0;border-bottom-color:var(--v-carry-bar);
+  transition:left .2s;
+}
+.cband{
+  margin-top:10px;border-radius:10px;border:1px solid var(--border);
+  border-top:3px solid var(--v-carry-bar);background:var(--card);box-shadow:var(--shadow-md);
+  overflow:hidden;
+  /* sized to the clicked stage card (min) / content (max), not the full track */
+  width:fit-content;max-width:100%;position:relative;transition:margin-left .2s;
+}
+.cband .tbl{width:auto;margin:0 16px 12px}
+.cband .bfoot{white-space:nowrap}
+.cband-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:12px;padding:13px 20px 9px}
+.chead-label{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--v-carry-head)}
+.chead-count{font-size:28px;font-weight:700;line-height:1;color:var(--v-carry-count)}
+.xclose{
+  margin-left:auto;cursor:pointer;border:0;background:none;color:var(--muted-foreground);
+  font-size:22px;font-weight:600;line-height:1;padding:2px 10px;border-radius:6px;
+}
+.xclose:hover{background:var(--muted);color:var(--foreground)}
+.cchips{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:0 20px 12px}
+.cchips .clabel{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted-foreground);margin-right:4px}
+.cchip{
+  cursor:pointer;font:inherit;border-radius:999px;border:1px solid var(--border);
+  background:var(--lifted);color:var(--muted-foreground);
+  padding:2px 10px;font-size:12px;font-weight:600;
+}
+.cchip:hover{border-color:rgba(217,119,6,.4);color:var(--foreground)}
+.cchip.on{border-color:transparent;background:var(--pill-carry-bg);color:var(--pill-carry-fg);box-shadow:0 0 0 2px var(--v-carry-bar)}
+
+/* ============ tables ============ */
+.tbl{width:calc(100% - 40px);margin:0 20px 14px;border-collapse:collapse;font-size:13px}
+.tbl th{
+  text-align:left;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--muted-foreground);border-bottom:1px solid var(--border);padding:6px 10px;
+}
+.tbl td{padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap;vertical-align:middle}
+.tbl tr:last-child td{border-bottom:0}
+.tbl .trk{font-weight:600}
+.badge{border-radius:999px;padding:1px 9px;font-size:11.5px;font-weight:600}
+.badge.packed{background:var(--disc-packed-bg);color:var(--disc-packed-fg)}
+.badge.qcp{background:var(--pill-pass-bg);color:var(--pill-pass-fg)}
+.badge.qch{background:var(--pill-hold-bg);color:var(--pill-hold-fg)}
+.badge.sub{background:var(--pill-new-bg);color:var(--pill-new-fg)}
+.badge.ship{background:var(--disc-shipped-bg);color:var(--disc-shipped-fg)}
+.badge.vid{background:var(--disc-video-bg);color:var(--disc-video-fg)}
+.badge.carry{background:var(--pill-carry-bg);color:var(--pill-carry-fg)}
+.age{font-weight:700;color:var(--rose-count)}
+/* variant A: amber wash on previous-stage cells */
+.hlA td.prevcell{background:var(--carry-cell-bg)}
+.hlA .prevtime{font-weight:700;color:var(--carry-time)}
+/* variant B: no wash; amber badge + bold amber time */
+.hlB .prevtime{font-weight:800;color:var(--carry-time)}
+.celltime{display:block;font-size:11px;color:var(--muted-foreground);margin-top:1px}
+.arrow{color:var(--dust);font-size:14px;padding:0 2px}
+/* compact slim table */
+.tbl.slim{font-size:12.5px;width:auto;min-width:60%}
+.tbl.slim th{padding:4px 8px}
+.tbl.slim td{padding:5px 8px}
+.tbl.slim .badge{font-size:10.5px;padding:1px 7px}
+.chainev{display:inline-flex;flex-direction:column;align-items:center;gap:1px;vertical-align:top}
+.chainev.on .badge{box-shadow:0 0 0 1.5px var(--v-carry-bar)}
+.chainev.on .celltime{font-weight:700;color:var(--carry-time)}
+
+/* ============ backlog stat variants + page ============ */
+.bstat-line{
+  display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;cursor:pointer;
+  border-radius:8px;border:1px solid var(--border);
+  border-left:3px solid var(--rose-bar);background:var(--card);box-shadow:var(--shadow-sm);
+  padding:8px 16px;
+}
+.bstat-line:hover{background:var(--lifted)}
+.bstat-line .blabel{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--rose-head)}
+.bstat-line .bcount{font-size:18px;font-weight:700;line-height:1;color:var(--rose-count)}
+.bstat-line .go{margin-left:auto;font-size:12.5px;color:var(--muted-foreground)}
+
+.pagemock{border:1px solid var(--border);border-radius:14px;background:var(--background);box-shadow:var(--shadow-md);overflow:hidden}
+.pagebar{
+  display:flex;align-items:center;gap:14px;background:var(--card);
+  border-bottom:1px solid var(--border);padding:10px 20px;font-size:13px;
+}
+.pagebar .crumb{color:var(--muted-foreground);cursor:pointer}
+.pagebar .crumb:hover{color:var(--foreground)}
+.pagebar .ptitle{font-weight:700;font-size:15px}
+.pagebody{padding:20px}
+.bband{
+  border-radius:10px;border:1px solid var(--border);
+  border-left:3px solid var(--rose-bar);background:var(--card);box-shadow:var(--shadow-sm);
+  overflow:hidden;
+}
+.bband-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:12px;padding:13px 20px 9px}
+.bband-head .blabel{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--rose-head)}
+.bband-head .bcount{font-size:26px;font-weight:700;line-height:1;color:var(--rose-count)}
+.bband-head .bmeta{font-size:13px;color:var(--muted-foreground)}
+.bchips{display:flex;flex-wrap:wrap;gap:6px;padding:0 20px 12px}
+.bchip{
+  cursor:pointer;font:inherit;border-radius:999px;border:1px solid var(--border);
+  background:var(--lifted);color:var(--muted-foreground);
+  padding:2px 10px;font-size:12px;font-weight:600;
+}
+.bchip.on{border-color:transparent;background:var(--rose-chip-bg);color:var(--rose-chip-fg);box-shadow:0 0 0 2px var(--rose-bar)}
+.bsel{display:flex;align-items:center;gap:12px;margin:0 20px 10px;border-radius:8px;background:var(--rose-chip-bg);padding:7px 12px}
+.bsel .cbtn{cursor:pointer;font:inherit;font-size:12px;font-weight:700;color:#fff;background:var(--rose-bar);border:0;border-radius:6px;padding:4px 12px}
+.bsel .clr{cursor:pointer;font:inherit;font-size:12px;font-weight:600;color:var(--rose-chip-fg);background:none;border:0}
+.bfoot{border-top:1px solid var(--border);padding:8px 20px;font-size:11.5px;color:var(--muted-foreground)}
+.sel-col{width:26px}
+input[type=checkbox]{accent-color:var(--rose-bar)}
+.ghost{border:1px dashed var(--border);border-radius:8px;padding:10px 16px;font-size:13px;color:var(--dust)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="mhead">
+  <div class="mhead-left">
+    <div class="eyebrow">Mockup v4 · 2026-07-15 · wayfinder #64 (map #62) — revised after grilling round 3</div>
+    <h1><span class="amber">Slim carryover table</span> + <span class="rose">backlog tab</span></h1>
+    <p class="sub">v4 changes: highlight <b>B locked</b> (badge + amber time, no cell wash). Pill click drills into <b>only that stage's carryover</b> — cohort chip switcher gone. The <b>"Order Pipeline / Real-time order fulfillment overview" header row is replaced by tabs</b>: Order Pipeline · ⚠ Backlog — the Backlog button/tab swaps the view in place.</p>
+  </div>
+  <div class="mhead-right">
+    <button class="theme-btn" onclick="document.documentElement.classList.toggle('dark')">◐ Toggle theme</button>
+    <span class="hint">💬 React per section — “A”, “B”, or “A but …” is enough</span>
+  </div>
+</div>
+
+<!-- ============ §1 dashboard + slim-table drilldown ============ -->
+<section id="s1">
+  <div class="shead">
+    <span class="snum">§1</span><h2>Header tabs + single-cohort drill-down</h2>
+  </div>
+  <p class="snote">The old <b>"Order Pipeline" h1 + "Real-time order fulfillment overview" subtitle</b> (Dashboard.tsx:61-62) become <b>tabs</b>. Click <b>⚠ Backlog</b> to swap the view in place. On the pipeline tab, click any amber pill — the drill-down shows <b>only that stage's carryover</b> (no cohort chip switcher). Rows: Overnight stage (highlight B: badge + amber time) → today's event chain, cohort's event ringed.</p>
+  <div class="demo">
+    <div class="dashhead">
+      <button class="dtab on" id="tab-pipe" onclick="setTab('pipe')">Order Pipeline</button>
+      <button class="dtab rose" id="tab-backlog" onclick="setTab('backlog')"><span class="bl">⚠ Backlog</span><span class="bc tnum">1,660</span></button>
+    </div>
+    <div class="viewpane on" id="pane-pipe">
+    <div class="track" id="track1">
+      <div class="stage">
+        <div class="disc" style="background:var(--disc-parcels-bg);color:var(--disc-parcels-fg)">▤</div>
+        <div class="count tnum" style="color:var(--disc-parcels-fg)">86<small style="color:var(--orders-fg)"> / 74</small></div>
+        <div class="slabel">Submitted / Orders</div>
+        <div class="pills"><span class="pill new">74 new</span></div>
+      </div>
+      <div class="stage">
+        <div class="disc" style="background:var(--disc-qc-bg);color:var(--disc-qc-fg)">✓</div>
+        <div class="count tnum" style="color:var(--disc-qc-fg)">98.6<small>%</small></div>
+        <div class="slabel">QC checked</div>
+        <div class="pills"><span class="pill pass">71 pass</span><span class="pill hold">1 hold</span><span class="pill carry clicky" data-pill="qc">12 carryover <span class="car">▾</span></span></div>
+      </div>
+      <div class="stage">
+        <div class="disc" style="background:var(--disc-packed-bg);color:var(--disc-packed-fg)">▣</div>
+        <div class="count tnum" style="color:var(--disc-packed-fg)">69</div>
+        <div class="slabel">Packed</div>
+        <div class="pills"><span class="pill new">61 new</span><span class="pill carry clicky" data-pill="packed">8 carryover <span class="car">▾</span></span></div>
+      </div>
+      <div class="stage" id="shippedcard">
+        <div class="disc" style="background:var(--disc-shipped-bg);color:var(--disc-shipped-fg)">▶</div>
+        <div class="count tnum" style="color:var(--disc-shipped-fg)">64</div>
+        <div class="slabel">Shipped</div>
+        <div class="pills" id="shippedpills"><span class="pill new">59 new</span><span class="pill carry clicky" data-pill="shipped">5 carryover <span class="car">▾</span></span></div>
+      </div>
+      <div class="stage">
+        <div class="disc" style="background:var(--disc-video-bg);color:var(--disc-video-fg)">▶▮</div>
+        <div class="count tnum" style="color:var(--disc-video-fg)">67</div>
+        <div class="slabel">Video completed</div>
+        <div class="pills"><span class="pill carry clicky" data-pill="video">6 carryover <span class="car">▾</span></span></div>
+      </div>
+    </div>
+
+    <div class="bandwrap" id="bandwrap">
+      <span class="notch" id="notch"></span>
+      <div class="cband" id="cband">
+        <div class="cband-head">
+          <span class="chead-label">Carryover</span>
+          <span class="chead-count tnum" id="bandcount">12</span>
+          <span class="chead-meta" style="font-size:13px;color:var(--muted-foreground)"><b id="bandcohort" style="color:var(--foreground)">QC-checked</b> this period · submitted before today</span>
+          <button class="xclose" onclick="closeBand()" aria-label="Close">×</button>
+        </div>
+        <table class="tbl slim hlB" id="slimtbl">
+          <thead><tr><th>Tracking</th><th>Overnight stage</th><th></th><th>Today's events</th><th>Age</th></tr></thead>
+          <tbody id="slimbody"></tbody>
+        </table>
+        <div class="bfoot" id="cfoot">one parcel can appear under several stages — 31 stage events across 23 distinct parcels</div>
+      </div>
+    </div>
+    </div><!-- /pane-pipe -->
+
+    <div class="viewpane" id="pane-backlog">
+      <div class="bband">
+        <div class="bband-head">
+          <span class="blabel">Open backlog</span>
+          <span class="bcount tnum">1,660</span>
+          <span class="bmeta">parcels not yet shipped · submitted before today · oldest 3 Jul 2026</span>
+        </div>
+        <div class="bchips">
+          <button class="bchip on">All · 1,660</button>
+          <button class="bchip">Submitted · 95</button>
+          <button class="bchip">QC Hold · 4</button>
+          <button class="bchip">QC Passed · 33</button>
+          <button class="bchip">Packed · 1,528</button>
+          <button class="bchip" style="margin-left:10px">Shipping: All ▾</button>
+          <button class="bchip">Status: All ▾</button>
+        </div>
+        <div class="bsel">
+          <button class="cbtn">Cancel 2 parcels</button>
+          <button class="clr">Clear selection</button>
+        </div>
+        <div style="margin:0 20px 10px;border-radius:6px;background:rgba(245,158,11,.12);padding:6px 12px;font-size:12px;font-weight:600;color:var(--anno)">
+          Cancelled 1 of 2 selected parcels · 1 skipped (already shipped or returned) — <i>example of the partial-cancel notice, shown only on mismatch</i>
+        </div>
+        <table class="tbl">
+          <thead><tr><th class="sel-col"><input type="checkbox"></th><th>Tracking</th><th>Order</th><th>Platform</th><th>Status</th><th>Submitted</th><th>Age</th></tr></thead>
+          <tbody>
+            <tr><td><input type="checkbox" checked></td><td class="trk">TH2301122334E</td><td>250628KXTR11</td><td>Shopee</td><td><span class="badge sub">Submitted</span></td><td>3 Jul 2026</td><td class="age">12d</td></tr>
+            <tr><td><input type="checkbox" checked></td><td class="trk">TH2301133445F</td><td>250628KXTR11</td><td>Shopee</td><td><span class="badge sub">Submitted</span></td><td>3 Jul 2026</td><td class="age">12d</td></tr>
+            <tr><td><input type="checkbox"></td><td class="trk">TH2305566778G</td><td>250701LZMN12</td><td>Lazada</td><td><span class="badge qch">QC Hold</span></td><td>6 Jul 2026</td><td class="age">9d</td></tr>
+            <tr><td><input type="checkbox"></td><td class="trk">TH2307788990Q</td><td>250702LZMN15</td><td>Lazada</td><td><span class="badge qcp">QC Passed</span></td><td>7 Jul 2026</td><td class="age">8d</td></tr>
+            <tr><td><input type="checkbox"></td><td class="trk">TH2309900112H</td><td>250704TTKK13</td><td>TikTok</td><td><span class="badge packed">Packed</span></td><td>9 Jul 2026</td><td class="age">6d</td></tr>
+            <tr><td><input type="checkbox"></td><td class="trk">TH2311122334J</td><td>250706KXTR14</td><td>Shopee</td><td><span class="badge packed">Packed</span></td><td>11 Jul 2026</td><td class="age">4d</td></tr>
+            <tr><td><input type="checkbox"></td><td class="trk">TH2312233445R</td><td>250708TTKK16</td><td>TikTok</td><td><span class="badge packed">Packed</span></td><td>13 Jul 2026</td><td class="age">2d</td></tr>
+          </tbody>
+        </table>
+        <div style="display:flex;justify-content:space-between;margin:0 20px 10px;font-size:12px;color:var(--muted-foreground)"><span>1–25 of 1,660</span><span>rows: 25 ▾ · ‹ 1 2 3 … 67 ›</span></div>
+        <div class="bfoot">backlog since 3 Jul 2026 (Shipping go-live) · cancelled orders excluded · independent of the dashboard date filter</div>
+      </div>
+    </div><!-- /pane-backlog -->
+  </div>
+  <div class="anno"><span class="q">#66 ✔</span><b>Decided:</b> in-place tab, no /backlog route · backlog reuses the existing PackingTable (no JIRA regroup) · zero state = tab stays with green "✓ Backlog clear" + all-clear line · count is fetch-on-load (+ refetch after cancel), no WS/poll.</div>
+  <div class="anno"><span class="q">#65 ✔</span><b>Decided ("carryover looks good", v4.2):</b> columns as shown (Order/Platform dropped) · def-copy gone · timestamp proxy accepted (~ updatedAt for shipped/video, "time n/a*" for overnight-Shipped) — backend list-row fields noted as optional post-merge enhancement only.</div>
+  <div class="anno"><span class="q">#65 ✔</span><b>Decided (grilling 2026-07-15):</b> pill counts keep stage-event parity; stage-events footer reinstated; rows = overnight stage + today's chain; highlight <b>B</b> (badge + amber time); drill-down is <b>single-cohort</b> — no chip switcher. Still open: def-copy sentence stays gone?</div>
+</section>
+
+<!-- ============ §2 /backlog page — DROPPED ============ -->
+<section id="s4" style="opacity:.45">
+  <div class="shead"><span class="snum">§2</span><h2>/backlog page — dropped (superseded by in-place tab)</h2></div>
+  <p class="snote"><b>Decision 2026-07-15:</b> no /backlog route. The band stays on the dashboard behind the Backlog tab (§1). Kept below for reference only — the band content itself (chips, filters, cancel flow, footer) is unchanged and renders inside the tab.</p>
+  <div class="pagemock">
+    <div class="pagebar">
+      <span class="crumb">← Dashboard</span>
+      <span class="ptitle">Open backlog</span>
+      <span style="margin-left:auto;color:var(--muted-foreground);font-size:12px">localhost:3000<b style="color:var(--foreground)">/backlog</b></span>
+    </div>
+    <div class="pagebody">
+      <div class="bband">
+        <div class="bband-head">
+          <span class="blabel">Open backlog</span>
+          <span class="bcount tnum">1,660</span>
+          <span class="bmeta">parcels not yet shipped · submitted before today · oldest 3 Jul 2026</span>
+        </div>
+        <div class="bchips">
+          <button class="bchip on">All · 1,660</button>
+          <button class="bchip">Submitted · 95</button>
+          <button class="bchip">QC Hold · 4</button>
+          <button class="bchip">QC Passed · 33</button>
+          <button class="bchip">Packed · 1,528</button>
+          <button class="bchip" style="margin-left:10px">Shipping: All ▾</button>
+          <button class="bchip">Status: All ▾</button>
+        </div>
+        <div class="bsel">
+          <button class="cbtn">Cancel 2 parcels</button>
+          <button class="clr">Clear selection</button>
+        </div>
+        <table class="tbl">
+          <thead><tr><th class="sel-col"><input type="checkbox" checked></th><th>Tracking</th><th>Order</th><th>Platform</th><th>Status</th><th>Submitted</th><th>Age</th></tr></thead>
+          <tbody>
+            <tr><td><input type="checkbox" checked></td><td class="trk">TH2301122334E</td><td>250628KXTR11</td><td>Shopee</td><td><span class="badge sub">Submitted</span></td><td>3 Jul 2026</td><td class="age">12d</td></tr>
+            <tr><td><input type="checkbox" checked></td><td class="trk">TH2301133445F</td><td>250628KXTR11</td><td>Shopee</td><td><span class="badge sub">Submitted</span></td><td>3 Jul 2026</td><td class="age">12d</td></tr>
+            <tr><td><input type="checkbox"></td><td class="trk">TH2305566778G</td><td>250701LZMN12</td><td>Lazada</td><td><span class="badge qch">QC Hold</span></td><td>6 Jul 2026</td><td class="age">9d</td></tr>
+            <tr><td><input type="checkbox"></td><td class="trk">TH2309900112H</td><td>250704TTKK13</td><td>TikTok</td><td><span class="badge packed">Packed</span></td><td>9 Jul 2026</td><td class="age">6d</td></tr>
+            <tr><td><input type="checkbox"></td><td class="trk">TH2311122334J</td><td>250706KXTR14</td><td>Shopee</td><td><span class="badge packed">Packed</span></td><td>11 Jul 2026</td><td class="age">4d</td></tr>
+          </tbody>
+        </table>
+        <div class="bfoot">backlog since 3 Jul 2026 (Shipping go-live) · cancelled orders excluded · independent of the dashboard date filter</div>
+      </div>
+    </div>
+  </div>
+  <div class="anno"><span class="q">#66 ❓</span><b>Page chrome:</b> back-crumb only (shown) vs full Sidebar shell like /issues and /insights? And does the stat count live-update (no WS push exists today — research #63)?</div>
+</section>
+
+<script>
+// One row per PARCEL: overnight = stage at window start (+ its time, highlighted),
+// chain = today's stage events in order. Cohort chips filter by chain membership
+// and bold the cohort's event. '~' marks the updatedAt proxy where the real event
+// time is missing from the list payload (shipped / video-completed).
+const PARCELS = [
+  { trk: 'TH2314556677A', overnight: ['sub', 'Submitted', '14 Jul 16:20'],
+    chain: [['qc', 'qcp', 'QC Passed', '09:10'], ['packed', 'packed', 'Packed', '10:30'], ['shipped', 'ship', 'Shipped', '~13:44']], age: '1d' },
+  { trk: 'TH2315667788K', overnight: ['sub', 'Submitted', '5 Jul 08:22'],
+    chain: [['qc', 'qcp', 'QC Passed', '10:15']], age: '10d' },
+  { trk: 'TH2320011223C', overnight: ['sub', 'Submitted', '8 Jul 14:47'],
+    chain: [['qc', 'qch', 'QC Hold', '10:31']], age: '7d' },
+  { trk: 'TH2318899001B', overnight: ['qcp', 'QC Passed', '6 Jul 15:40'],
+    chain: [['packed', 'packed', 'Packed', '11:21'], ['video', 'vid', 'Video', '~11:40']], age: '10d' },
+  { trk: 'TH2319900112L', overnight: ['qcp', 'QC Passed', '9 Jul 10:12'],
+    chain: [['packed', 'packed', 'Packed', '11:36']], age: '8d' },
+  { trk: 'TH2317788990N', overnight: ['packed', 'Packed', '10 Jul 09:31'],
+    chain: [['shipped', 'ship', 'Shipped', '~13:52']], age: '9d' },
+  { trk: 'TH2322233445D', overnight: ['ship', 'Shipped', 'time n/a*'],
+    chain: [['video', 'vid', 'Video', '~09:58']], age: '5d' },
+];
+const COUNTS = { qc: 12, packed: 8, shipped: 5, video: 6 };
+const COHORT_LABEL = { qc: 'QC-checked', packed: 'Packed', shipped: 'Shipped', video: 'Video completed' };
+let openPill = null;
+
+function setTab(t) {
+  document.getElementById('tab-pipe').classList.toggle('on', t === 'pipe');
+  document.getElementById('tab-backlog').classList.toggle('on', t === 'backlog');
+  document.getElementById('pane-pipe').classList.toggle('on', t === 'pipe');
+  document.getElementById('pane-backlog').classList.toggle('on', t === 'backlog');
+  if (t === 'backlog') closeBand();
+}
+function closeBand() { openPill = null; render(); }
+function renderRows(cohort) {
+  const rows = PARCELS.filter((p) => p.chain.some((e) => e[0] === cohort));
+  document.getElementById('slimbody').innerHTML = rows.map((p) => {
+    const chain = p.chain.map((e) => {
+      const on = e[0] === cohort;
+      return `<span class="chainev${on ? ' on' : ''}"><span class="badge ${e[1]}">${e[2]}</span><span class="celltime">${e[3]}</span></span>`;
+    }).join('<span class="arrow">·</span>');
+    return `
+    <tr>
+      <td class="trk">${p.trk}</td>
+      <td class="prevcell"><span class="badge ${p.overnight[0]}">${p.overnight[1]}</span><span class="celltime prevtime">${p.overnight[2]}</span></td>
+      <td class="arrow">→</td>
+      <td>${chain}</td>
+      <td class="age">${p.age}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('bandcount').textContent = COUNTS[cohort];
+  document.getElementById('bandcohort').textContent = COHORT_LABEL[cohort];
+}
+function render() {
+  const wrap = document.getElementById('bandwrap');
+  document.querySelectorAll('[data-pill]').forEach((p) => p.classList.toggle('active', p.dataset.pill === openPill));
+  if (!openPill) { wrap.classList.remove('open'); return; }
+  wrap.classList.add('open');
+  renderRows(openPill);
+  const pill = document.querySelector(`[data-pill="${openPill}"]`);
+  const card = pill.closest('.stage');
+  const track = document.getElementById('track1');
+  const band = document.getElementById('cband');
+  const cr = card.getBoundingClientRect(), tr = track.getBoundingClientRect();
+  // band at least as wide as its stage card, at most the track; centered under the card, clamped
+  band.style.minWidth = cr.width + 'px';
+  const bw = Math.min(band.offsetWidth, tr.width);
+  const left = Math.max(0, Math.min(cr.left - tr.left + cr.width / 2 - bw / 2, tr.width - bw));
+  band.style.marginLeft = left + 'px';
+  const pr = pill.getBoundingClientRect();
+  const pillCenter = pr.left - tr.left + pr.width / 2;
+  // keep the notch on the band's top edge
+  document.getElementById('notch').style.left = Math.max(left + 14, Math.min(pillCenter, left + bw - 14)) + 'px';
+}
+document.querySelectorAll('[data-pill]').forEach((p) => {
+  p.addEventListener('click', () => { openPill = openPill === p.dataset.pill ? null : p.dataset.pill; render(); });
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeBand(); });
+if (location.hash === '#backlog') setTab('backlog');
+</script>
+</div>
+</body>
+</html>
