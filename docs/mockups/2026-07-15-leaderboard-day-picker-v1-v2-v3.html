@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Leaderboard Day Picker — V1 / V2 / V3</title>
+<!-- PROTOTYPE MOCKUP (throwaway): three variants of the single-day picker on the
+     Live Leaderboard + settled Leaderboard, switchable via the floating bottom bar
+     or ← / → arrow keys. Wayfinder ticket #71. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sofia+Sans:wght@400..800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --background:#F3F0EE; --foreground:#141413;
+  --card:#FFFFFF; --lifted:#FCFBFA;
+  --muted:#F4F4F4; --muted-foreground:#696969;
+  --border:#E8E2DA; --brand:#F37338;
+  --shadow-md:0px 12px 32px rgba(0,0,0,.06);
+  --shadow-sm:0px 4px 24px rgba(0,0,0,.04);
+  --up:#059669; --down:#DC2626;
+  --live:#10B981; --static:#94A3B8;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Sofia Sans",system-ui,sans-serif;background:var(--background);color:var(--foreground);padding:32px 24px 120px;font-size:14px}
+.wrap{max-width:1060px;margin:0 auto}
+h1{font-size:22px;font-weight:800;margin-bottom:4px}
+.sub{color:var(--muted-foreground);margin-bottom:28px;font-size:13px}
+.variant{display:none}
+.variant.active{display:block}
+.vhead{display:flex;align-items:baseline;gap:12px;margin:26px 0 6px}
+.vhead .tag{background:var(--brand);color:#fff;font-weight:800;font-size:12px;border-radius:6px;padding:2px 8px}
+.vhead h2{font-size:17px;font-weight:800}
+.vsub{color:var(--muted-foreground);font-size:13px;margin-bottom:16px}
+.pagelabel{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted-foreground);margin:20px 0 8px}
+/* ---- period bar chrome (mirrors PeriodBar.tsx) ---- */
+.pbar{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;box-shadow:var(--shadow-sm);display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.chips{display:inline-flex;gap:2px;background:var(--muted);border-radius:8px;padding:2px}
+.chip{border:0;background:transparent;border-radius:6px;padding:5px 12px;font-family:inherit;font-size:12px;font-weight:700;color:var(--muted-foreground);cursor:pointer}
+.chip.on{background:var(--card);color:var(--brand);box-shadow:var(--shadow-sm)}
+.datefield{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--lifted);border-radius:8px;padding:4px 8px;font-size:12px;font-weight:700}
+.datefield .cal{font-size:13px}
+.step{border:1px solid var(--border);background:var(--card);border-radius:6px;width:22px;height:22px;font-size:12px;line-height:1;cursor:pointer;color:var(--muted-foreground)}
+.rpill{margin-left:auto;display:inline-flex;align-items:center;gap:6px;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--brand);background:color-mix(in srgb,var(--brand) 12%,transparent);border:1px solid color-mix(in srgb,var(--brand) 32%,transparent)}
+.rpill .dot{width:6px;height:6px;border-radius:50%;background:var(--brand)}
+.rpill.live{color:var(--live);background:color-mix(in srgb,var(--live) 12%,transparent);border-color:color-mix(in srgb,var(--live) 32%,transparent)}
+.rpill.live .dot{background:var(--live);animation:pulse 1.6s infinite}
+.rpill.static{color:var(--static);background:color-mix(in srgb,var(--static) 14%,transparent);border-color:color-mix(in srgb,var(--static) 36%,transparent)}
+.rpill.static .dot{background:var(--static)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.daytoggle{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--muted-foreground)}
+.daytoggle .sw{width:30px;height:16px;border-radius:99px;background:var(--brand);position:relative}
+.daytoggle .sw::after{content:"";position:absolute;top:2px;right:2px;width:12px;height:12px;border-radius:50%;background:#fff}
+.iconbtn{border:1px solid var(--border);background:var(--card);border-radius:8px;padding:4px 9px;font-size:13px;cursor:pointer}
+.iconbtn.on{border-color:var(--brand);color:var(--brand);background:color-mix(in srgb,var(--brand) 10%,transparent)}
+/* ---- board ---- */
+.board{background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-sm);margin-top:10px;overflow:hidden}
+.bhead{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);font-weight:800;font-size:13px}
+.bhead .disc{color:var(--muted-foreground);font-weight:700;font-size:11px}
+.row{display:grid;grid-template-columns:34px 1fr 90px 70px;align-items:center;padding:8px 14px;border-bottom:1px solid var(--border);font-size:13px}
+.row:last-of-type{border-bottom:0}
+.rank{font-weight:800;color:var(--muted-foreground)}
+.name{font-weight:700}
+.cnt{text-align:right;font-variant-numeric:tabular-nums;font-weight:800}
+.trend{text-align:right;font-weight:800;font-size:12px}
+.trend.up{color:var(--up)} .trend.down{color:var(--down)} .trend.mute{color:var(--static)}
+.unreg{padding:8px 14px;background:var(--lifted);color:var(--muted-foreground);font-size:12px;border-top:1px dashed var(--border)}
+.unreg a{color:var(--muted-foreground);text-decoration:underline dotted;cursor:pointer}
+.unreg .why{float:right;font-size:10px;font-weight:800;letter-spacing:.05em;color:var(--brand);opacity:.7}
+/* ---- annotations ---- */
+.notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin-top:18px}
+.note{background:var(--lifted);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:12px}
+.note b{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--brand);margin-bottom:4px}
+.note ul{padding-left:16px}
+.note li{margin:3px 0}
+/* ---- calendar popover sketch ---- */
+.calpop{position:relative;display:inline-block}
+.pop{position:absolute;top:34px;left:0;z-index:5;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-md);padding:10px;width:210px}
+.pop .mh{display:flex;justify-content:space-between;align-items:center;font-weight:800;font-size:12px;margin-bottom:6px}
+.pop table{width:100%;border-collapse:collapse;font-size:11px;text-align:center}
+.pop th{color:var(--muted-foreground);font-weight:700;padding:2px}
+.pop td{padding:3px;border-radius:6px;cursor:pointer}
+.pop td.sel{background:var(--brand);color:#fff;font-weight:800}
+.pop td.today{outline:1.5px solid var(--brand);outline-offset:-1.5px}
+.pop td.dim{color:var(--border)}
+/* ---- floating switcher ---- */
+.switcher{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);display:flex;align-items:center;gap:14px;background:var(--foreground);color:#fff;border-radius:999px;padding:10px 18px;box-shadow:var(--shadow-md);z-index:50}
+.switcher button{background:none;border:0;color:#fff;font-size:16px;cursor:pointer;padding:0 4px}
+.switcher .lbl{font-weight:800;font-size:13px;min-width:230px;text-align:center}
+.switcher .hint{font-size:10px;opacity:.55}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Single-day picker — Live + settled Leaderboard</h1>
+  <div class="sub">Wayfinder: <b>Prototype: single-day picker on Live + settled Leaderboard</b>. Three structural models — flip with the bar below or ← / → keys. The muted “unregistered codes” footer is already decided (Option C) and appears in every variant for context.</div>
+
+  <!-- ================= V1 — new Day chip ================= -->
+  <section class="variant active" id="v1">
+    <div class="vhead"><span class="tag">V1</span><h2>New “Day” chip (recommended)</h2></div>
+    <div class="vsub">A sixth <code>ShellPeriod</code>: the chip row gains <b>Day</b>; selecting it reveals one date field + ‹ › steppers — the exact pattern Week/Month/Year already use with their anchor picker. Live keeps its one-tap <b>Today</b> chip.</div>
+
+    <div class="pagelabel">Live Leaderboard — Day selected, picked day = today → stays live</div>
+    <div class="pbar">
+      <div class="chips"><button class="chip">Today</button><button class="chip on">Day</button><button class="chip">Week</button><button class="chip">Month</button><button class="chip">Year</button></div>
+      <button class="step">‹</button>
+      <span class="datefield"><span class="cal">📅</span> Wed 15 Jul 2026</span>
+      <button class="step" disabled style="opacity:.35">›</button>
+      <span class="rpill live"><span class="dot"></span>Live · 15 Jul</span>
+    </div>
+    <div class="board">
+      <div class="bhead">Operators <span class="disc">PACKING · today so far</span></div>
+      <div class="row"><span class="rank">1</span><span class="name">Malee</span><span class="cnt">42</span><span class="trend mute">—</span></div>
+      <div class="row"><span class="rank">2</span><span class="name">Somchai</span><span class="cnt">37</span><span class="trend mute">—</span></div>
+      <div class="row"><span class="rank">3</span><span class="name">Nok</span><span class="cnt">29</span><span class="trend mute">—</span></div>
+      <div class="unreg"><a>13 parcels by 1 unregistered code — hidden</a><span class="why">DECIDED · OPTION C</span></div>
+    </div>
+
+    <div class="pagelabel">Settled Leaderboard — Day selected, past day → deltas vs previous day</div>
+    <div class="pbar">
+      <div class="chips"><button class="chip on">Day</button><button class="chip">Week</button><button class="chip">Month</button><button class="chip">Year</button><button class="chip">Custom</button></div>
+      <button class="step">‹</button>
+      <span class="calpop"><span class="datefield"><span class="cal">📅</span> Fri 3 Jul 2026</span>
+        <span class="pop">
+          <span class="mh"><span>‹</span> July 2026 <span>›</span></span>
+          <table><tr><th>M</th><th>T</th><th>W</th><th>T</th><th>F</th><th>S</th><th>S</th></tr>
+          <tr><td class="dim">29</td><td class="dim">30</td><td>1</td><td>2</td><td class="sel">3</td><td>4</td><td>5</td></tr>
+          <tr><td>6</td><td>7</td><td>8</td><td>9</td><td>10</td><td>11</td><td>12</td></tr>
+          <tr><td>13</td><td>14</td><td class="today">15</td><td class="dim">16</td><td class="dim">17</td><td class="dim">18</td><td class="dim">19</td></tr></table>
+        </span>
+      </span>
+      <button class="step">›</button>
+      <span class="rpill"><span class="dot"></span>Fri 3 Jul 2026</span>
+    </div>
+    <div class="board" style="margin-top:90px">
+      <div class="bhead">Operators <span class="disc">PACKING · vs Thu 2 Jul</span></div>
+      <div class="row"><span class="rank">1</span><span class="name">Somchai</span><span class="cnt">61</span><span class="trend up">▲ 9</span></div>
+      <div class="row"><span class="rank">2</span><span class="name">Malee</span><span class="cnt">55</span><span class="trend down">▼ 4</span></div>
+      <div class="row"><span class="rank">3</span><span class="name">Dao</span><span class="cnt">40</span><span class="trend up">▲ 12</span></div>
+      <div class="unreg"><a>2 parcels by 1 unregistered code — hidden</a><span class="why">DECIDED · OPTION C</span></div>
+    </div>
+
+    <div class="notes">
+      <div class="note"><b>Structure</b><ul><li>New <code>ShellPeriod "day"</code> + one <code>DatePicker</code> (anchor pattern reuse)</li><li>Same chip on both pages → one mental model</li><li>Live keeps Today = one-tap reset to live</li></ul></div>
+      <div class="note"><b>Deltas (settled)</b><ul><li><code>prevShellRange</code> extends: day → previous calendar day</li><li>TrendArrow unchanged</li></ul></div>
+      <div class="note"><b>Live semantics</b><ul><li>Day = today → identical to Today (live tick, green pulse)</li><li>Day &lt; today → static board, grey pill, ‹›-steppable</li><li>› disabled at today</li></ul></div>
+      <div class="note"><b>Trade-offs</b><ul><li>+ consistent, discoverable, cheapest to build</li><li>− Live row has both Today and Day (slight overlap when Day = today)</li></ul></div>
+    </div>
+  </section>
+
+  <!-- ================= V2 — Today generalizes into a date-field chip ================= -->
+  <section class="variant" id="v2">
+    <div class="vhead"><span class="tag">V2</span><h2>“Today” becomes a date-field chip</h2></div>
+    <div class="vsub">No new chip: the first chip <i>is</i> the day control. On Live, <b>Today</b> generalizes — it shows the picked date inline, opens a calendar on click, and steppers ride inside the chip row. Settled board gains the same date-field chip as its first chip.</div>
+
+    <div class="pagelabel">Live Leaderboard — date-field chip pinned to today → live</div>
+    <div class="pbar">
+      <div class="chips">
+        <button class="chip on" style="display:inline-flex;align-items:center;gap:6px">📅 Today · 15 Jul <span style="opacity:.5">▾</span></button>
+        <button class="chip">Week</button><button class="chip">Month</button><button class="chip">Year</button>
+      </div>
+      <span class="rpill live"><span class="dot"></span>Live · 15 Jul</span>
+    </div>
+    <div class="board">
+      <div class="bhead">Operators <span class="disc">PACKING · today so far</span></div>
+      <div class="row"><span class="rank">1</span><span class="name">Malee</span><span class="cnt">42</span><span class="trend mute">—</span></div>
+      <div class="row"><span class="rank">2</span><span class="name">Somchai</span><span class="cnt">37</span><span class="trend mute">—</span></div>
+      <div class="unreg"><a>13 parcels by 1 unregistered code — hidden</a><span class="why">DECIDED · OPTION C</span></div>
+    </div>
+
+    <div class="pagelabel">Live Leaderboard — same chip, stepped back to a past day → static</div>
+    <div class="pbar">
+      <div class="chips">
+        <button class="chip on" style="display:inline-flex;align-items:center;gap:6px">📅 Fri 3 Jul <span style="opacity:.5">▾</span></button>
+        <button class="chip">Week</button><button class="chip">Month</button><button class="chip">Year</button>
+      </div>
+      <button class="step">‹</button><button class="step">›</button>
+      <span class="iconbtn" title="jump back to live">⚡ Back to live</span>
+      <span class="rpill static"><span class="dot"></span>Fri 3 Jul · static</span>
+    </div>
+
+    <div class="pagelabel">Settled Leaderboard — date-field chip first, Custom unchanged</div>
+    <div class="pbar">
+      <div class="chips">
+        <button class="chip on" style="display:inline-flex;align-items:center;gap:6px">📅 3 Jul 2026 <span style="opacity:.5">▾</span></button>
+        <button class="chip">Week</button><button class="chip">Month</button><button class="chip">Year</button><button class="chip">Custom</button>
+      </div>
+      <button class="step">‹</button><button class="step">›</button>
+      <span class="rpill"><span class="dot"></span>Fri 3 Jul 2026</span>
+    </div>
+    <div class="board">
+      <div class="bhead">Operators <span class="disc">PACKING · vs Thu 2 Jul</span></div>
+      <div class="row"><span class="rank">1</span><span class="name">Somchai</span><span class="cnt">61</span><span class="trend up">▲ 9</span></div>
+      <div class="row"><span class="rank">2</span><span class="name">Malee</span><span class="cnt">55</span><span class="trend down">▼ 4</span></div>
+      <div class="unreg"><a>2 parcels by 1 unregistered code — hidden</a><span class="why">DECIDED · OPTION C</span></div>
+    </div>
+
+    <div class="notes">
+      <div class="note"><b>Structure</b><ul><li>Chip row shrinks by one; the day chip carries state (date + popover)</li><li>“Today” label auto-restores when picked date = today</li></ul></div>
+      <div class="note"><b>Live semantics</b><ul><li>Chip on today → live; stepping back freezes + shows <b>⚡ Back to live</b> escape hatch</li><li>Wall-board risk: someone leaves it on a past day and the room stops seeing live numbers</li></ul></div>
+      <div class="note"><b>Trade-offs</b><ul><li>+ most compact; single control for today + any day</li><li>− chip that is also a stateful field = unusual pattern; harder in <code>PeriodBar</code> (chips are plain buttons today)</li><li>− one-tap “Today” reset now two-ish taps unless the ⚡ button is prominent</li></ul></div>
+    </div>
+  </section>
+
+  <!-- ================= V3 — single-day mode on existing controls ================= -->
+  <section class="variant" id="v3">
+    <div class="vhead"><span class="tag">V3</span><h2>Single-day mode on existing controls</h2></div>
+    <div class="vsub">No new chip anywhere. Settled board: <b>Custom</b> gains a “1 day” lock that collapses From/To into one field. Live board: a small calendar icon button right of the chips pins any day (Live has no Custom chip to extend).</div>
+
+    <div class="pagelabel">Settled Leaderboard — Custom with “1 day” lock on</div>
+    <div class="pbar">
+      <div class="chips"><button class="chip">Week</button><button class="chip">Month</button><button class="chip">Year</button><button class="chip on">Custom</button></div>
+      <span class="daytoggle"><span class="sw"></span>1 day</span>
+      <span class="datefield"><span class="cal">📅</span> Fri 3 Jul 2026</span>
+      <span style="font-size:11px;color:var(--muted-foreground)">(From = To locked)</span>
+      <span class="rpill"><span class="dot"></span>Fri 3 Jul 2026</span>
+    </div>
+    <div class="board">
+      <div class="bhead">Operators <span class="disc">PACKING · vs Thu 2 Jul</span></div>
+      <div class="row"><span class="rank">1</span><span class="name">Somchai</span><span class="cnt">61</span><span class="trend up">▲ 9</span></div>
+      <div class="row"><span class="rank">2</span><span class="name">Malee</span><span class="cnt">55</span><span class="trend down">▼ 4</span></div>
+      <div class="unreg"><a>2 parcels by 1 unregistered code — hidden</a><span class="why">DECIDED · OPTION C</span></div>
+    </div>
+
+    <div class="pagelabel">Live Leaderboard — calendar icon button pins a day</div>
+    <div class="pbar">
+      <div class="chips"><button class="chip">Today</button><button class="chip">Week</button><button class="chip">Month</button><button class="chip">Year</button></div>
+      <button class="iconbtn on" title="pick a day">📅 3 Jul</button>
+      <span class="rpill static"><span class="dot"></span>Fri 3 Jul · static</span>
+    </div>
+    <div class="board">
+      <div class="bhead">Operators <span class="disc">PACKING · Fri 3 Jul</span></div>
+      <div class="row"><span class="rank">1</span><span class="name">Somchai</span><span class="cnt">61</span><span class="trend mute">—</span></div>
+      <div class="row"><span class="rank">2</span><span class="name">Malee</span><span class="cnt">55</span><span class="trend mute">—</span></div>
+      <div class="unreg"><a>2 parcels by 1 unregistered code — hidden</a><span class="why">DECIDED · OPTION C</span></div>
+    </div>
+
+    <div class="notes">
+      <div class="note"><b>Structure</b><ul><li>Settled: Custom grows a boolean; no <code>ShellPeriod</code> change</li><li>Live: icon button is a <i>new, page-specific</i> affordance outside the chip group</li></ul></div>
+      <div class="note"><b>Trade-offs</b><ul><li>+ smallest surface change on settled board</li><li>− asymmetric: two different day affordances across the two pages</li><li>− day-picking buried inside Custom; icon button competes with chips for attention</li><li>− chip highlight can’t show “you are in day mode” on Live (Today stays unlit, icon lights instead)</li></ul></div>
+      <div class="note"><b>Deltas / live</b><ul><li>Same semantics as V1/V2 (prev-day deltas; today = live, past = static)</li></ul></div>
+    </div>
+  </section>
+
+  <!-- ============ shared agenda footer ============ -->
+  <div class="notes" style="margin-top:26px">
+    <div class="note"><b>Fixed across all variants (react if wrong)</b><ul>
+      <li><b>Deltas:</b> picked day compares vs previous calendar day; arrows keep current styling; Live board still shows no deltas (— today)</li>
+      <li><b>Live vs static:</b> picked day = today → live tick keeps re-pinning; past day → static grey pill, no tick</li>
+      <li><b>Scope:</b> the range control stays page-level — one bar above operators|stations tabs and both disciplines</li>
+    </ul></div>
+  </div>
+</div>
+
+<div class="switcher">
+  <button id="prev">‹</button>
+  <span class="lbl" id="lbl">V1 — New “Day” chip</span>
+  <button id="next">›</button>
+  <span class="hint">← →</span>
+</div>
+
+<script>
+const variants=[["v1","V1 — New “Day” chip"],["v2","V2 — “Today” becomes a date-field chip"],["v3","V3 — Single-day mode on existing controls"]];
+let i=0;
+function show(n){i=(n+variants.length)%variants.length;
+  document.querySelectorAll(".variant").forEach(s=>s.classList.remove("active"));
+  document.getElementById(variants[i][0]).classList.add("active");
+  document.getElementById("lbl").textContent=variants[i][1];}
+document.getElementById("prev").onclick=()=>show(i-1);
+document.getElementById("next").onclick=()=>show(i+1);
+document.addEventListener("keydown",e=>{
+  if(e.target.matches("input,textarea,[contenteditable]"))return;
+  if(e.key==="ArrowLeft")show(i-1); if(e.key==="ArrowRight")show(i+1);});
+</script>
+</body>
+</html>
