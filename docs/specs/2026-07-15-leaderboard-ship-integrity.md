@@ -1,7 +1,7 @@
 # Spec: Leaderboard post-Ship integrity — event-time counting, unregistered sidecar, single-day picker, live-cache revalidation
 
 **Status:** build-ready
-**Base:** `feat/warehouse-invoice` worktrees — `backend/.worktrees/warehouse-invoice` (@ `6678c5e`, PR [naff-warehouse-backend#53](https://github.com/nongmelt/naff-warehouse-backend/pull/53)) and `frontend/.worktrees/warehouse-invoice` (@ `b1a10c5`, PR [naff-warehouse-frontend#50](https://github.com/nongmelt/naff-warehouse-frontend/pull/50)).
+**Base:** branch `fix/leaderboard-ship-integrity` in worktrees `backend/.worktrees/leaderboard-ship-integrity` (@ `6678c5e`) and `frontend/.worktrees/leaderboard-ship-integrity` (@ `b1a10c5`), both atop `feat/warehouse-invoice` (PR stacks BE [#53](https://github.com/nongmelt/naff-warehouse-backend/pull/53) / FE [#50](https://github.com/nongmelt/naff-warehouse-frontend/pull/50)). Line refs are valid at those base commits.
 **Origin:** wayfinder map [#68](https://github.com/nongmelt/naff-warehouse-application/issues/68) (tickets #69 quantification, #70 unregistered grilling, #71 day-picker prototype). Line refs are at the base commits above.
 
 ## 1. Problem
@@ -108,7 +108,7 @@ Frontend — vitest (suite exists on this branch). **Gotcha:** `vitest.config.ts
 
 ## 8. Constraints
 
-- Work in the **warehouse-invoice worktrees**; commits land in each submodule on `feat/warehouse-invoice` (per [[feedback_use-worktrees-for-branch-work]]). BE and FE changes are independently deployable (sidecar is additive; picker is FE-only) — no lockstep deploy.
+- Work in the **leaderboard-ship-integrity worktrees**; commits land in each submodule on `fix/leaderboard-ship-integrity` (per [[feedback_use-worktrees-for-branch-work]]). BE and FE changes are independently deployable (sidecar is additive; picker is FE-only) — no lockstep deploy.
 - Backend tests need a live migrated `DATABASE_URL` (`warehouse_db_test`; shared dev DB needs `sqlx migrate run --ignore-missing`). **No `.sqlx` cache and no compile-time query macros exist** — builds don't need the DB; running tests does. Pre-existing failures on base: 3 leaderboard (fixed by this spec) + 1 `product_insights` (untouched) — use `--no-fail-fast`.
 - `fix/analytics-post-shipped` (dashboard ADR-0003 implementation, BE `f26965f`) is a sibling branch atop the same base: no shared files with this spec's edits (`leaderboard.rs` untouched there); merge order free; trivial `types.ts` adjacency possible on FE.
 - No DB migration; no schema change; no MAUI change.

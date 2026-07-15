@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Work ONLY in the worktrees: backend `backend/.worktrees/warehouse-invoice` (base `6678c5e`), frontend `frontend/.worktrees/warehouse-invoice` (base `b1a10c5`); commits land on `feat/warehouse-invoice` in each submodule. Never checkout-switch the main trees.
+- Work ONLY in the worktrees: backend `backend/.worktrees/leaderboard-ship-integrity` (base `6678c5e`), frontend `frontend/.worktrees/leaderboard-ship-integrity` (base `b1a10c5`); commits land on `fix/leaderboard-ship-integrity` in each submodule (branch created 2026-07-15 off the `feat/warehouse-invoice` tips). Never checkout-switch the main trees.
 - Backend tests need a live migrated `DATABASE_URL` (e.g. `postgresql://warehouse_user:warehouse_user@localhost:5432/warehouse_db_test`); shared dev DB migrations need `sqlx migrate run --ignore-missing`. Builds do NOT need the DB (no compile-time macros, no `.sqlx`).
 - Run backend suites with `cargo test --no-fail-fast`. Pre-existing failure on base that stays: 1 in `product_insights`. The 3 leaderboard failures are FIXED by Task 1.
 - Event-time counting is immutable packed-event counting (ADR-0003 parity): later ship/return transitions never change tallies; Returned parcels still count. No status-set widening anywhere.
@@ -21,7 +21,7 @@
 
 ---
 
-## Phase 1 — Backend (worktree `backend/.worktrees/warehouse-invoice`)
+## Phase 1 — Backend (worktree `backend/.worktrees/leaderboard-ship-integrity`)
 
 ### Task 1: Repair the 3 pre-existing leaderboard test failures
 
@@ -680,7 +680,7 @@ git commit -m "fix(leaderboard): daily14 uses Bangkok date on both sides of days
 
 ---
 
-## Phase 2 — Frontend (worktree `frontend/.worktrees/warehouse-invoice`)
+## Phase 2 — Frontend (worktree `frontend/.worktrees/leaderboard-ship-integrity`)
 
 ### Task 8: Types + cache entry shape + `unregistered` threading
 
