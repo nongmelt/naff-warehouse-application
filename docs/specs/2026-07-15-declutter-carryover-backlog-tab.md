@@ -1,8 +1,12 @@
-# Spec: Dashboard de-clutter — slim single-cohort carryover drill-down + Backlog header tab
+# Spec: Dashboard de-clutter — slim single-cohort carryover drill-down + Backlog table tab
 
 Date: 2026-07-15. Resolves wayfinder **#67** (map **#62**); decision sets locked on **#65** (carryover,
-mockup v4.2 sign-off "carryover looks good") and **#66** (backlog tab, grilling rounds 3–5). Visual
-reference: `docs/mockups/2026-07-15-declutter-two-step-carryover-backlog-page.html` (v4.2).
+mockup v4.2 sign-off "carryover looks good") and **#66** (backlog, grilling rounds 3–5) — **revised
+same-day**: the backlog home moved from a dashboard header tab to view tabs on the main
+packing-lists table card; the dashboard h1 + subtitle stay. Visual references:
+`docs/mockups/2026-07-15-declutter-two-step-carryover-backlog-page.html` (v5 — carryover band;
+its header-tab/backlog panes are superseded) and `docs/mockups/2026-07-15-backlog-tab.html`
+(v2 — table-card tabs, zero state, dialog).
 Research grounding: `docs/research/2026-07-15-carryover-backlog-data-availability.md`.
 **Frontend-only** — touches ONE submodule: frontend worktree `frontend/.worktrees/analytics-debug`,
 branch `fix/analytics-post-shipped` (tip at spec time: **40814c6**, UNPUSHED; suite green 99/99).
@@ -21,9 +25,9 @@ Two de-clutter follow-ups from the Open Backlog live review (both grilled to res
    that explain why a pre-window parcel appears under a stage pill at all.
 2. **The backlog band crowds the pipeline.** `BacklogSection` sits permanently between the
    pipeline track and the filter bar (`Dashboard.tsx:104`) — a red management surface wedged into
-   an operational monitoring page. It duplicates an expand/collapse affordance the page header
-   could carry, and its headline competes with the pipeline stats. The dashboard h1 + subtitle
-   (`Dashboard.tsx:61-62`) spend the header's best real estate on static copy.
+   an operational monitoring page. Its headline competes with the pipeline stats, and its
+   collapse toggle duplicates an affordance a view tab on the main table card can carry: the
+   backlog IS a packing-lists listing, so it belongs where the packing-lists table lives.
 
 ## 2. Decisions (locked)
 
@@ -116,25 +120,35 @@ Two de-clutter follow-ups from the Open Backlog live review (both grilled to res
    `BacklogSection.tsx:163-169`). `useCarryoverParcels`' `shippingOption`/`status` params stay in
    the hook, permanently `"all"` from the drill-down — dead-but-harmless; cleanup is out of scope.
 
-### B. Backlog behind a header tab — no new route
+### B. Backlog behind a view tab on the main table card — no new route
 
-9. **Tab row replaces the dashboard h1 + subtitle.** `Dashboard.tsx:61-62` ("Order Pipeline" /
-   "Real-time order fulfillment overview") are DELETED, replaced by a new `DashboardTabs`
-   component in the same header slot: `Order Pipeline · ⚠ Backlog <count>` (mockup `.dashhead`,
-   lines 317-320 — borderless buttons, 2px bottom border on the active tab: accent for pipeline,
-   rose for backlog). The header's right side (AlertPills · LiveStations · ExportPopover,
-   `Dashboard.tsx:64-70`) is unchanged and visible on BOTH tabs.
-10. **In-place view swap — no `/backlog` route, no URL param.** Local `useState` in `Dashboard`
-    (`view: "pipeline" | "backlog"`). Pipeline tab renders today's main content minus the backlog
-    band: CalendarStrip (`:75-94`) + PipelineSection (`:96-102`) + FilterBar card (`:106-136`) +
-    main PackingTable (`:138-154`). Backlog tab renders ONLY `BacklogSection`. The band never
-    leaves `Dashboard.tsx` — `operators` + `onOpenParcel={openModal}` wiring stays exactly as
-    today (`:104`), so the shared detail panel and cancel flow keep working unmoved.
+9. **View tabs on the packing-lists table card — the dashboard header is untouched.** The h1
+   "Order Pipeline" + subtitle "Real-time order fulfillment overview" (`Dashboard.tsx:61-62`)
+   stay exactly as they are (the earlier header-tab direction is superseded). A new
+   `TableViewTabs` component renders as the top row of the main-table card region
+   (`Dashboard.tsx:138-154`): `Parcels | ⚠ Backlog <count>` (mockup
+   `2026-07-15-backlog-tab.html` §1, `.dashhead`/`.dtab` lines 76-89 + 181-184 — borderless
+   buttons, 2px bottom border on the active tab: accent for Parcels, rose for Backlog; same
+   visual language as the superseded header-tab design, mounted on the card).
+10. **In-place view swap inside the card — no `/backlog` route, no URL param.** Local `useState`
+    in `Dashboard` (`view: "parcels" | "backlog"`). Parcels view = today's main `PackingTable`
+    exactly as-is. Backlog view = the `BacklogSection` band content rendering in its place inside
+    the card. CalendarStrip (`:75-94`), PipelineSection with the new slim drill-down (`:96-102`),
+    and the FilterBar card (`:106-136`) ALL stay rendered on BOTH views; the date filter and
+    FilterBar affect only the Parcels view — the backlog stays date-independent. UX nit (flagged,
+    not redesigned): on the Backlog view the FilterBar above remains visible but is inert for the
+    content below it. Mechanics: one card wrapper (`rounded-2xl border border-border bg-card
+    shadow-sm`) owns the tab row + the swapped content; `PackingTable` gains an opt-in
+    `frameless` boolean (its own outer card chrome at `PackingTable.tsx:220` drops when
+    embedded) and `BacklogSection`'s outer chrome flattens likewise (border/rounding/shadow off,
+    the 3px left accent kept — mockup line 185). The band never leaves `Dashboard.tsx` —
+    `operators` + `onOpenParcel={openModal}` wiring stays exactly as today, so the shared detail
+    panel and cancel flow keep working unmoved.
 11. **Tab badge copy: count only** — `⚠ Backlog` (rose, uppercase eyebrow style) + the total,
     no "oldest" date (oldest stays inside the band header line). While the summary hasn't loaded:
     `Backlog —` in default muted styling.
-12. **Summary hook lifts to `Dashboard`.** The tab badge needs the count before the band mounts,
-    so `useBacklogSummary()` moves from `BacklogSection` (`BacklogSection.tsx:23`) to
+12. **Summary hook lifts to `Dashboard`.** The card's tab badge needs the count before the band
+    mounts, so `useBacklogSummary()` moves from `BacklogSection` (`BacklogSection.tsx:23`) to
     `Dashboard`; `BacklogSection` gains props `summary: BacklogSummary | null` +
     `onRefetchSummary: () => void` and drops its own hook call. `confirmCancel`'s
     `refetch()` (`:100`) becomes `onRefetchSummary()` — a successful cancel updates the tab badge
@@ -149,26 +163,28 @@ Two de-clutter follow-ups from the Open Backlog live review (both grilled to res
     VERBATIM from `40814c6`: stage chips (`:143-162`), `CohortFilters` (`:163-169`), selection +
     bulk bar (`:171-189`), partial-cancel amber notice (`:190-197`), error row (`:198-207`),
     `PackingTable` with `highlightSubmittedAt`/`showAge`/selection (`:209-234`), footer note
-    (`:235-237`), cancel dialog incl. failure surface (`:241-282`). Note: the footer's verbatim
-    tail "independent of the date filter above" now renders on a tab where the CalendarStrip is
-    not visible — kept verbatim per the lock; rewording is a post-merge copy nit.
+    (`:235-237`), cancel dialog incl. failure surface (`:241-282`). The footer's verbatim tail
+    "independent of the date filter above" is literally accurate on the card tab (CalendarStrip
+    and FilterBar render above the card on both views) — kept, no copy nit.
 14. **Zero-backlog state.** The tab stays visible; its badge turns green **`✓ Backlog clear`**
-    (no count). Tab content: when `summary.total === 0`, the band hides chips/filters/table/bulk
-    bar and shows one green all-clear line matching the pipeline's All-clear language
-    (`PipelineStage.tsx:199-207` green family):
-    `✓ Backlog clear — every parcel submitted before today has shipped`. Footer note stays;
-    the section's left accent bar turns green.
+    (no count; active underline green). Tab content: when `summary.total === 0`, the all-clear
+    row IS the band — header line, chips, filters, bulk bar, table, and footer all hide
+    (mockup `2026-07-15-backlog-tab.html` §2); one green row matching the pipeline's All-clear
+    language (`PipelineStage.tsx:199-207` green family): pill `✓ All clear` +
+    `every parcel submitted before today has shipped · checked at page load`. The section's
+    left accent bar turns green.
 15. **Count freshness: fetch-on-load only + refetch after cancel POST** — exactly today's
     behaviour (`useBacklogSummary`, `useBacklog.ts:49-70`). No WS piggyback, no polling; a
-    long-lived tab shows a stale badge until reload or a cancel — accepted (#66).
+    long-lived tab shows a stale badge until reload or a cancel — accepted (#66; the zero
+    state's "checked at page load" tail says so on screen).
 
 ## 3. Phasing / sequencing
 
 - **Phase 1 — slim drill-down** (all in `frontend/.worktrees/analytics-debug`): pure row-derivation
   module → `CarryoverSlimTable` → `CarryoverDrilldown` conversion (header/sizing/notch, chips +
   def-copy + filters removal) → `PipelineSection` wiring + test updates.
-- **Phase 2 — backlog tab**: `DashboardTabs` → `BacklogSection` always-expanded + lifted-summary
-  props + zero state → `Dashboard` view swap.
+- **Phase 2 — backlog tab**: `TableViewTabs` → `BacklogSection` always-expanded + lifted-summary
+  props + zero state → `Dashboard` card-level view swap (+ `PackingTable` `frameless` opt-in).
 - **Phase 3 — verification**: full suites + lint + build; live smoke vs `warehouse_snapshot`;
   final whole-branch review.
 - **No deploy coupling**: frontend-only; ships against the already-built backend on this branch
@@ -214,6 +230,10 @@ Two de-clutter follow-ups from the Open Backlog live review (both grilled to res
   (record in the release ledger, not here).
 - Cancel-flow behaviour changes — just fixed (`40814c6`); it renders inside the tab verbatim.
 - `/backlog` route, shareable URL, or `#backlog` deep link; `DashboardShell` extraction.
+- Dashboard header changes — the h1 + subtitle stay; the header-tab placement (declutter mockup
+  v4.2 §1) is superseded by the card tabs.
+- Making the FilterBar tab-aware (hide/disable on the Backlog view) — flagged UX nit (§B.10),
+  post-merge polish if the user wants it.
 - WS piggyback / polling for the tab badge; live count updates.
 - Standing a11y user-decision list (nested-interactive carryover pill, InfoTip tab stop,
   CohortFilters select labels) and a full WAI-ARIA tabs pattern for the new tab row.

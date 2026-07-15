@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Turn the carryover drill-down into a slim single-cohort band (no chip switcher, compact `Tracking · Overnight stage → Today's events · Age` table sized to its stage card) and move the backlog band behind a dashboard header tab (`Order Pipeline · ⚠ Backlog <count>`) that swaps the view in place — no new route.
+**Goal:** Turn the carryover drill-down into a slim single-cohort band (no chip switcher, compact `Tracking · Overnight stage → Today's events · Age` table sized to its stage card) and move the backlog band behind a `Parcels | ⚠ Backlog <count>` view tab on the main packing-lists table card — no new route, dashboard header untouched.
 
-**Architecture:** Frontend-only, one submodule. A new pure module `carryoverRows.ts` derives each parcel's overnight stage and in-window event chain from `PackingItem` timestamps (client-side; `~ updatedAt` proxy for shipped/video times, `time n/a` for overnight-Shipped). A new `CarryoverSlimTable` renders it and replaces `PackingTable` inside `CarryoverDrilldown`, which loses chips/def-copy/filters and gains anchor-based sizing (width fits content, min-width = clicked stage card, centered + clamped, notch at the pill). A new `DashboardTabs` replaces the dashboard h1 + subtitle; `useBacklogSummary` lifts from `BacklogSection` into `Dashboard` so the tab badge and the band share one fetch; `BacklogSection` renders always-expanded inside the tab with its content verbatim, plus a green zero-state. No backend, migration, or wire changes.
+**Architecture:** Frontend-only, one submodule. A new pure module `carryoverRows.ts` derives each parcel's overnight stage and in-window event chain from `PackingItem` timestamps (client-side; `~ updatedAt` proxy for shipped/video times, `time n/a` for overnight-Shipped). A new `CarryoverSlimTable` renders it and replaces `PackingTable` inside `CarryoverDrilldown`, which loses chips/def-copy/filters and gains anchor-based sizing (width fits content, min-width = clicked stage card, centered + clamped, notch at the pill). A new `TableViewTabs` row tops the main-table card (the dashboard h1 + subtitle stay); `useBacklogSummary` lifts from `BacklogSection` into `Dashboard` so the card's tab badge and the band share one fetch; `BacklogSection` renders always-expanded (outer chrome flattened) in the main `PackingTable`'s place inside the card — `PackingTable` gains a `frameless` opt-in for the same embedding — with its content verbatim, plus a green zero-state. No backend, migration, or wire changes.
 
 **Tech Stack:** Next.js 16 / React 19 / Tailwind v4 / TypeScript strict / vitest 4 + jsdom (NO @testing-library).
 
@@ -22,10 +22,10 @@
   - Missing overnight-Shipped time: `time n/a`; proxy prefix: `~`
   - Drill-down footer: existing `stageEventsNote()` output — UNCHANGED
   - Error row (both surfaces, unchanged): `Couldn't load parcels — retry`
-  - Tabs: `Order Pipeline`; `⚠ Backlog` + `{count}`; loading `Backlog` + `—`; zero `✓ Backlog clear`
-  - Backlog zero-state line: `✓ Backlog clear — every parcel submitted before today has shipped`
+  - Card tabs: `Parcels`; `⚠ Backlog` + `{count}`; loading `Backlog` + `—`; zero `✓ Backlog clear`
+  - Backlog zero-state row: pill `✓ All clear` + `every parcel submitted before today has shipped · checked at page load`
   - Backlog band copy: UNCHANGED verbatim from `40814c6` (eyebrow `Open backlog`; meta `parcels not yet shipped · submitted before today · oldest {d MMM yyyy}`; chips; bulk bar; partial-cancel notice; dialog warning; footer `backlog since 3 Jul 2026 (Shipping go-live) · cancelled orders excluded · independent of the date filter above`)
-- Deletions are deliverables too: `cohortDef`, chip switcher, `CohortFilters` usage in the drill-down (component itself stays — backlog uses it), the drill-down `PackingTable` instance, the backlog toggle button, `Dashboard.tsx:61-62` h1 + subtitle.
+- Deletions are deliverables too: `cohortDef`, chip switcher, `CohortFilters` usage in the drill-down (component itself stays — backlog uses it), the drill-down `PackingTable` instance, the backlog toggle button. The dashboard h1 + subtitle (`Dashboard.tsx:61-62`) are NOT touched — the earlier header-tab direction is superseded by the card tabs.
 - Pushes and monorepo submodule-pointer bumps are USER-GATED — do not push.
 - `graphify update .` is broken (`NameError: name '_os' is not defined`) — skip it.
 
@@ -391,29 +391,29 @@ git commit -m "feat(drilldown): wire slim table + card-anchored band, drop drill
 
 ---
 
-## Phase 2 — Backlog behind a header tab
+## Phase 2 — Backlog behind a table-card view tab
 
-### Task 5: `DashboardTabs` component
+### Task 5: `TableViewTabs` component
 
 **Files:**
-- Create: `app/components/DashboardTabs.tsx`
-- Test: `app/components/DashboardTabs.test.tsx` (new)
+- Create: `app/components/TableViewTabs.tsx`
+- Test: `app/components/TableViewTabs.test.tsx` (new)
 
 **Interfaces:**
 - Consumes: `BacklogSummary` (`app/types.ts:264`).
 - Produces (Task 7 depends on these exact names):
 
 ```tsx
-export type DashboardView = "pipeline" | "backlog";
-interface DashboardTabsProps {
-  view: DashboardView;
-  onViewChange: (v: DashboardView) => void;
+export type TableView = "parcels" | "backlog";
+interface TableViewTabsProps {
+  view: TableView;
+  onViewChange: (v: TableView) => void;
   backlog: BacklogSummary | null;
 }
-export function DashboardTabs({ view, onViewChange, backlog }: DashboardTabsProps): JSX.Element;
+export function TableViewTabs({ view, onViewChange, backlog }: TableViewTabsProps): JSX.Element;
 ```
 
-**Context (spec §B.9, B.11, B.14; mockup `.dashhead`/`.dtab`, lines 118-133/317-320):** two buttons in a `flex items-end gap-1 border-b border-border` row; each `data-dash-tab="pipeline"|"backlog"`, `data-active`, `aria-pressed`, `border-b-2` (transparent inactive; active: `border-accent` for pipeline, rose `border-[#E11D48] dark:border-rose-500` for backlog); text `text-sm font-bold`, muted when inactive. Backlog tab content by state:
+**Context (spec §B.9, B.11, B.14; mockup `2026-07-15-backlog-tab.html` `.dashhead`/`.dtab` lines 76-89, mounted on the card at lines 181-184):** two buttons in a `flex items-end gap-1 border-b border-border px-3` row rendered as the top strip of the table card (Task 7 mounts it); each `data-table-view-tab="parcels"|"backlog"`, `data-active`, `aria-pressed`, `border-b-2` (transparent inactive; active: `border-accent` for Parcels, rose `border-[#E11D48] dark:border-rose-500` for Backlog, green `border-green-600 dark:border-green-500` when the Backlog tab is active at zero); text `text-sm font-bold`, muted when inactive. Backlog tab content by state:
 - `backlog === null` → `Backlog` + `—` (muted, no glyph)
 - `total > 0` → `⚠ Backlog` (uppercase eyebrow style `text-[11px] font-extrabold tracking-[0.06em] text-[#BE123C] dark:text-rose-300`) + `{total.toLocaleString()}` (`text-[15px] font-bold text-[#E11D48] dark:text-rose-400`)
 - `total === 0` → `✓ Backlog clear` (green: `text-green-700 dark:text-green-400`), no count.
@@ -421,11 +421,12 @@ Full WAI-ARIA tabs pattern is out of scope (spec §6).
 
 - [ ] **Step 1: Write the failing test**
 
-`DashboardTabs.test.tsx` (jsdom + createRoot boilerplate):
+`TableViewTabs.test.tsx` (jsdom + createRoot boilerplate):
 
 ```tsx
 it("renders both tabs, marks the active one, and fires onViewChange", ...);
-  // view "pipeline" → [data-dash-tab="pipeline"][data-active="true"]; click backlog tab → onViewChange("backlog")
+  // view "parcels" → [data-table-view-tab="parcels"][data-active="true"], textContent contains "Parcels";
+  // click backlog tab → onViewChange("backlog")
 it("badge states: — while loading, ⚠ + count when open, ✓ Backlog clear at zero", () => {
   // null → textContent contains "Backlog" and "—", not "⚠"
   // { total: 1660, byStage: {...}, oldestCreatedAt: "..." } → contains "⚠ Backlog" and "1,660"
@@ -435,21 +436,21 @@ it("badge states: — while loading, ⚠ + count when open, ✓ Backlog clear at
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run DashboardTabs`
+Run: `npx vitest run TableViewTabs`
 Expected: FAIL — module not found.
 
 - [ ] **Step 3: Implement** per Context.
 
 - [ ] **Step 4: Run tests**
 
-Run: `npx vitest run DashboardTabs && npm run lint`
+Run: `npx vitest run TableViewTabs && npm run lint`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add app/components/DashboardTabs.tsx app/components/DashboardTabs.test.tsx
-git commit -m "feat(dashboard): header tab row with backlog badge states"
+git add app/components/TableViewTabs.tsx app/components/TableViewTabs.test.tsx
+git commit -m "feat(dashboard): Parcels/Backlog view tabs for the main table card"
 ```
 
 ### Task 6: `BacklogSection` — always-expanded, lifted summary, zero state
@@ -475,11 +476,17 @@ interface BacklogSectionProps {
 - DELETE: `useBacklogSummary` import/call (`:23`), `expanded` state (`:24`), the toggle `<button data-backlog-toggle>` (`:121-139` — becomes a static `<div>` header with the SAME eyebrow/headline/meta copy, no chevron, no `aria-expanded`, no hover), the `{expanded && …}` gate (`:141`).
 - `useBacklogParcels(stage)` runs unconditionally (`:26` loses the ternary) — the section only mounts when the tab is open, preserving lazy fetch.
 - `confirmCancel`: `refetch()` (`:100`) → `onRefetchSummary()`. Everything else in the cancel flow, chips, `CohortFilters`, bulk bar, partial-cancel notice, error row, `PackingTable` instance, dialog, and footer is byte-for-byte UNCHANGED (the `40814c6` verbatim lock).
-- Zero state: when `summary !== null && summary.total === 0`, render INSTEAD of the chips/bulk-bar/notice/error/table block (footer stays; header stays with count 0):
+- Outer chrome flattens — the section now renders inside the tabbed table card (Task 7): the `<section>` classes drop `mt-2 mb-3 2xl:mb-4 rounded-md border border-border shadow-sm`, keeping `overflow-hidden` + the 3px left accent (`border-l-[3px] border-l-[#E11D48] dark:border-l-rose-500` — mockup `2026-07-15-backlog-tab.html:185`).
+- Zero state (mockup `2026-07-15-backlog-tab.html` §2): when `summary !== null && summary.total === 0`, the all-clear row is the ENTIRE band — header line, chips, bulk bar, notice, error row, table AND footer all hidden:
 
 ```tsx
-<div data-backlog-clear className="flex items-center gap-2 px-5 py-4 text-sm font-semibold text-green-700 dark:text-green-400">
-  ✓ Backlog clear — every parcel submitted before today has shipped
+<div data-backlog-clear className="flex items-center gap-2.5 px-5 py-4">
+  <span className="rounded-full bg-green-100 px-3 py-0.5 text-[13px] font-extrabold text-green-800 dark:bg-green-900/30 dark:text-green-400">
+    ✓ All clear
+  </span>
+  <span className="text-[13px] text-muted-foreground">
+    every parcel submitted before today has shipped · checked at page load
+  </span>
 </div>
 ```
 
@@ -501,10 +508,12 @@ it("renders expanded: header line, chips, footer, and an eager stage-list fetch"
   //   fetch was called with itemType=backlog (the all-stage list, no click needed)
   //   chip click still swaps the itemType (keep the qc-hold assertion from the old test)
 });
-it("zero backlog renders the green all-clear line and hides chips and table", async () => {
+it("zero backlog renders the green all-clear row and hides everything else", async () => {
   // summary={{ total: 0, byStage: { submitted: 0, qcHold: 0, qcPassed: 0, packed: 0 }, oldestCreatedAt: null }}
-  // [data-backlog-clear] text contains "every parcel submitted before today has shipped"
-  // [data-backlog-chip] null; table absent; footer still present
+  // [data-backlog-clear] text contains "✓ All clear" and
+  //   "every parcel submitted before today has shipped · checked at page load"
+  // [data-backlog-chip] null; table absent; no "Open backlog" header line;
+  //   footer text "backlog since 3 Jul 2026" absent
 });
 ```
 
@@ -534,51 +543,78 @@ git add app/components/pipeline/BacklogSection.tsx app/components/pipeline/Backl
 git commit -m "feat(backlog): always-expanded band with lifted summary and green zero state"
 ```
 
-### Task 7: `Dashboard` — tab state and view swap
+### Task 7: `Dashboard` — card-level view swap (+ `PackingTable.frameless`)
 
 **Files:**
-- Modify: `app/components/Dashboard.tsx`
+- Modify: `app/components/Dashboard.tsx`, `app/components/PackingTable.tsx`
+- Test: `app/components/PackingTable.columns.test.tsx` (append)
 
 **Interfaces:**
-- Consumes: Task 5's `DashboardTabs`/`DashboardView`, Task 6's props, `useBacklogSummary` from `app/hooks/useBacklog.ts` (unchanged hook).
-- Produces: the shipped page. No test file exists for `Dashboard.tsx` (it is a `useDashboard` orchestrator); coverage = the component tests above + `npm run build` + Task 8's live smoke.
+- Consumes: Task 5's `TableViewTabs`/`TableView`, Task 6's props, `useBacklogSummary` from `app/hooks/useBacklog.ts` (unchanged hook).
+- Produces: `PackingTable` prop `frameless?: boolean` (default false) — drops the table's own outer card chrome so it can live inside the tabbed card; only Dashboard's main instance passes it. Plus the shipped page. No test file exists for `Dashboard.tsx` (it is a `useDashboard` orchestrator); coverage = the component tests above + `npm run build` + Task 8's live smoke.
 
-**Context (spec §B.9-B.10):**
+**Context (spec §B.9-B.10):** the header — h1 + subtitle (`:61-62`) and the right-side cluster (`:64-70`) — is UNTOUCHED. CalendarStrip, PipelineSection, and the FilterBar card render on BOTH views, unchanged (the date filter + FilterBar affect only the Parcels view; the backlog stays date-independent — spec §B.10's flagged UX nit, do not redesign).
 
 ```tsx
-const [view, setView] = useState<DashboardView>("pipeline");
+const [view, setView] = useState<TableView>("parcels");
 const { summary: backlogSummary, refetch: refetchBacklog } = useBacklogSummary();
 ```
 
-- Header (`:60-63`): replace the `<div>` holding the h1 + subtitle with
-  `<DashboardTabs view={view} onViewChange={setView} backlog={backlogSummary} />`. The right-side
-  cluster (`:64-70`) is untouched.
-- Main (`:74-155`): pipeline view = CalendarStrip + PipelineSection + FilterBar card + main
-  PackingTable (everything except the backlog band); backlog view = only
+Remove the old `BacklogSection` mount at `:104`. Replace the bare `<PackingTable …/>` (`:138-154`) with the tabbed card:
 
 ```tsx
-<BacklogSection
-  summary={backlogSummary}
-  onRefetchSummary={refetchBacklog}
-  operators={operators}
-  onOpenParcel={openModal}
-/>
+<div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+  <TableViewTabs view={view} onViewChange={setView} backlog={backlogSummary} />
+  {view === "parcels" ? (
+    <PackingTable
+      /* …all existing props unchanged… */
+      frameless
+    />
+  ) : (
+    <BacklogSection
+      summary={backlogSummary}
+      onRefetchSummary={refetchBacklog}
+      operators={operators}
+      onOpenParcel={openModal}
+    />
+  )}
+</div>
 ```
 
-  Remove the old mount at `:104`. Wrap with `{view === "pipeline" ? (<>…</>) : (…)}`.
+`PackingTable.tsx:220` — the outer div's class becomes conditional (destructure the new prop):
 
-- [ ] **Step 1: Implement** (no component test to write first — the contract was TDD'd in Tasks 5-6; the build is the failing check: `npm run build` fails at base of this task because `BacklogSection`'s new required props are unsatisfied at `:104`).
+```tsx
+<div className={frameless ? "overflow-hidden bg-card" : "overflow-hidden rounded-2xl border border-border bg-card shadow-sm"}>
+```
 
-- [ ] **Step 2: Full gate**
+- [ ] **Step 1: Write the failing test**
+
+Append to `PackingTable.columns.test.tsx` (reuse the file's existing base-prop/item literals and `renderToStaticMarkup` style):
+
+```tsx
+  it("frameless drops the outer card chrome", () => {
+    // default render → markup contains "rounded-2xl"
+    // same props + frameless → markup does NOT contain "rounded-2xl" (nor "shadow-sm")
+  });
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `npx vitest run PackingTable.columns`
+Expected: FAIL — the frameless render still contains `rounded-2xl`.
+
+- [ ] **Step 3: Implement** per Context (PackingTable prop first, then the Dashboard wiring; `npm run build` also fails at this task's base because `BacklogSection`'s new required props are unsatisfied at `Dashboard.tsx:104` — this task clears it).
+
+- [ ] **Step 4: Full gate**
 
 Run: `npx vitest run && npm run lint && npm run build`
 Expected: full suite green; lint 36; build clean.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add app/components/Dashboard.tsx
-git commit -m "feat(dashboard): Order Pipeline / Backlog tabs replace the h1 — in-place view swap"
+git add app/components/Dashboard.tsx app/components/PackingTable.tsx app/components/PackingTable.columns.test.tsx
+git commit -m "feat(dashboard): Parcels/Backlog tabs on the main table card — in-place view swap"
 ```
 
 ---
@@ -598,17 +634,17 @@ Run: `npx vitest run && npm run lint && npm run build` — all green, lint at th
 
 - [ ] **Step 2: Smoke checklist (record every number in the report)**
 
-1. Dashboard loads; header shows the tab row (`Order Pipeline` active, `⚠ Backlog <n>` with n ≈ 1.6k — record exact); no h1/subtitle; console clean.
+1. Dashboard loads; header h1 `Order Pipeline` + subtitle UNCHANGED; the main-table card carries the `Parcels | ⚠ Backlog <n>` tab row (`Parcels` active, n ≈ 1.6k — record exact); console clean.
 2. Friday window (10 Jul): QC card's amber pill click → band opens with `CARRYOVER 57 · QC-checked this period · submitted before today`; NO cohort chips, NO shipping/status selects, NO def sentence; footer reads `… 339 stage events across 218 distinct parcels`.
 3. Band geometry: visibly narrower than the track, min-width ≥ the QC card, centered under it and clamped inside the track; notch points at the pill. Re-click Shipped's pill → band re-scopes and re-anchors under the Shipped card.
 4. Rows: overnight badge + amber time stacked (no cell wash); `→`; chain badges with stacked times; exactly one ringed event per row matching the active cohort; Shipped times wear `~`; Age column in rose. Video cohort: hunt for an overnight-Shipped row showing `time n/a` (may not exist in the window — note either way).
 5. Parcels card's pill → `CARRYOVER 218 · updated this period …`, no ring on any chain event; pager renders (`218 > 10`) and pages.
 6. Row click opens the shared parcel detail panel; `×` and Esc close the band.
-7. Backlog tab click: pipeline area (calendar strip, track, filter bar, main table) disappears; the band renders expanded — header line with `oldest {date}`, chips summing to the total (record all five), shipping/status selects, footer. Tab badge == band headline == `GET /dashboard/backlog` total.
+7. Backlog tab click: CalendarStrip, pipeline track, and FilterBar all STAY; only the table card swaps — the band renders expanded inside the card (no doubled border/rounding), header line with `oldest {date}`, chips summing to the total (record all five), shipping/status selects, footer `…independent of the date filter above` (now literally true — the date strip is above it). Card tab badge == band headline == `GET /dashboard/backlog` total.
 8. Cancel flow on a THROWAWAY row: insert a synthetic parcel (`SMOKE-DCLT-1`, created 2026-07-05, no events) via psql, reload, select it, cancel with a note; verify the partial/OK behaviour unchanged AND the tab badge decrements without a reload (the lifted refetch); then DELETE the synthetic rows (packing_lists + workflow_events).
-9. Pipeline tab restores the previous view (date filter and table state preserved — component state, not URL).
-10. Dark mode pass over: band header/badges/ring, tabs (all three badge states can't be forced live — zero state is test-only), backlog band.
-11. Screenshots: slim band under QC card (light+dark), re-anchored under Shipped, backlog tab open, tab row close-up.
+9. Parcels tab restores the table (state preserved — component state, not URL). Date-independence probe: change the date filter / a FilterBar filter while on the Backlog view → backlog list unchanged; switch back → the Parcels table reflects the new filters.
+10. Dark mode pass over: band header/badges/ring, card tabs (zero state can't be forced live on the snapshot — test-only), backlog band inside the card.
+11. Screenshots: slim band under QC card (light+dark), re-anchored under Shipped, backlog tab open on the card, card tab row close-up.
 
 - [ ] **Step 3: Write the report + commit**
 

@@ -297,9 +297,9 @@ input[type=checkbox]{accent-color:var(--rose-bar)}
 
 <div class="mhead">
   <div class="mhead-left">
-    <div class="eyebrow">Mockup v4 · 2026-07-15 · wayfinder #64 (map #62) — revised after grilling round 3</div>
-    <h1><span class="amber">Slim carryover table</span> + <span class="rose">backlog tab</span></h1>
-    <p class="sub">v4 changes: highlight <b>B locked</b> (badge + amber time, no cell wash). Pill click drills into <b>only that stage's carryover</b> — cohort chip switcher gone. The <b>"Order Pipeline / Real-time order fulfillment overview" header row is replaced by tabs</b>: Order Pipeline · ⚠ Backlog — the Backlog button/tab swaps the view in place.</p>
+    <div class="eyebrow">Mockup v5 · 2026-07-15 · wayfinder #64 (map #62) — header tab reverted</div>
+    <h1><span class="amber">Slim carryover table</span> + <span class="rose">backlog on the table card</span></h1>
+    <p class="sub">v5 revision: <b>header tab dropped</b> — the dashboard h1 + subtitle stay. Backlog moved to <b>view tabs on the packing_lists table card</b> (see companion mockup `2026-07-15-backlog-tab.html`). This file remains the carryover drill-down reference: highlight B, single-cohort, overnight stage + event chain, card-sized container.</p>
   </div>
   <div class="mhead-right">
     <button class="theme-btn" onclick="document.documentElement.classList.toggle('dark')">◐ Toggle theme</button>
@@ -310,13 +310,13 @@ input[type=checkbox]{accent-color:var(--rose-bar)}
 <!-- ============ §1 dashboard + slim-table drilldown ============ -->
 <section id="s1">
   <div class="shead">
-    <span class="snum">§1</span><h2>Header tabs + single-cohort drill-down</h2>
+    <span class="snum">§1</span><h2>Single-cohort drill-down</h2>
   </div>
-  <p class="snote">The old <b>"Order Pipeline" h1 + "Real-time order fulfillment overview" subtitle</b> (Dashboard.tsx:61-62) become <b>tabs</b>. Click <b>⚠ Backlog</b> to swap the view in place. On the pipeline tab, click any amber pill — the drill-down shows <b>only that stage's carryover</b> (no cohort chip switcher). Rows: Overnight stage (highlight B: badge + amber time) → today's event chain, cohort's event ringed.</p>
+  <p class="snote">Dashboard header unchanged. Click any amber pill — the drill-down shows <b>only that stage's carryover</b> (no cohort chip switcher). Rows: Overnight stage (highlight B: badge + amber time) → today's event chain, cohort's event ringed.</p>
   <div class="demo">
-    <div class="dashhead">
-      <button class="dtab on" id="tab-pipe" onclick="setTab('pipe')">Order Pipeline</button>
-      <button class="dtab rose" id="tab-backlog" onclick="setTab('backlog')"><span class="bl">⚠ Backlog</span><span class="bc tnum">1,660</span></button>
+    <div style="margin-bottom:14px">
+      <div style="font-size:17px;font-weight:600;letter-spacing:-.02em">Order Pipeline</div>
+      <div style="font-size:13px;color:var(--muted-foreground)">Real-time order fulfillment overview — h1 + subtitle stay (header tab reverted)</div>
     </div>
     <div class="viewpane on" id="pane-pipe">
     <div class="track" id="track1">
@@ -370,7 +370,7 @@ input[type=checkbox]{accent-color:var(--rose-bar)}
     </div>
     </div><!-- /pane-pipe -->
 
-    <div class="viewpane" id="pane-backlog">
+    <div class="viewpane" id="pane-backlog" hidden><!-- SUPERSEDED v5: backlog moved to packing_lists card tabs — see 2026-07-15-backlog-tab.html -->
       <div class="bband">
         <div class="bband-head">
           <span class="blabel">Open backlog</span>
@@ -410,7 +410,7 @@ input[type=checkbox]{accent-color:var(--rose-bar)}
       </div>
     </div><!-- /pane-backlog -->
   </div>
-  <div class="anno"><span class="q">#66 ✔</span><b>Decided:</b> in-place tab, no /backlog route · backlog reuses the existing PackingTable (no JIRA regroup) · zero state = tab stays with green "✓ Backlog clear" + all-clear line · count is fetch-on-load (+ refetch after cancel), no WS/poll.</div>
+  <div class="anno"><span class="q">#66 ✔</span><b>Revised 2026-07-15 (take 2):</b> header tab REVERTED — backlog lives as <b>view tabs on the packing_lists table card</b> (Parcels | ⚠ Backlog); h1 + subtitle stay. Still: no route · PackingTable reuse · green "✓ Backlog clear" zero state · fetch-on-load count. See `2026-07-15-backlog-tab.html`.</div>
   <div class="anno"><span class="q">#65 ✔</span><b>Decided ("carryover looks good", v4.2):</b> columns as shown (Order/Platform dropped) · def-copy gone · timestamp proxy accepted (~ updatedAt for shipped/video, "time n/a*" for overnight-Shipped) — backend list-row fields noted as optional post-merge enhancement only.</div>
   <div class="anno"><span class="q">#65 ✔</span><b>Decided (grilling 2026-07-15):</b> pill counts keep stage-event parity; stage-events footer reinstated; rows = overnight stage + today's chain; highlight <b>B</b> (badge + amber time); drill-down is <b>single-cohort</b> — no chip switcher. Still open: def-copy sentence stays gone?</div>
 </section>
@@ -487,13 +487,6 @@ const COUNTS = { qc: 12, packed: 8, shipped: 5, video: 6 };
 const COHORT_LABEL = { qc: 'QC-checked', packed: 'Packed', shipped: 'Shipped', video: 'Video completed' };
 let openPill = null;
 
-function setTab(t) {
-  document.getElementById('tab-pipe').classList.toggle('on', t === 'pipe');
-  document.getElementById('tab-backlog').classList.toggle('on', t === 'backlog');
-  document.getElementById('pane-pipe').classList.toggle('on', t === 'pipe');
-  document.getElementById('pane-backlog').classList.toggle('on', t === 'backlog');
-  if (t === 'backlog') closeBand();
-}
 function closeBand() { openPill = null; render(); }
 function renderRows(cohort) {
   const rows = PARCELS.filter((p) => p.chain.some((e) => e[0] === cohort));
@@ -539,7 +532,6 @@ document.querySelectorAll('[data-pill]').forEach((p) => {
   p.addEventListener('click', () => { openPill = openPill === p.dataset.pill ? null : p.dataset.pill; render(); });
 });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeBand(); });
-if (location.hash === '#backlog') setTab('backlog');
 </script>
 </div>
 </body>

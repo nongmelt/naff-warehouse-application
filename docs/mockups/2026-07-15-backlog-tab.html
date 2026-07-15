@@ -160,23 +160,29 @@ input[type=checkbox]{accent-color:var(--rose-bar)}
 
 <div class="mhead">
   <div class="mhead-left">
-    <div class="eyebrow">Mockup · 2026-07-15 · backlog tab full render (map #62, spec companion)</div>
-    <h1><span class="rose">⚠ Backlog</span> tab — all states</h1>
-    <p class="sub">Companion to the accepted v4.2 declutter mockup: the backlog tab at full fidelity, its <b>zero state</b>, and the <b>cancel dialog</b> (incl. the POST-failure error kept from <b>40814c6</b>). Band content is verbatim today's BacklogSection — reusing PackingTable.</p>
+    <div class="eyebrow">Mockup v2 · 2026-07-15 · backlog as packing_lists table tab (map #62, spec companion)</div>
+    <h1><span class="rose">⚠ Backlog</span> — tab on the packing_lists card</h1>
+    <p class="sub">Revision: header tab dropped. The dashboard h1 + subtitle <b>stay</b>; the main <b>packing_lists table card</b> gains view tabs — <b>Parcels | ⚠ Backlog</b>. Backlog view: same PackingTable, backlog data, stage chips + cancel flow (verbatim <b>40814c6</b>), independent of the date filter. Pipeline track + carryover stay visible above on both views.</p>
   </div>
   <button class="theme-btn" onclick="document.documentElement.classList.toggle('dark')">◐ Toggle theme</button>
 </div>
 
 <!-- §1 active tab -->
 <section>
-  <div class="shead"><span class="snum">§1</span><h2>Backlog tab active — 1,660 open</h2></div>
-  <p class="snote">Tabs replace the old "Order Pipeline" h1 + subtitle. Band renders expanded in place (no collapse toggle — the tab is the toggle). Selection bar + partial-cancel notice shown mid-flow.</p>
+  <div class="shead"><span class="snum">§1</span><h2>Backlog view active on the table card — 1,660 open</h2></div>
+  <p class="snote">Dashboard header + pipeline untouched (ghosted). The table card carries the view tabs; Backlog view renders the band expanded inside the card (no collapse toggle — the tab is the toggle). Selection bar + partial-cancel notice shown mid-flow.</p>
   <div class="demo">
-    <div class="dashhead">
-      <button class="dtab">Order Pipeline</button>
+    <div style="margin-bottom:6px">
+      <div style="font-size:17px;font-weight:600;letter-spacing:-.02em">Order Pipeline</div>
+      <div style="font-size:13px;color:var(--muted-foreground)">Real-time order fulfillment overview</div>
+    </div>
+    <div class="ghostpane" style="margin-bottom:14px">pipeline track · carryover pills · date strip · filter bar — unchanged, stays visible on both views</div>
+    <div style="border:1px solid var(--border);border-radius:10px;background:var(--card);box-shadow:var(--shadow-sm);overflow:hidden">
+    <div class="dashhead" style="margin-bottom:0;padding:0 12px">
+      <button class="dtab">Parcels</button>
       <button class="dtab rose on"><span class="bl">⚠ Backlog</span><span class="bc tnum">1,660</span></button>
     </div>
-    <div class="bband">
+    <div class="bband" style="border:0;border-left:3px solid var(--rose-bar);border-radius:0;box-shadow:none">
       <div class="bband-head">
         <span class="blabel">Open backlog</span>
         <span class="bcount tnum">1,660</span>
@@ -209,23 +215,26 @@ input[type=checkbox]{accent-color:var(--rose-bar)}
         </tbody>
       </table>
       <div class="pagerow"><span>1–25 of 1,660</span><span>rows: 25 ▾ · ‹ 1 2 3 … 67 ›</span></div>
-      <div class="bfoot">backlog since 3 Jul 2026 (Shipping go-live) · cancelled orders excluded · independent of the dashboard date filter</div>
+      <div class="bfoot">backlog since 3 Jul 2026 (Shipping go-live) · cancelled orders excluded · independent of the date filter above</div>
     </div>
+    </div><!-- /table card -->
   </div>
 </section>
 
 <!-- §2 zero state -->
 <section>
   <div class="shead"><span class="snum">§2</span><h2>Zero backlog — green all-clear</h2></div>
-  <p class="snote">Tab stays visible; rose badge swaps to green <b>✓ Backlog clear</b>. Content: single all-clear line, pipeline "All clear" language.</p>
+  <p class="snote">Tab stays on the card; rose badge swaps to green <b>✓ Backlog clear</b>. View content: single all-clear line, pipeline "All clear" language.</p>
   <div class="demo">
-    <div class="dashhead">
-      <button class="dtab">Order Pipeline</button>
-      <button class="dtab ok on"><span class="bl">✓ Backlog clear</span></button>
-    </div>
-    <div class="allclear">
-      <span class="okpill">✓ All clear</span>
-      <span class="txt">every parcel submitted before today has shipped · checked at page load</span>
+    <div style="border:1px solid var(--border);border-radius:10px;background:var(--card);box-shadow:var(--shadow-sm);overflow:hidden">
+      <div class="dashhead" style="margin-bottom:0;padding:0 12px">
+        <button class="dtab">Parcels</button>
+        <button class="dtab ok on"><span class="bl">✓ Backlog clear</span></button>
+      </div>
+      <div class="allclear" style="border:0;border-left:3px solid var(--ok-strong);border-radius:0;box-shadow:none">
+        <span class="okpill">✓ All clear</span>
+        <span class="txt">every parcel submitted before today has shipped · checked at page load</span>
+      </div>
     </div>
   </div>
 </section>
