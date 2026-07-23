@@ -912,24 +912,55 @@ function renderV1Chips() {
   }
 }
 
+/* strict in-order (subsequence) match: every typed character must appear
+   in the number in typing order, gaps allowed. Returns matched indices. */
+function matchIdx(q, s) {
+  const sl = s.toLowerCase();
+  const idx = [];
+  let i = 0;
+  for (const ch of q) {
+    i = sl.indexOf(ch, i);
+    if (i === -1) return null;
+    idx.push(i);
+    i++;
+  }
+  return idx;
+}
+
+/* wrap matched characters, merging consecutive ones into one span */
+function hlIdx(s, idx) {
+  if (!idx || !idx.length) return s;
+  const set = new Set(idx);
+  let out = "", run = "";
+  for (let i = 0; i < s.length; i++) {
+    if (set.has(i)) { run += s[i]; continue; }
+    if (run) { out += `<span class="hl">${run}</span>`; run = ""; }
+    out += s[i];
+  }
+  if (run) out += `<span class="hl">${run}</span>`;
+  return out;
+}
+
 function renderV1Suggest() {
-  const q = v1input.value.trim();
+  const q = v1input.value.trim().toLowerCase().replace(/\s+/g, "");
   if (!q) { v1sug.classList.remove("open"); return; }
-  const esc = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = new RegExp(esc, "ig");
-  const hl = (s) => s.replace(re, (m) => `<span class="hl">${m}</span>`);
-  const ql = q.toLowerCase();
-  const hits = SEARCH_DATA.filter((d) =>
-    !v1chips.has(d.tr) && (d.tr.toLowerCase().includes(ql) || d.od.toLowerCase().includes(ql))).slice(0, 6);
+  const hits = SEARCH_DATA
+    .map((d) => ({ d, tri: matchIdx(q, d.tr), odi: matchIdx(q, d.od) }))
+    .filter((h) => !v1chips.has(h.d.tr) && (h.tri || h.odi))
+    .sort((a, b) => {
+      const contig = (h) => (h.d.tr.toLowerCase().includes(q) || h.d.od.toLowerCase().includes(q)) ? 0 : 1;
+      return contig(a) - contig(b);
+    })
+    .slice(0, 6);
   v1sug.innerHTML = hits.length
-    ? hits.map((d) =>
+    ? hits.map(({ d, tri, odi }) =>
         `<button type="button" class="sug-row" data-n="${d.tr}">` +
         `<span class="pglyph ${d.p}">${PLATFORM_LABEL[d.p][0]}</span>` +
-        `<span class="sug-nums"><span>${hl(d.tr)}</span>` +
-        `<span class="sug-od">Order · ${hl(d.od)}</span></span>` +
+        `<span class="sug-nums"><span>${hlIdx(d.tr, tri)}</span>` +
+        `<span class="sug-od">Order · ${hlIdx(d.od, odi)}</span></span>` +
         `<span class="st-pill st-${d.st.toLowerCase().replace(/\s+/g, "-")}">${d.st}</span></button>`)
       .join("")
-    : `<div class="sug-empty">No tracking or order number contains "${q.replace(/</g, "&lt;")}".</div>`;
+    : `<div class="sug-empty">No tracking or order number matches "${q.replace(/</g, "&lt;")}".</div>`;
   v1sug.querySelectorAll(".sug-row").forEach((r) => {
     r.onclick = () => {
       v1chips.add(r.dataset.n);
