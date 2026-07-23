@@ -330,16 +330,6 @@ input,select,textarea{font:inherit;color:inherit}
   </div>
 
   <div class="dw-body">
-    <div class="fg inv-only">
-      <div class="fg-label">Stage</div>
-      <div class="radios" data-stageradios>
-        <button class="radio-pill on" data-stage="shipped"><span class="dot"></span>Shipped</button>
-        <button class="radio-pill" data-stage="packed"><span class="dot"></span>Packed</button>
-        <button class="radio-pill" data-stage="returned"><span class="dot"></span>Returned</button>
-      </div>
-      <div class="fg-hint" data-stagehint>Date range below filters by <b>shipped date</b>.</div>
-    </div>
-
     <div class="fg" data-dategroup>
       <div class="fg-label" data-datelabel>Shipped between</div>
       <div class="dates">
@@ -351,6 +341,16 @@ input,select,textarea{font:inherit;color:inherit}
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
         <span>Date range ignored — exporting the <b>12 pasted numbers</b> instead.</span>
       </div>
+    </div>
+
+    <div class="fg inv-only">
+      <div class="fg-label">Stage</div>
+      <div class="radios" data-stageradios>
+        <button class="radio-pill on" data-stage="shipped"><span class="dot"></span>Shipped</button>
+        <button class="radio-pill" data-stage="packed"><span class="dot"></span>Packed</button>
+        <button class="radio-pill" data-stage="returned"><span class="dot"></span>Returned</button>
+      </div>
+      <div class="fg-hint" data-stagehint>Date range above filters by <b>shipped date</b>.</div>
     </div>
 
     <div class="fg">
@@ -382,8 +382,13 @@ input,select,textarea{font:inherit;color:inherit}
     </div>
 
     <div class="fg inv-only">
-      <div class="fg-label">Specific parcels <span style="font-weight:600;text-transform:none;letter-spacing:0">(optional)</span></div>
-      <textarea class="paste" data-paste placeholder="Paste tracking or order numbers — any mix, separated by spaces, commas or new lines. These override the date range."></textarea>
+      <div class="fg-label">Tracking number <span style="font-weight:600;text-transform:none;letter-spacing:0">(optional)</span></div>
+      <textarea class="paste" data-paste="tracking" style="min-height:52px" placeholder="Paste tracking numbers — separated by spaces, commas or new lines. Overrides the date range."></textarea>
+    </div>
+
+    <div class="fg inv-only">
+      <div class="fg-label">Order number <span style="font-weight:600;text-transform:none;letter-spacing:0">(optional)</span></div>
+      <textarea class="paste" data-paste="order" style="min-height:52px" placeholder="Paste order numbers — separated by spaces, commas or new lines. Overrides the date range."></textarea>
       <div class="unmatched" style="display:none" data-unmatched>
         <button class="unmatched-head">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
@@ -746,8 +751,14 @@ function applyScenario() {
   const pasted = scenario === "pasted";
   const empty = scenario === "empty";
 
+  /* v1 has split tracking/order boxes; v2/v3 keep the single mixed textarea */
+  const PASTE_BLOBS = {
+    tracking: "TH2607JW1834N, TH2607K9P4QX SPXTH0399120077A\nTH2607QQ81XX TH2607MM4B21, TH2607ZZ90AC\nSPXTH0402210034B TH2607PL55QD",
+    order: "250715AB2291 250718NXA441\n250716CD1180, 250717EF3305",
+    "": "TH2607JW1834N, TH2607K9P4QX 250715AB2291\n250718NXA441 SPXTH0399120077A TH2607QQ81XX\nTH2607MM4B21, 250716CD1180, TH2607ZZ90AC\nSPXTH0402210034B 250717EF3305 TH2607PL55QD",
+  };
   dw.querySelectorAll("[data-paste]").forEach((t) => {
-    t.value = pasted ? "TH2607JW1834N, TH2607K9P4QX 250715AB2291\n250718NXA441 SPXTH0399120077A TH2607QQ81XX\nTH2607MM4B21, 250716CD1180, TH2607ZZ90AC\nSPXTH0402210034B 250717EF3305 TH2607PL55QD" : "";
+    t.value = pasted ? PASTE_BLOBS[t.dataset.paste ?? ""] ?? PASTE_BLOBS[""] : "";
   });
   dw.querySelectorAll("[data-dategroup]").forEach((g) => g.classList.toggle("overridden", pasted));
   dw.querySelectorAll("[data-overridenote]").forEach((n) => {
@@ -793,7 +804,7 @@ document.querySelectorAll("[data-stageradios]").forEach((group) => {
       const lbl = dw.querySelector("[data-datelabel]");
       if (lbl) lbl.textContent = STAGE_LABEL[p.dataset.stage];
       const hint = dw.querySelector("[data-stagehint]");
-      if (hint) hint.innerHTML = `Date range below filters by <b>${p.dataset.stage} date</b>.`;
+      if (hint) hint.innerHTML = `Date range above filters by <b>${p.dataset.stage} date</b>.`;
     };
   });
 });
