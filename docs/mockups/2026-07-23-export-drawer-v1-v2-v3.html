@@ -257,12 +257,20 @@ input,select,textarea{font:inherit;color:inherit}
   font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:600;text-align:left;
 }
 .sug-row:hover,.sug-row.active{background:var(--muted)}
-.sug-row .hl{color:var(--accent);background:rgba(243,115,56,.14);border-radius:3px}
-.sug-tag{
+.sug-row .hl{color:var(--accent);background:rgba(243,115,56,.14);border-radius:3px;font-weight:800}
+.sug-nums{display:flex;flex-direction:column;gap:2px;min-width:0}
+.sug-od{font-size:10.5px;color:var(--muted-foreground);font-weight:500}
+.st-pill{
   margin-left:auto;flex-shrink:0;font-family:"Sofia Sans",sans-serif;
-  font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
-  color:var(--muted-foreground);border:1px solid var(--border);border-radius:999px;padding:2px 8px;
+  font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;
+  border-radius:999px;padding:3px 9px;
 }
+.st-shipped{background:#D1FAE5;color:#065F46}
+.st-packed{background:#E0E7FF;color:#4F46E5}
+.st-packing{background:#FEF3C7;color:#92400E}
+.st-qc-hold{background:#FEE2E2;color:#991B1B}
+.st-returned{background:#EDE9FE;color:#6D28D9}
+.st-to-be-packed{background:var(--muted);color:var(--muted-foreground)}
 .sug-empty{padding:10px 12px;font-size:11.5px;color:var(--muted-foreground)}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
 .chip{
@@ -819,25 +827,26 @@ function applyScenario() {
 
   if (dw.id === "v1") {
     v1chips.clear();
-    if (pasted) ["TH2607K9P4QX", "TH2607MM4B21", "250716CD1180", "250718NXA441"].forEach((n) => v1chips.add(n));
+    if (pasted) ["TH2607K9P4QX", "TH2607MM4B21", "TH2607RT66MG", "SPXTH0399120077A"].forEach((n) => v1chips.add(n));
     renderV1Chips();
   }
 }
 
 /* ---- V1 search box: typeahead with live highlight + confirm chips ---- */
+/* one row per parcel: tracking + order number, live packing_status */
 const SEARCH_DATA = [
-  { n: "TH2607JW1834N", t: "Tracking", p: "shopee", items: 8 },
-  { n: "TH2607K9P4QX", t: "Tracking", p: "shopee", items: 3 },
-  { n: "TH2607QQ81XX", t: "Tracking", p: "shopee", items: 12 },
-  { n: "TH2607MM4B21", t: "Tracking", p: "lazada", items: 5 },
-  { n: "TH2607ZZ90AC", t: "Tracking", p: "lazada", items: 2 },
-  { n: "TH2607PL55QD", t: "Tracking", p: "shopee", items: 6 },
-  { n: "SPXTH0399120077A", t: "Tracking", p: "shopee", items: 4 },
-  { n: "SPXTH0402210034B", t: "Tracking", p: "shopee", items: 9 },
-  { n: "250715AB2291", t: "Order", p: "lazada", items: 7 },
-  { n: "250718NXA441", t: "Order", p: "shopee", items: 2 },
-  { n: "250716CD1180", t: "Order", p: "tiktok", items: 5 },
-  { n: "250717EF3305", t: "Order", p: "tiktok", items: 3 },
+  { tr: "TH2607JW1834N", od: "250715AB2291", p: "shopee", st: "Shipped", items: 8 },
+  { tr: "TH2607K9P4QX", od: "250715QW8412", p: "shopee", st: "Shipped", items: 3 },
+  { tr: "TH2607QQ81XX", od: "250716KL0921", p: "shopee", st: "Packed", items: 12 },
+  { tr: "TH2607MM4B21", od: "250716CD1180", p: "lazada", st: "Shipped", items: 5 },
+  { tr: "TH2607ZZ90AC", od: "250717PP3348", p: "lazada", st: "QC Hold", items: 2 },
+  { tr: "TH2607PL55QD", od: "250717EF3305", p: "shopee", st: "Shipped", items: 6 },
+  { tr: "SPXTH0399120077A", od: "250718NXA441", p: "shopee", st: "Shipped", items: 4 },
+  { tr: "SPXTH0402210034B", od: "250718BB7264", p: "shopee", st: "Packed", items: 9 },
+  { tr: "TH2607RT66MG", od: "250719AA1023", p: "tiktok", st: "Shipped", items: 5 },
+  { tr: "TH2607VV12KE", od: "250719CC5567", p: "tiktok", st: "Returned", items: 3 },
+  { tr: "TH2607HH09TB", od: "250720DD8890", p: "lazada", st: "Shipped", items: 7 },
+  { tr: "TH2607SS73NP", od: "250720EE4412", p: "shopee", st: "To be packed", items: 1 },
 ];
 const v1chips = new Set();
 const v1dw = document.getElementById("v1");
@@ -880,7 +889,7 @@ function renderV1Chips() {
   if (has) {
     const per = { shopee: [0, 0], lazada: [0, 0], tiktok: [0, 0] };
     v1chips.forEach((n) => {
-      const d = SEARCH_DATA.find((x) => x.n === n);
+      const d = SEARCH_DATA.find((x) => x.tr === n);
       if (d) { per[d.p][0] += 1; per[d.p][1] += d.items; }
     });
     ml.innerHTML = v1chips.size === 1
@@ -904,13 +913,17 @@ function renderV1Suggest() {
   if (!q) { v1sug.classList.remove("open"); return; }
   const esc = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const re = new RegExp(esc, "ig");
-  const hits = SEARCH_DATA.filter((d) => !v1chips.has(d.n) && d.n.toLowerCase().includes(q.toLowerCase())).slice(0, 6);
+  const hl = (s) => s.replace(re, (m) => `<span class="hl">${m}</span>`);
+  const ql = q.toLowerCase();
+  const hits = SEARCH_DATA.filter((d) =>
+    !v1chips.has(d.tr) && (d.tr.toLowerCase().includes(ql) || d.od.toLowerCase().includes(ql))).slice(0, 6);
   v1sug.innerHTML = hits.length
     ? hits.map((d) =>
-        `<button type="button" class="sug-row" data-n="${d.n}">` +
+        `<button type="button" class="sug-row" data-n="${d.tr}">` +
         `<span class="pglyph ${d.p}">${PLATFORM_LABEL[d.p][0]}</span>` +
-        `<span>${d.n.replace(re, (m) => `<span class="hl">${m}</span>`)}</span>` +
-        `<span class="sug-tag">${d.t}</span></button>`)
+        `<span class="sug-nums"><span>${hl(d.tr)}</span>` +
+        `<span class="sug-od">Order · ${hl(d.od)}</span></span>` +
+        `<span class="st-pill st-${d.st.toLowerCase().replace(/\s+/g, "-")}">${d.st}</span></button>`)
       .join("")
     : `<div class="sug-empty">No tracking or order number contains "${q.replace(/</g, "&lt;")}".</div>`;
   v1sug.querySelectorAll(".sug-row").forEach((r) => {
