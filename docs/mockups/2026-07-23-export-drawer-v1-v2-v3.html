@@ -238,6 +238,44 @@ input,select,textarea{font:inherit;color:inherit}
 .empty p{font-size:11.5px;line-height:1.5}
 .empty svg{opacity:.5}
 
+/* ---- V1 search box (typeahead + confirm chips) ---- */
+.searchwrap{position:relative}
+.search-input{
+  width:100%;border:1.5px solid var(--border);border-radius:11px;padding:9px 12px;
+  font-size:12px;background:var(--lifted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+.search-input::placeholder{color:var(--muted-foreground);opacity:.65;font-family:"Sofia Sans",sans-serif}
+.search-input:focus{outline:none;border-color:var(--accent)}
+.suggest{
+  position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:30;display:none;
+  background:var(--card);border:1.5px solid var(--border);border-radius:12px;
+  box-shadow:0 14px 36px rgba(20,20,19,.16);overflow:hidden;
+}
+.suggest.open{display:block}
+.sug-row{
+  display:flex;align-items:center;gap:9px;width:100%;padding:9px 12px;
+  font-family:ui-monospace,Menlo,monospace;font-size:12px;font-weight:600;text-align:left;
+}
+.sug-row:hover,.sug-row.active{background:var(--muted)}
+.sug-row .hl{color:var(--accent);background:rgba(243,115,56,.14);border-radius:3px}
+.sug-tag{
+  margin-left:auto;flex-shrink:0;font-family:"Sofia Sans",sans-serif;
+  font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--muted-foreground);border:1px solid var(--border);border-radius:999px;padding:2px 8px;
+}
+.sug-empty{padding:10px 12px;font-size:11.5px;color:var(--muted-foreground)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.chip{
+  display:inline-flex;align-items:center;gap:5px;
+  border:1.5px solid var(--border);background:var(--lifted);border-radius:999px;
+  padding:3px 6px 3px 10px;font-family:ui-monospace,Menlo,monospace;font-size:11px;font-weight:600;
+}
+.chip button{
+  width:15px;height:15px;border-radius:50%;display:grid;place-items:center;
+  color:var(--muted-foreground);font-size:11px;line-height:1;
+}
+.chip button:hover{background:var(--muted);color:var(--danger)}
+
 /* ---- V2 accordion ---- */
 .acc{border:1.5px solid var(--border);border-radius:13px;margin-bottom:12px;background:var(--lifted);overflow:hidden}
 .acc-head{
@@ -382,27 +420,13 @@ input,select,textarea{font:inherit;color:inherit}
     </div>
 
     <div class="fg inv-only">
-      <div class="fg-label">Tracking number <span style="font-weight:600;text-transform:none;letter-spacing:0">(optional)</span></div>
-      <textarea class="paste" data-paste="tracking" style="min-height:52px" placeholder="Paste tracking numbers — separated by spaces, commas or new lines. Overrides the date range."></textarea>
-    </div>
-
-    <div class="fg inv-only">
-      <div class="fg-label">Order number <span style="font-weight:600;text-transform:none;letter-spacing:0">(optional)</span></div>
-      <textarea class="paste" data-paste="order" style="min-height:52px" placeholder="Paste order numbers — separated by spaces, commas or new lines. Overrides the date range."></textarea>
-      <div class="unmatched" style="display:none" data-unmatched>
-        <button class="unmatched-head">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
-          3 of 12 not matched
-          <svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-        </button>
-        <div class="unmatched-body">
-          <div class="unmatched-list">TH2607K9P4QX<br>250718NXA441<br>SPXTH0399120077A</div>
-          <button class="copybtn">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-            Copy list
-          </button>
-        </div>
+      <div class="fg-label">Search</div>
+      <div class="chips" data-chips style="display:none"></div>
+      <div class="searchwrap">
+        <input class="search-input" data-search type="text" autocomplete="off" spellcheck="false" placeholder="Type a tracking or order number…">
+        <div class="suggest" data-suggest></div>
       </div>
+      <div class="fg-hint">Suggestions appear as you type. Click one to confirm it — confirmed numbers override the date range.</div>
     </div>
 
     <div class="fg" data-previewgroup>
@@ -708,7 +732,7 @@ input,select,textarea{font:inherit;color:inherit}
   <button id="sw-next" aria-label="Next variant">→</button>
   <span class="sw-div"></span>
   <button class="sw-mini on" data-scen="normal">Normal</button>
-  <button class="sw-mini" data-scen="pasted">Pasted</button>
+  <button class="sw-mini" data-scen="pasted">Selected</button>
   <button class="sw-mini" data-scen="empty">Empty</button>
   <span class="sw-div"></span>
   <button class="sw-mini" id="sw-theme">Dark</button>
@@ -792,7 +816,123 @@ function applyScenario() {
   });
   const fn = dw.querySelector("[data-filenote]");
   if (fn) fn.style.display = empty ? "none" : "";
+
+  if (dw.id === "v1") {
+    v1chips.clear();
+    if (pasted) ["TH2607K9P4QX", "TH2607MM4B21", "250716CD1180", "250718NXA441"].forEach((n) => v1chips.add(n));
+    renderV1Chips();
+  }
 }
+
+/* ---- V1 search box: typeahead with live highlight + confirm chips ---- */
+const SEARCH_DATA = [
+  { n: "TH2607JW1834N", t: "Tracking", p: "shopee", items: 8 },
+  { n: "TH2607K9P4QX", t: "Tracking", p: "shopee", items: 3 },
+  { n: "TH2607QQ81XX", t: "Tracking", p: "shopee", items: 12 },
+  { n: "TH2607MM4B21", t: "Tracking", p: "lazada", items: 5 },
+  { n: "TH2607ZZ90AC", t: "Tracking", p: "lazada", items: 2 },
+  { n: "TH2607PL55QD", t: "Tracking", p: "shopee", items: 6 },
+  { n: "SPXTH0399120077A", t: "Tracking", p: "shopee", items: 4 },
+  { n: "SPXTH0402210034B", t: "Tracking", p: "shopee", items: 9 },
+  { n: "250715AB2291", t: "Order", p: "lazada", items: 7 },
+  { n: "250718NXA441", t: "Order", p: "shopee", items: 2 },
+  { n: "250716CD1180", t: "Order", p: "tiktok", items: 5 },
+  { n: "250717EF3305", t: "Order", p: "tiktok", items: 3 },
+];
+const v1chips = new Set();
+const v1dw = document.getElementById("v1");
+const v1input = v1dw.querySelector("[data-search]");
+const v1sug = v1dw.querySelector("[data-suggest]");
+
+const PLATFORM_LABEL = { shopee: "Shopee", lazada: "Lazada", tiktok: "TikTok" };
+
+function setV1Row(idx, n1, n2, active) {
+  const row = v1dw.querySelectorAll("[data-pvtable] tbody tr")[idx];
+  row.classList.toggle("pv-empty-row", !active);
+  row.querySelector("[data-n1]").textContent = active ? n1 : "—";
+  row.querySelector("[data-n2]").textContent = active ? n2 : "—";
+  row.querySelector(".dlbtn").disabled = !active;
+}
+
+function renderV1Chips() {
+  const box = v1dw.querySelector("[data-chips]");
+  box.innerHTML = "";
+  v1chips.forEach((n) => {
+    const c = document.createElement("span");
+    c.className = "chip";
+    c.innerHTML = `${n}<button type="button" aria-label="Remove ${n}">✕</button>`;
+    c.querySelector("button").onclick = () => { v1chips.delete(n); renderV1Chips(); };
+    box.appendChild(c);
+  });
+  const has = v1chips.size > 0;
+  box.style.display = has ? "flex" : "none";
+
+  const dg = v1dw.querySelector("[data-dategroup]");
+  dg.querySelector(".dates").style.opacity = has ? 0.4 : 1;
+  const note = v1dw.querySelector("[data-overridenote]");
+  note.style.display = has ? "flex" : "none";
+  note.querySelector("span").innerHTML =
+    `Date range ignored — exporting the <b>${v1chips.size} selected number${v1chips.size === 1 ? "" : "s"}</b> instead.`;
+
+  if (scenario === "empty") return;
+
+  const ml = v1dw.querySelector("[data-matchline]");
+  if (has) {
+    const per = { shopee: [0, 0], lazada: [0, 0], tiktok: [0, 0] };
+    v1chips.forEach((n) => {
+      const d = SEARCH_DATA.find((x) => x.n === n);
+      if (d) { per[d.p][0] += 1; per[d.p][1] += d.items; }
+    });
+    ml.innerHTML = v1chips.size === 1
+      ? "<b>1 parcel</b> matches the selected number."
+      : `<b>${v1chips.size} parcels</b> match the selected numbers.`;
+    ["shopee", "lazada", "tiktok"].forEach((p, i) =>
+      setV1Row(i, String(per[p][0]), String(per[p][1]), per[p][0] > 0));
+    const files = ["shopee", "lazada", "tiktok"].filter((p) => per[p][0] > 0).length;
+    v1dw.querySelector("[data-dlall]").textContent = `Download all (${files} file${files === 1 ? "" : "s"})`;
+  } else {
+    ml.innerHTML = "<b>184 parcels</b> match your filters.";
+    setV1Row(0, "148", "1,203", true);
+    setV1Row(1, "36", "214", true);
+    setV1Row(2, "", "", false);
+    v1dw.querySelector("[data-dlall]").textContent = "Download all (2 files)";
+  }
+}
+
+function renderV1Suggest() {
+  const q = v1input.value.trim();
+  if (!q) { v1sug.classList.remove("open"); return; }
+  const esc = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(esc, "ig");
+  const hits = SEARCH_DATA.filter((d) => !v1chips.has(d.n) && d.n.toLowerCase().includes(q.toLowerCase())).slice(0, 6);
+  v1sug.innerHTML = hits.length
+    ? hits.map((d) =>
+        `<button type="button" class="sug-row" data-n="${d.n}">` +
+        `<span class="pglyph ${d.p}">${PLATFORM_LABEL[d.p][0]}</span>` +
+        `<span>${d.n.replace(re, (m) => `<span class="hl">${m}</span>`)}</span>` +
+        `<span class="sug-tag">${d.t}</span></button>`)
+      .join("")
+    : `<div class="sug-empty">No tracking or order number contains "${q.replace(/</g, "&lt;")}".</div>`;
+  v1sug.querySelectorAll(".sug-row").forEach((r) => {
+    r.onclick = () => {
+      v1chips.add(r.dataset.n);
+      v1input.value = "";
+      v1sug.classList.remove("open");
+      renderV1Chips();
+      v1input.focus();
+    };
+  });
+  v1sug.classList.add("open");
+}
+
+v1input.addEventListener("input", renderV1Suggest);
+v1input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { const first = v1sug.querySelector(".sug-row"); if (first) first.click(); }
+  if (e.key === "Escape") v1sug.classList.remove("open");
+});
+document.addEventListener("mousedown", (e) => {
+  if (!v1dw.querySelector(".searchwrap").contains(e.target)) v1sug.classList.remove("open");
+});
 
 /* stage radio: swap the date-label to the stage's own timestamp column */
 const STAGE_LABEL = { shipped: "Shipped between", packed: "Packed between", returned: "Returned between" };
