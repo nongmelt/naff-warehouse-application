@@ -376,6 +376,19 @@ input,select,textarea{font:inherit;color:inherit}
   </div>
 
   <div class="dw-body">
+    <div class="fg inv-only" data-searchgroup>
+      <div class="fg-label">Tracking number or Order number</div>
+      <div class="chips" data-chips style="display:none"></div>
+      <div class="searchwrap">
+        <input class="search-input" data-search type="text" autocomplete="off" spellcheck="false" placeholder="Type a tracking or order number…">
+        <div class="suggest" data-suggest></div>
+      </div>
+      <div class="override-note" style="display:none" data-overridenote>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+        <span>Filters below ignored — exporting the <b>selected numbers</b> instead.</span>
+      </div>
+    </div>
+
     <div class="fg" data-dategroup>
       <div class="fg-label" data-datelabel>Shipped between</div>
       <div class="dates">
@@ -383,20 +396,6 @@ input,select,textarea{font:inherit;color:inherit}
         <span class="to">→</span>
         <span class="date-box"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>23 Jul 2026</span>
       </div>
-      <div class="override-note" style="display:none" data-overridenote>
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
-        <span>Date range ignored — exporting the <b>12 pasted numbers</b> instead.</span>
-      </div>
-    </div>
-
-    <div class="fg inv-only">
-      <div class="fg-label">Tracking number or Order number</div>
-      <div class="chips" data-chips style="display:none"></div>
-      <div class="searchwrap">
-        <input class="search-input" data-search type="text" autocomplete="off" spellcheck="false" placeholder="Type a tracking or order number…">
-        <div class="suggest" data-suggest></div>
-      </div>
-      <div class="fg-hint">Suggestions appear as you type. Click one to confirm it — confirmed numbers override the date range.</div>
     </div>
 
     <div class="fg inv-only">
@@ -795,8 +794,10 @@ function applyScenario() {
   dw.querySelectorAll("[data-dategroup]").forEach((g) => g.classList.toggle("overridden", pasted));
   dw.querySelectorAll("[data-overridenote]").forEach((n) => {
     n.style.display = pasted ? "flex" : "none";
-    if (pasted) { n.closest("[data-dategroup]").classList.remove("overridden"); n.previousElementSibling && (n.closest("[data-dategroup]").querySelector(".dates").style.opacity = .4); }
-    else { const d = n.closest("[data-dategroup]").querySelector(".dates"); if (d) d.style.opacity = 1; }
+    const g = n.closest("[data-dategroup]");
+    if (!g) return; /* v1's note lives in the search group; renderV1Chips owns it */
+    if (pasted) { g.classList.remove("overridden"); g.querySelector(".dates").style.opacity = .4; }
+    else { const d = g.querySelector(".dates"); if (d) d.style.opacity = 1; }
   });
   dw.querySelectorAll("[data-unmatched]").forEach((u) => (u.style.display = pasted ? "block" : "none"));
   const ps = dw.querySelector("[data-pastesummary]");
@@ -876,12 +877,15 @@ function renderV1Chips() {
   const has = v1chips.size > 0;
   box.style.display = has ? "flex" : "none";
 
-  const dg = v1dw.querySelector("[data-dategroup]");
-  dg.querySelector(".dates").style.opacity = has ? 0.4 : 1;
+  /* confirmed numbers bypass every other filter, so dim them all */
+  v1dw.querySelectorAll(".dw-body > .fg").forEach((g) => {
+    if (g.hasAttribute("data-searchgroup") || g.hasAttribute("data-previewgroup")) return;
+    g.classList.toggle("overridden", has);
+  });
   const note = v1dw.querySelector("[data-overridenote]");
   note.style.display = has ? "flex" : "none";
   note.querySelector("span").innerHTML =
-    `Date range ignored — exporting the <b>${v1chips.size} selected number${v1chips.size === 1 ? "" : "s"}</b> instead.`;
+    `Filters below ignored — exporting the <b>${v1chips.size} selected number${v1chips.size === 1 ? "" : "s"}</b> instead.`;
 
   if (scenario === "empty") return;
 
