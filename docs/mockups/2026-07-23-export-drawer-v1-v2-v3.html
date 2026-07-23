@@ -912,19 +912,12 @@ function renderV1Chips() {
   }
 }
 
-/* strict in-order (subsequence) match: every typed character must appear
-   in the number in typing order, gaps allowed. Returns matched indices. */
+/* contiguous match only: the typed characters must appear as one
+   unbroken run inside the number. Returns matched indices. */
 function matchIdx(q, s) {
-  const sl = s.toLowerCase();
-  const idx = [];
-  let i = 0;
-  for (const ch of q) {
-    i = sl.indexOf(ch, i);
-    if (i === -1) return null;
-    idx.push(i);
-    i++;
-  }
-  return idx;
+  const i = s.toLowerCase().indexOf(q);
+  if (i === -1) return null;
+  return Array.from({ length: q.length }, (_, k) => i + k);
 }
 
 /* wrap matched characters, merging consecutive ones into one span */
@@ -947,10 +940,6 @@ function renderV1Suggest() {
   const hits = SEARCH_DATA
     .map((d) => ({ d, tri: matchIdx(q, d.tr), odi: matchIdx(q, d.od) }))
     .filter((h) => !v1chips.has(h.d.tr) && (h.tri || h.odi))
-    .sort((a, b) => {
-      const contig = (h) => (h.d.tr.toLowerCase().includes(q) || h.d.od.toLowerCase().includes(q)) ? 0 : 1;
-      return contig(a) - contig(b);
-    })
     .slice(0, 6);
   v1sug.innerHTML = hits.length
     ? hits.map(({ d, tri, odi }) =>
