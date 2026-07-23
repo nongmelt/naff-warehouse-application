@@ -382,6 +382,16 @@ input,select,textarea{font:inherit;color:inherit}
     </div>
 
     <div class="fg inv-only">
+      <div class="fg-label">Tracking number or Order number</div>
+      <div class="chips" data-chips style="display:none"></div>
+      <div class="searchwrap">
+        <input class="search-input" data-search type="text" autocomplete="off" spellcheck="false" placeholder="Type a tracking or order number…">
+        <div class="suggest" data-suggest></div>
+      </div>
+      <div class="fg-hint">Suggestions appear as you type. Click one to confirm it — confirmed numbers override the date range.</div>
+    </div>
+
+    <div class="fg inv-only">
       <div class="fg-label">Stage</div>
       <div class="radios" data-stageradios>
         <button class="radio-pill on" data-stage="shipped"><span class="dot"></span>Shipped</button>
@@ -417,16 +427,6 @@ input,select,textarea{font:inherit;color:inherit}
         <option>Instant / Express</option>
         <option>Economy</option>
       </select>
-    </div>
-
-    <div class="fg inv-only">
-      <div class="fg-label">Search</div>
-      <div class="chips" data-chips style="display:none"></div>
-      <div class="searchwrap">
-        <input class="search-input" data-search type="text" autocomplete="off" spellcheck="false" placeholder="Type a tracking or order number…">
-        <div class="suggest" data-suggest></div>
-      </div>
-      <div class="fg-hint">Suggestions appear as you type. Click one to confirm it — confirmed numbers override the date range.</div>
     </div>
 
     <div class="fg" data-previewgroup>
