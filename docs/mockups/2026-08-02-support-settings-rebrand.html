@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sidebar identity + Claude-style Settings — Round 2 (V2 modal)</title>
+<title>Support page + Settings rebrand — Round 4 (/support views)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sofia+Sans:wght@400..800&display=swap" rel="stylesheet">
@@ -19,6 +19,9 @@
   --dust:#D1CDC7;
   --scrim:rgba(20,20,19,.38);
   --card-shadow:0px 10px 30px rgba(20,20,19,.11),0px 2px 6px rgba(20,20,19,.05);
+  --open:#1A7F37; --open-surface:#DDF4E4;
+  --done:#8250DF; --done-surface:#EFE7FD;
+  --gray:#6E7781; --gray-surface:#ECEEF0;
 }
 .dark{
   --brand:#F37338; --brand-hover:#CF4500; --brand-surface:#2A1A0A;
@@ -29,16 +32,72 @@
   --border:#333332; --dust:#555555;
   --scrim:rgba(0,0,0,.55);
   --card-shadow:0px 8px 26px rgba(0,0,0,.46),0px 1px 3px rgba(0,0,0,.5);
+  --open:#3FB950; --open-surface:#12261A;
+  --done:#A371F7; --done-surface:#211A2E;
+  --gray:#8B949E; --gray-surface:#26282B;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
 body{font-family:"Sofia Sans",system-ui,sans-serif;background:var(--background);color:var(--foreground);font-size:14px;overflow:hidden}
 button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+input,textarea,select{font:inherit;color:inherit}
 svg{flex-shrink:0}
 
 /* ============ shell ============ */
 .shell{display:flex;height:100vh}
-main{flex:1;overflow-y:auto;padding:28px 36px}
+main{flex:1;overflow:hidden;display:flex;flex-direction:column}
+
+/* ============ page header bar (Delivery Issues pattern) ============ */
+.pagehead{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  height:60px;flex-shrink:0;background:var(--card);border-bottom:1px solid var(--border);padding:0 24px;
+}
+.ph-title{display:flex;align-items:baseline;gap:10px}
+.ph-title h1{font-size:19px;font-weight:800;letter-spacing:-.02em}
+.ph-sub{font-size:13px;color:var(--muted-foreground)}
+.ph-sub b{color:var(--foreground);font-weight:700}
+.crumb{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--muted-foreground)}
+.crumb button{color:var(--muted-foreground);font-weight:500}
+.crumb button:hover{color:var(--foreground)}
+.crumb .cur{font-weight:700;color:var(--foreground)}
+.searchpill{
+  display:flex;align-items:center;gap:8px;height:34px;width:230px;
+  border:1px solid var(--border);background:var(--background);border-radius:999px;
+  padding:0 14px;color:var(--muted-foreground);
+}
+.searchpill input{border:none;outline:none;background:transparent;font-size:12.5px;width:100%;color:var(--foreground)}
+.pbody{flex:1;overflow-y:auto;padding:20px 24px}
+.btn.pill{border-radius:999px;height:34px;padding:0 15px}
+
+/* detail two-column (Delivery Issues report layout) */
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start}
+.sidecard{background:var(--card);border:1px solid var(--border);border-radius:14px;box-shadow:var(--card-shadow);padding:16px 18px;margin-bottom:14px}
+.sclabel{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted-foreground);margin-bottom:12px}
+.kv{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0;font-size:13px}
+.kv .k{color:var(--muted-foreground)}
+.kv .v{font-weight:700;text-align:right;display:flex;align-items:center;gap:7px}
+.reasonsel{width:100%;border:1.5px solid var(--border);background:var(--card);border-radius:10px;padding:8px 10px;font-size:13px;font-weight:600;margin-bottom:10px}
+.sidenote{font-size:11.5px;color:var(--muted-foreground);line-height:1.45;margin-top:10px}
+
+/* new-ticket modal (Delivery Issues ReportIssueModal pattern: top-anchored, 520px) */
+#nmodal{place-items:start center;padding-top:48px}
+.npanel{
+  width:520px;max-width:94vw;max-height:88vh;
+  background:var(--card);border:1px solid var(--border);border-radius:18px;
+  box-shadow:var(--card-shadow);display:flex;flex-direction:column;overflow:hidden;
+  animation:pop .16s ease-out;
+}
+.nhead{display:flex;align-items:center;padding:16px 20px 8px}
+.ntitle{font-size:16px;font-weight:800;letter-spacing:-.01em}
+.nbody{flex:1;overflow-y:auto;padding:8px 20px 16px}
+.nfoot{display:flex;align-items:center;gap:8px;padding:12px 20px;border-top:1px solid var(--border);background:var(--lifted)}
+
+/* file attachment chip */
+.fchip{
+  display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border);background:var(--lifted);
+  border-radius:10px;padding:7px 11px;font-size:12px;font-weight:600;position:relative;
+}
+.fchip .fsize{font-size:10.5px;color:var(--muted-foreground);font-weight:500}
 
 /* ============ sidebar ============ */
 aside{
@@ -107,23 +166,10 @@ aside.rail .version{display:none}
 }
 .mtheme button.on{border-color:var(--brand);color:var(--brand);background:var(--brand-surface)}
 
-/* ============ fake dashboard backdrop (settings is no longer a page) ============ */
-.bk-title{font-size:22px;font-weight:800;letter-spacing:-.01em}
-.bk-sub{color:var(--muted-foreground);font-size:12px;margin:2px 0 20px}
-.bk-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px}
-.bk-card{background:var(--card);border:1px solid var(--border);border-radius:16px;height:96px;padding:14px;box-shadow:var(--card-shadow)}
-.bk-card .l{width:56%;height:10px;border-radius:5px;background:var(--muted)}
-.bk-card .n{width:34%;height:22px;border-radius:7px;background:var(--muted);margin-top:14px}
-.bk-table{background:var(--card);border:1px solid var(--border);border-radius:16px;height:46vh;padding:16px;box-shadow:var(--card-shadow)}
-.bk-row{height:12px;border-radius:6px;background:var(--muted);margin-bottom:16px}
-.bk-row:nth-child(odd){width:96%}.bk-row:nth-child(even){width:88%}
-
 /* ============ settings modal (Claude.ai structure) ============ */
 .scrim{position:fixed;inset:0;background:var(--scrim);backdrop-filter:blur(1.5px);z-index:50;display:none}
 .scrim.show{display:block}
-.smodal{
-  position:fixed;inset:0;z-index:55;display:none;place-items:center;
-}
+.smodal{position:fixed;inset:0;z-index:55;display:none;place-items:center}
 .smodal.show{display:grid}
 .spanel{
   width:760px;max-width:94vw;height:520px;max-height:88vh;
@@ -133,10 +179,7 @@ aside.rail .version{display:none}
 }
 @keyframes pop{from{transform:scale(.97);opacity:.5}to{transform:none;opacity:1}}
 @media (prefers-reduced-motion: reduce){.spanel{animation:none}}
-.snav{
-  width:200px;flex-shrink:0;background:var(--lifted);border-right:1px solid var(--border);
-  padding:16px 10px;
-}
+.snav{width:200px;flex-shrink:0;background:var(--lifted);border-right:1px solid var(--border);padding:16px 10px}
 .snav .stitle{font-size:15px;font-weight:800;padding:0 10px 12px}
 .snav .nav-item{font-size:13px}
 .sbody{flex:1;min-width:0;display:flex;flex-direction:column}
@@ -150,15 +193,232 @@ aside.rail .version{display:none}
 h2.pref{font-size:18px;font-weight:800;letter-spacing:-.01em;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:22px}
 .srow{display:flex;gap:24px;align-items:center;justify-content:space-between}
 .slabel{font-size:14px;font-weight:700}
-
-/* theme segmented control (Claude.ai style: monitor / sun / moon icons) */
 .tseg{display:inline-flex;align-items:center;gap:2px;background:var(--muted);border-radius:10px;padding:3px}
-.tseg button{
-  width:32px;height:26px;border-radius:8px;display:grid;place-items:center;
-  color:var(--muted-foreground);transition:all .12s;
-}
+.tseg button{width:32px;height:26px;border-radius:8px;display:grid;place-items:center;color:var(--muted-foreground);transition:all .12s}
 .tseg button:hover{color:var(--foreground)}
 .tseg button.on{background:var(--card);color:var(--foreground);box-shadow:0 1px 4px rgba(0,0,0,.12)}
+
+/* ============ /support shared ============ */
+.pg-title{font-size:22px;font-weight:800;letter-spacing:-.01em}
+.pg-sub{color:var(--muted-foreground);font-size:12px;margin:2px 0 20px}
+.btn{
+  display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:10px;
+  font-size:13px;font-weight:700;border:1.5px solid transparent;
+}
+.btn.primary{background:var(--brand);color:#fff}
+.btn.primary:hover{background:var(--brand-hover)}
+.btn.ghost{border-color:var(--border);background:var(--card);color:var(--foreground)}
+.btn.ghost:hover{background:var(--muted)}
+.chip{
+  display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;
+  font-size:10.5px;font-weight:800;letter-spacing:.02em;
+}
+.chip.bug{background:color-mix(in srgb,#D1242F 12%,transparent);color:#D1242F}
+.dark .chip.bug{background:#2C1517;color:#F85149}
+.chip.feature_request{background:color-mix(in srgb,#0969DA 11%,transparent);color:#0969DA}
+.dark .chip.feature_request{background:#121D2F;color:#58A6FF}
+.chip.question{background:color-mix(in srgb,#9A6700 13%,transparent);color:#9A6700}
+.dark .chip.question{background:#272115;color:#D29922}
+.chip.data_problem{background:var(--done-surface);color:var(--done)}
+.chip.other{background:var(--gray-surface);color:var(--gray)}
+.spill{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:800}
+.spill.open{background:var(--open-surface);color:var(--open)}
+.spill.closed{background:var(--done-surface);color:var(--done)}
+.spill.closed.gray{background:var(--gray-surface);color:var(--gray)}
+
+/* ============ /support list ============ */
+.list-head{display:flex;align-items:flex-start;gap:16px}
+.list-head .grow{flex:1}
+.panel{background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:var(--card-shadow);overflow:hidden}
+.filterbar{display:flex;align-items:center;gap:2px;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--lifted)}
+.ftab{
+  display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:9px;
+  font-size:12.5px;font-weight:700;color:var(--muted-foreground);
+}
+.ftab:hover{color:var(--foreground);background:var(--muted)}
+.ftab.on{color:var(--foreground);background:var(--muted)}
+.fcount{font-size:10.5px;font-weight:800;background:var(--gray-surface);color:var(--gray);border-radius:999px;padding:1px 7px}
+.ftab.on .fcount{background:var(--brand-surface);color:var(--brand)}
+.fspacer{flex:1}
+.catsel{
+  border:1.5px solid var(--border);background:var(--card);border-radius:9px;
+  padding:5px 8px;font-size:12px;font-weight:600;color:var(--muted-foreground);
+}
+.trow{
+  display:flex;align-items:flex-start;gap:11px;padding:12px 14px;border-bottom:1px solid var(--border);
+  width:100%;text-align:left;
+}
+.trow:last-child{border-bottom:none}
+.trow:hover{background:var(--lifted)}
+.sic{margin-top:1px}
+.sic.open{color:var(--open)}
+.sic.done{color:var(--done)}
+.sic.gray{color:var(--gray)}
+.trow .tmain{flex:1;min-width:0}
+.ttitle{font-size:13.5px;font-weight:700;line-height:1.3;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tmeta{font-size:11px;color:var(--muted-foreground);margin-top:3px}
+.tright{display:flex;align-items:center;gap:12px;color:var(--muted-foreground);font-size:11px;flex-shrink:0;margin-top:2px}
+.ccount{display:inline-flex;align-items:center;gap:4px}
+.empty{padding:40px;text-align:center;color:var(--muted-foreground);font-size:13px}
+
+/* ============ /support new form ============ */
+.formcard{max-width:640px}
+.frow{margin-bottom:18px}
+.flabel{display:flex;align-items:baseline;gap:6px;font-size:13px;font-weight:800;margin-bottom:6px}
+.freq{color:var(--brand);font-size:11px;font-weight:800}
+.fhint{font-size:11px;color:var(--muted-foreground);font-weight:500;margin-left:auto}
+.finput,.ftext{
+  width:100%;border:1.5px solid var(--border);background:var(--card);border-radius:10px;
+  padding:9px 12px;font-size:13.5px;outline:none;
+}
+.finput:focus,.ftext:focus{border-color:var(--brand)}
+.ftext{min-height:120px;resize:vertical;line-height:1.5}
+.catgrid{display:flex;gap:6px;flex-wrap:wrap}
+.catbtn{
+  display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:10px;
+  border:1.5px solid var(--border);background:var(--card);font-size:12.5px;font-weight:700;color:var(--muted-foreground);
+}
+.catbtn:hover{border-color:var(--dust)}
+.catbtn.on{border-color:var(--brand);color:var(--brand);background:var(--brand-surface)}
+.dropzone{
+  border:1.5px dashed var(--dust);border-radius:12px;padding:18px;text-align:center;
+  color:var(--muted-foreground);font-size:12px;background:var(--lifted);
+}
+.dropzone b{color:var(--brand);font-weight:700}
+.fileup{display:flex;gap:8px;margin-top:8px}
+.thumb{
+  width:64px;height:64px;border-radius:10px;border:1px solid var(--border);background:var(--muted);
+  display:grid;place-items:center;color:var(--muted-foreground);position:relative;
+}
+.thumb .rm{
+  position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;
+  background:var(--foreground);color:var(--background);font-size:10px;display:grid;place-items:center;
+}
+.fsubmit{display:flex;align-items:center;gap:12px;margin-top:4px}
+.fas{font-size:11.5px;color:var(--muted-foreground)}
+.fas b{font-weight:700;color:var(--foreground)}
+
+/* ============ /support detail ============ */
+.back{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--muted-foreground);margin-bottom:10px;border-radius:8px;padding:4px 8px 4px 4px}
+.back:hover{background:var(--muted);color:var(--foreground)}
+.dhead{margin-bottom:6px}
+.dtitle{font-size:20px;font-weight:800;letter-spacing:-.01em;line-height:1.25}
+.dnum{color:var(--muted-foreground);font-weight:600}
+.dmeta{display:flex;align-items:center;gap:10px;margin:8px 0 20px;font-size:12px;color:var(--muted-foreground);flex-wrap:wrap}
+.thread{max-width:720px}
+.tl{position:relative;padding-left:0}
+.ccard{background:var(--card);border:1px solid var(--border);border-radius:14px;margin-bottom:14px;overflow:hidden}
+.chead{display:flex;align-items:center;gap:8px;padding:9px 14px;background:var(--lifted);border-bottom:1px solid var(--border);font-size:12px}
+.chead .avatar{width:22px;height:22px;font-size:9px}
+.chead b{font-weight:800}
+.chead .when{color:var(--muted-foreground)}
+.chead .edited{color:var(--muted-foreground);font-style:italic}
+.chead .editbtn{margin-left:auto;color:var(--muted-foreground);font-size:11px;font-weight:700;border-radius:7px;padding:3px 8px}
+.chead .editbtn:hover{background:var(--muted);color:var(--foreground)}
+.cbody{padding:13px 14px;font-size:13.5px;line-height:1.55}
+.cbody .attachrow{display:flex;gap:8px;margin-top:10px}
+.evrow{
+  display:flex;align-items:center;gap:9px;padding:4px 0 4px 4px;margin:0 0 14px;
+  font-size:12px;color:var(--muted-foreground);
+}
+.evrow .evic{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;flex-shrink:0}
+.evrow .evic.done{background:var(--done);color:#fff}
+.evrow .evic.gray{background:var(--gray);color:#fff}
+.evrow .evic.open{background:var(--open);color:#fff}
+.evrow b{color:var(--foreground);font-weight:700}
+.cformwrap{border-top:1px solid var(--border);margin-top:6px;padding-top:18px}
+.cform{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+.cform textarea{width:100%;border:none;outline:none;background:transparent;padding:12px 14px;min-height:84px;resize:vertical;font-size:13.5px;line-height:1.5}
+.cactions{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--lifted);border-top:1px solid var(--border)}
+.attachbtn{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--muted-foreground);padding:6px 10px;border-radius:9px}
+.attachbtn:hover{background:var(--muted);color:var(--foreground)}
+.caspacer{flex:1}
+/* close split-button */
+.splitwrap{position:relative;display:inline-flex}
+.splitmain{
+  display:inline-flex;align-items:center;gap:7px;padding:7px 12px;font-size:12.5px;font-weight:700;
+  border:1.5px solid var(--border);background:var(--card);border-radius:10px 0 0 10px;border-right:none;
+}
+.splitmain:hover{background:var(--muted)}
+.splitcaret{
+  display:grid;place-items:center;width:28px;border:1.5px solid var(--border);
+  background:var(--card);border-radius:0 10px 10px 0;color:var(--muted-foreground);
+}
+.splitcaret:hover{background:var(--muted)}
+.reasonmenu{
+  position:absolute;bottom:calc(100% + 6px);right:0;width:230px;
+  background:var(--card);border:1px solid var(--border);border-radius:12px;
+  box-shadow:var(--card-shadow);padding:5px;z-index:30;display:none;
+}
+.reasonmenu.show{display:block}
+.rmi{display:flex;align-items:flex-start;gap:9px;width:100%;padding:8px 10px;border-radius:9px;text-align:left}
+.rmi:hover{background:var(--muted)}
+.rmi .rt{font-size:12.5px;font-weight:700;line-height:1.2}
+.rmi .rd{font-size:10.5px;color:var(--muted-foreground);margin-top:1px}
+.rmi .sic{margin-top:2px}
+
+/* ============ tracking/order link + Order Timeline modal (main-dashboard pattern) ============ */
+.tlink{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.94em;color:var(--brand);font-weight:600}
+.tlink:hover{text-decoration:underline}
+.tpanel{
+  width:500px;max-width:94vw;max-height:88vh;
+  background:var(--card);border:1px solid var(--border);border-radius:16px;
+  box-shadow:var(--card-shadow);display:flex;flex-direction:column;overflow:hidden;
+  animation:pop .16s ease-out;
+}
+.thead2{display:flex;align-items:center;gap:12px;padding:15px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
+.thead2 .tic{width:36px;height:36px;border-radius:10px;background:var(--brand-surface);color:var(--brand);display:grid;place-items:center;flex-shrink:0}
+.thead2 .tt{flex:1;min-width:0}
+.thead2 .tt .a{font-size:15px;font-weight:700}
+.thead2 .tt .b{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--muted-foreground);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wfbtn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:999px;border:1px solid var(--border);font-size:11.5px;font-weight:600;color:var(--muted-foreground);flex-shrink:0}
+.wfbtn:hover{border-color:var(--brand);color:var(--brand)}
+.tclose{width:30px;height:30px;border-radius:50%;background:var(--muted);color:var(--muted-foreground);display:grid;place-items:center;flex-shrink:0}
+.tclose:hover{color:var(--foreground)}
+.tbody2{overflow-y:auto;padding:18px 22px}
+.tsteps{list-style:none;border-left:2px solid var(--border);margin-left:6px}
+.tstep{position:relative;padding:0 0 18px 28px}
+.tstep:last-child{padding-bottom:2px}
+.tdot{position:absolute;left:-7px;top:3px;width:12px;height:12px;border-radius:50%;box-shadow:0 0 0 2px var(--card)}
+.trow2{display:flex;gap:11px}
+.tlab{font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:8px}
+.tlab.dim{color:var(--muted-foreground)}
+.ttime{font-size:12px;color:var(--muted-foreground);margin-top:2px}
+.tbadge{border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700}
+.gapchip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;background:color-mix(in srgb,#9A6700 12%,transparent);color:#9A6700;padding:2px 8px;font-size:10px;font-weight:700;margin:0 0 8px 28px}
+.dark .gapchip{background:#272115;color:#D29922}
+.oprow{display:flex;align-items:center;gap:8px;border:1px solid var(--border);background:var(--lifted);border-radius:10px;padding:9px 11px;margin-top:8px;font-size:12px;font-weight:600}
+.optag{border-radius:5px;padding:1px 6px;font-size:10px;font-weight:800}
+.oprow .stn{color:var(--muted-foreground);font-weight:500}
+.pvbtn{margin-left:auto;background:var(--open);color:#fff;border-radius:9px;padding:6px 12px;font-size:11.5px;font-weight:700}
+.vfile{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--muted-foreground);margin-top:2px}
+
+/* ============ '#' parcel mention popup (AlertReconcileDropdown search design) ============ */
+.mpop{
+  position:absolute;z-index:45;width:300px;
+  background:var(--card);border:1px solid var(--border);border-radius:12px;
+  box-shadow:var(--card-shadow);overflow:hidden;
+}
+.mpop.below{top:calc(100% + 6px);left:0;width:320px}
+.mrow.sel{background:var(--brand-surface)}
+.mrow.sel .trk{color:var(--brand)}
+.hlm{color:var(--brand);background:color-mix(in srgb,var(--brand) 14%,transparent);border-radius:3px;font-weight:800}
+.msearch{position:relative;border-bottom:1px solid var(--border);padding:10px 12px}
+.msearch svg{position:absolute;left:22px;top:50%;transform:translateY(-50%);color:var(--muted-foreground)}
+.msearch input{
+  width:100%;border-radius:9px;border:1px solid transparent;background:var(--muted);
+  padding:8px 10px 8px 32px;font-size:12px;font-weight:600;outline:none;color:var(--foreground);
+}
+.msearch input:focus{border-color:var(--accent);background:var(--background);box-shadow:0 0 0 2px rgba(243,115,56,.12)}
+.mhint{padding:6px 12px;font-size:10px;color:var(--muted-foreground);border-bottom:1px solid color-mix(in srgb,var(--border) 60%,transparent)}
+.mrow{display:flex;align-items:center;gap:10px;width:100%;padding:9px 12px;border-bottom:1px solid color-mix(in srgb,var(--border) 50%,transparent);text-align:left}
+.mrow:last-child{border-bottom:none}
+.mrow:hover{background:var(--lifted)}
+.mrow .plat{width:26px;height:26px;border-radius:7px;color:#fff;font-weight:800;font-size:11px;display:grid;place-items:center;flex-shrink:0}
+.mrow .trk{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;font-weight:700}
+.mrow .sub{font-size:10px;color:var(--muted-foreground);display:flex;gap:6px;align-items:center;margin-top:1px}
+.sbadge{border-radius:5px;padding:0 5px;font-size:9px;font-weight:800}
+.mempty{padding:16px;text-align:center;font-size:11.5px;color:var(--muted-foreground)}
 
 /* ============ control bar ============ */
 .bar{
@@ -169,6 +429,7 @@ h2.pref{font-size:18px;font-weight:800;letter-spacing:-.01em;padding-bottom:14px
 .dark .bar{background:#F3F0EE;color:#141413}
 .bar button{padding:5px 10px;border-radius:999px;font-weight:700;font-size:12px;opacity:.85}
 .bar button:hover{opacity:1;background:rgba(128,128,128,.25)}
+.bar button.cur{opacity:1;background:rgba(128,128,128,.35)}
 .bar .vlabel{padding:0 6px;font-weight:800}
 .bar .sep{width:1px;height:16px;background:currentColor;opacity:.25;margin:0 3px}
 </style>
@@ -176,23 +437,10 @@ h2.pref{font-size:18px;font-weight:800;letter-spacing:-.01em;padding-bottom:14px
 <body>
 <div class="shell">
   <aside id="aside"></aside>
-  <main>
-    <div class="bk-title">Home</div>
-    <div class="bk-sub">Dashboard backdrop — Settings now opens as a pop-up, /settings page retired.</div>
-    <div class="bk-cards">
-      <div class="bk-card"><div class="l"></div><div class="n"></div></div>
-      <div class="bk-card"><div class="l"></div><div class="n"></div></div>
-      <div class="bk-card"><div class="l"></div><div class="n"></div></div>
-      <div class="bk-card"><div class="l"></div><div class="n"></div></div>
-    </div>
-    <div class="bk-table">
-      <div class="bk-row"></div><div class="bk-row"></div><div class="bk-row"></div><div class="bk-row"></div>
-      <div class="bk-row"></div><div class="bk-row"></div><div class="bk-row"></div><div class="bk-row"></div>
-    </div>
-  </main>
+  <main id="main"></main>
 </div>
 
-<!-- settings modal -->
+<!-- settings modal (unchanged from round 3, kept reachable via user menu) -->
 <div class="scrim" id="scrim" onclick="closeSettings()"></div>
 <div class="smodal" id="smodal">
   <div class="spanel" role="dialog" aria-modal="true">
@@ -213,24 +461,57 @@ h2.pref{font-size:18px;font-weight:800;letter-spacing:-.01em;padding-bottom:14px
   </div>
 </div>
 
+<!-- new-ticket modal (content rendered by openNew) -->
+<div class="scrim" id="nscrim" onclick="closeNew()"></div>
+<div class="smodal" id="nmodal"></div>
+
+<!-- order timeline modal (content rendered by openTimeline) -->
+<div class="scrim" id="tscrim" onclick="closeTimeline()" style="z-index:56"></div>
+<div class="smodal" id="tmodal" style="z-index:57"></div>
+
 <div class="bar">
-  <div class="vlabel">Round 2 — V2 modal</div>
+  <div class="vlabel">Round 9 — /support</div>
   <div class="sep"></div>
-  <button onclick="openSettings()">Settings</button>
+  <button id="b-list" onclick="go('list')">List</button>
+  <button id="b-new" onclick="openNew()">New</button>
+  <button id="b-detail" onclick="go('detail')">Detail</button>
+  <div class="sep"></div>
   <button onclick="toggleDark()" id="darkbtn">Dark</button>
   <button onclick="toggleRail()">Rail</button>
 </div>
 
 <script>
-/* MOCKUP round 2 — wayfinder map #91, tickets #94 + #95.
-   Feedback applied: V2 chosen (Support under "Help" group, slim user menu with theme quick-row);
-   Support icon → headset (headphones over rounded face); Settings is a Claude.ai-style pop-up
-   modal (left "Settings" nav column with General, right content), /settings page retired;
-   Preview card removed. */
+/* MOCKUP round 9 — wayfinder map #91, ticket #96 (/support page).
+   Round-6 feedback: GitHub mention behaviour — the '#' popup anchors below the caret
+   (mirror-div caret measurement), no inner search input: typing after '#' filters the
+   5 results in place; ↑/↓ moves selection, Enter inserts, Esc closes.
+   Round-5: parcel search on '#' (tracking OR order), row design from AlertReconcileDropdown;
+   no ticket mentions; '@' reserved for people (post-v1).
+   IMPLEMENTATION NOTES:
+   - the letter squares in result rows are placeholders — use the real platform logos
+     (existing PlatformBadge / PlatformGlyph components) in the real frontend.
+   - suggestion matching must equal the export-invoice search bar: contiguous character
+     run, starting anywhere ("6789" matches TH123456789), applied to BOTH tracking and
+     order number, with the matched run highlighted in the result rows.
+   Round-4 feedback: tickets can reference a tracking/order number ("Related parcel" field on the
+   new-ticket modal); tracking + order numbers render as mono brand links in the thread body and
+   Details card, and clicking one opens the Order Timeline modal (OrderTimelineModal clone).
+   Round-3 feedback: "New ticket" is a pop-up modal (Delivery Issues ReportIssueModal pattern:
+   top-anchored 520px panel, footer pill buttons) instead of a separate page/view.
+   Round-2 feedback applied: Delivery Issues page chrome reused (60px header bar; list = title +
+   search pill + round New-ticket button; detail = "Support › Ticket #N" breadcrumb); detail is a
+   two-column grid (thread left, Status + Details sidebar right) so the page isn't mostly empty;
+   attachments accept files as well as images (file chips alongside thumbs).
+   Domain model per issue #92: Ticket; open/closed + close_reason (completed/not_planned/duplicate);
+   categories bug/feature_request/question/data_problem/other (+category_note when other);
+   required title (~120 cap) + optional body; everyone comments, edit-own, no delete;
+   status events inline in thread; image attachments (filing-time or per-comment);
+   reporter identity = Cloudflare Access snapshot (name + email). */
 
 const USER = { name: "Pongporn Supa", email: "keng1464@gmail.com", initials: "PS" };
 
 const icon = p => `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+const iconS = (p,s) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 const I = {
   home:  icon('<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/>'),
   box:   icon('<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/>'),
@@ -244,25 +525,99 @@ const I = {
   doc:   icon('<path d="M6 2h9l4 4v16H6z"/><path d="M14 2v5h5"/>'),
   clock: icon('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>'),
   bill:  icon('<path d="M5 3h14v18l-2.3-1.5L14.4 21l-2.4-1.5L9.6 21l-2.3-1.5L5 21z"/><path d="M9 8h6M9 12h6"/>'),
-  /* headset: headphone band + earpads around a rounded face */
   headset: icon('<path d="M4 14v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="13.5" width="4" height="6" rx="2"/><rect x="17" y="13.5" width="4" height="6" rx="2"/><circle cx="12" cy="13.5" r="3.2"/><path d="M10.8 14.6c.7.6 1.7.6 2.4 0"/>'),
   gear:  icon('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.18a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>'),
   out:   icon('<path d="M15 3h4a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1h-4"/><path d="m10 17 5-5-5-5"/><path d="M15 12H3"/>'),
   chevUD:icon('<path d="m7 15 5 5 5-5M7 9l5-5 5 5"/>'),
   chevL: icon('<path d="m15 18-6-6 6-6"/>'),
   chevR: icon('<path d="m9 18 6-6-6-6"/>'),
+  plus:  icon('<path d="M12 5v14M5 12h14"/>'),
+  comment:iconS('<path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',12),
+  img:   iconS('<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>',20),
+  imgSm: iconS('<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>',13),
+  caret: iconS('<path d="m6 9 6 6 6-6"/>',12),
+  search:iconS('<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',14),
+  clockL:iconS('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',18),
+  video: iconS('<rect x="2" y="6" width="13" height="12" rx="2"/><path d="m15 10 6-3v10l-6-3"/>',15),
+  truck: iconS('<path d="M2 6h12v10H2z"/><path d="M14 9h4l3 3v4h-7"/><circle cx="6" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/>',15),
+  ext:   iconS('<path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M19 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h6"/>',11),
+  file:  iconS('<path d="M6 2h9l4 4v16H6z"/><path d="M14 2v5h5"/>',13),
+  crumb: `<svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M7.3 14.7a1 1 0 010-1.4l3.3-3.3-3.3-3.3a1 1 0 011.4-1.4l4 4a1 1 0 010 1.4l-4 4a1 1 0 01-1.4 0z"/></svg>`,
+  /* status glyphs */
+  opendot: s=>`<svg width="${s}" height="${s}" viewBox="0 0 16 16" fill="currentColor"><path d="M8 9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z"/><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Z"/></svg>`,
+  donecheck: s=>`<svg width="${s}" height="${s}" viewBox="0 0 16 16" fill="currentColor"><path d="M11.28 6.78a.75.75 0 0 0-1.06-1.06L7.25 8.69 5.78 7.22a.75.75 0 0 0-1.06 1.06l2 2a.75.75 0 0 0 1.06 0l3.5-3.5Z"/><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0Zm-1.5 0a6.5 6.5 0 1 0-13 0 6.5 6.5 0 0 0 13 0Z"/></svg>`,
+  slash: s=>`<svg width="${s}" height="${s}" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8c0 1.42.46 2.73 1.24 3.8L11.8 2.74A6.5 6.5 0 0 0 1.5 8Zm6.5 6.5a6.5 6.5 0 0 0 5.26-10.3L4.2 13.26c1.07.78 2.38 1.24 3.8 1.24Z"/></svg>`,
+  dup: s=>`<svg width="${s}" height="${s}" viewBox="0 0 16 16" fill="currentColor"><path d="M0 5.75C0 4.784.784 4 1.75 4h3a.75.75 0 0 1 0 1.5h-3a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-3a.75.75 0 0 1 1.5 0v3A1.75 1.75 0 0 1 10.25 16h-8.5A1.75 1.75 0 0 1 0 14.25Z"/><path d="M5 1.75C5 .784 5.784 0 6.75 0h8.5C16.216 0 17 .784 17 1.75v8.5A1.75 1.75 0 0 1 15.25 12h-8.5A1.75 1.75 0 0 1 5 10.25Zm1.75-.25a.25.25 0 0 0-.25.25v8.5c0 .138.112.25.25.25h8.5a.25.25 0 0 0 .25-.25v-8.5a.25.25 0 0 0-.25-.25Z"/></svg>`,
 };
 
+const CAT_LABEL = {
+  bug:"Bug", feature_request:"Feature request", question:"Question",
+  data_problem:"Data problem", other:"Other",
+};
+
+/* tracking / order numbers are clickable → Order Timeline modal (main-dashboard pattern) */
+function tlink(v){return `<button class="tlink" onclick="openTimeline('${v}');event.stopPropagation()">${v}</button>`;}
+
+/* ---- mock parcels for '#' mention search (max 5 shown) ---- */
+const PARCELS=[
+  {trk:"TH263188493800G",ord:"250629KHVN0F2M",plat:"S",platBg:"#EE4D2D",status:"Shipped",   sCls:"background:var(--brand-surface);color:var(--brand)",when:"28 Jul, 14:20"},
+  {trk:"TH263177281244A",ord:"250628A1BC34DE",plat:"L",platBg:"#0F146D",status:"Packed",    sCls:"background:color-mix(in srgb,#2563EB 13%,transparent);color:#2563EB",when:"28 Jul, 11:58"},
+  {trk:"TH263155009822B",ord:"2506275GH8JKLM",plat:"S",platBg:"#EE4D2D",status:"QC Hold",   sCls:"background:color-mix(in srgb,#9A6700 13%,transparent);color:#9A6700",when:"27 Jul, 16:04"},
+  {trk:"TH263149330711D",ord:"TT2506290XYZ12",plat:"T",platBg:"#141413",status:"Packing",   sCls:"background:var(--gray-surface);color:var(--gray)",when:"27 Jul, 10:31"},
+  {trk:"TH263140118876C",ord:"250626QRSTUV78",plat:"S",platBg:"#EE4D2D",status:"Shipped",   sCls:"background:var(--brand-surface);color:var(--brand)",when:"26 Jul, 15:47"},
+];
+
+/* ---- mock tickets ---- */
+const TICKETS = [
+  { id:14, title:"Shopee import batch 415 stuck at “Processing” since this morning", cat:"bug",
+    reporter:"Nid Charoensuk", email:"nid@naffofficial.com", age:"2 hours ago", comments:3, status:"open",
+    attachments:1, tracking:"TH263188493800G", order:"250629KHVN0F2M" },
+  { id:13, title:"Add an export button on the Delivery Issues page", cat:"feature_request",
+    reporter:"Ploy Wattana", email:"ploy@naffofficial.com", age:"yesterday", comments:1, status:"open" },
+  { id:12, title:"Why does the leaderboard show 0 parcels for Station 3 today?", cat:"question",
+    reporter:"Pongporn Supa", email:"keng1464@gmail.com", age:"2 days ago", comments:0, status:"open" },
+  { id:11, title:"Parcel TH263188493800G shows 4 items but the invoice says 12", cat:"data_problem",
+    reporter:"Nid Charoensuk", email:"nid@naffofficial.com", age:"4 days ago", comments:5, status:"closed", reason:"completed" },
+  { id:9, title:"Products page loads slowly when filtering by category", cat:"bug",
+    reporter:"Ploy Wattana", email:"ploy@naffofficial.com", age:"last week", comments:2, status:"closed", reason:"duplicate" },
+  { id:7, title:"Print-friendly dark mode for fulfillment reports", cat:"other", catNote:"printing",
+    reporter:"Pongporn Supa", email:"keng1464@gmail.com", age:"2 weeks ago", comments:1, status:"closed", reason:"not_planned" },
+];
+
+/* detail-view thread for ticket #14 (items: comment | event) */
+const THREAD = [
+  { kind:"post", who:"Nid Charoensuk", initials:"NC", when:"2 hours ago",
+    body:`I uploaded the Shopee order file (batch 415) around 9:40 and it still shows “Processing” on the Imports page. The Lazada file I uploaded right after finished in under a minute. No error shown anywhere. One of the missing parcels is ${tlink("TH263188493800G")} (order ${tlink("250629KHVN0F2M")}). Attaching the file I uploaded.`,
+    attachImg:true, attachFile:"shopee-batch-415.xlsx", attachSize:"184 KB" },
+  { kind:"comment", who:"Pongporn Supa", initials:"PS", when:"1 hour ago", mine:true, edited:true,
+    body:"Looking into it — the worker log shows the batch picked up at 9:41 and no rows written since. Will restart the import worker and re-run the batch." },
+  { kind:"event", ev:"closed", reason:"completed", who:"Pongporn Supa", when:"45 minutes ago" },
+  { kind:"event", ev:"reopened", who:"Nid Charoensuk", when:"30 minutes ago" },
+  { kind:"comment", who:"Nid Charoensuk", initials:"NC", when:"30 minutes ago",
+    body:"Re-ran the export from Shopee and uploaded again — still stuck. Reopening. Screenshot of the Imports page attached.", attachImg:true },
+];
+
+const statusGlyph = (t,s=16) =>
+  t.status==="open" ? `<span class="sic open" title="Open">${I.opendot(s)}</span>` :
+  t.reason==="completed" ? `<span class="sic done" title="Closed as completed">${I.donecheck(s)}</span>` :
+  t.reason==="duplicate" ? `<span class="sic gray" title="Closed as duplicate">${I.dup(s)}</span>` :
+  `<span class="sic gray" title="Closed as not planned">${I.slash(s)}</span>`;
+
+const chip = t => `<span class="chip ${t.cat}">${CAT_LABEL[t.cat]}${t.catNote?` · ${t.catNote}`:""}</span>`;
+
+/* ---- state ---- */
+let rail=false, menuOpen=false, themeSel="system";
+let view="list", filter="open", newCat=null, reasonOpen=false;
+
+/* ============ sidebar (round 3, Support active) ============ */
 const groups = [
   { label:"Operation", items:[
-    ["Home",I.home,"active"],["Products",I.box],["Live Leaderboard",I.bolt],["Operators",I.users],
+    ["Home",I.home],["Products",I.box],["Live Leaderboard",I.bolt],["Operators",I.users],
     ["Stations",I.mon],["Import orders",I.imp],["Delivery Issues",I.flag,null,"beta"] ]},
   { label:"Analytics", items:[["Insights",I.pie],["Leaderboard",I.trophy],["Reports",I.doc],["Timeline",I.clock]]},
   { label:"Invoices",  items:[["Issue Invoice",I.bill]]},
-  { label:"Help",      items:[["Support",I.headset]]},
+  { label:"Help",      items:[["Support",I.headset,"active"]]},
 ];
-
-let rail=false, menuOpen=false, themeSel="system";
 
 function renderSidebar(){
   const navHtml=groups.map(g=>`
@@ -298,6 +653,347 @@ function renderSidebar(){
   document.getElementById("generalTab").innerHTML=`${I.gear}<span>General</span>`;
 }
 
+/* ============ /support views ============ */
+function renderMain(){
+  const m=document.getElementById("main");
+  m.innerHTML = view==="list" ? viewList() : viewDetail();
+  ["list","detail"].forEach(v=>document.getElementById("b-"+v).classList.toggle("cur",view===v));
+}
+
+function viewList(){
+  const openN=TICKETS.filter(t=>t.status==="open").length;
+  const closedN=TICKETS.length-openN;
+  const rows=TICKETS.filter(t=>filter==="all"||t.status===filter);
+  return `
+  <div class="pagehead">
+    <div class="ph-title">
+      <h1>Help &amp; Support Center</h1>
+      <span class="ph-sub"><b>${openN}</b> open · <b>${closedN}</b> closed</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="searchpill">${I.search}<input placeholder="Search tickets"></div>
+      <button class="btn primary pill" onclick="openNew()">${I.plus}New ticket</button>
+    </div>
+  </div>
+  <div class="pbody">
+  <div class="panel">
+    <div class="filterbar">
+      <button class="ftab${filter==="open"?" on":""}" onclick="setFilter('open')">${I.opendot(13)} Open <span class="fcount">${openN}</span></button>
+      <button class="ftab${filter==="closed"?" on":""}" onclick="setFilter('closed')">${I.donecheck(13)} Closed <span class="fcount">${closedN}</span></button>
+      <button class="ftab${filter==="all"?" on":""}" onclick="setFilter('all')">All <span class="fcount">${TICKETS.length}</span></button>
+      <div class="fspacer"></div>
+      <select class="catsel"><option>All categories</option>${Object.values(CAT_LABEL).map(c=>`<option>${c}</option>`).join("")}</select>
+    </div>
+    ${rows.length?rows.map(t=>`
+      <button class="trow" onclick="go('detail')">
+        ${statusGlyph(t)}
+        <div class="tmain">
+          <div class="ttitle">${t.title} ${chip(t)}</div>
+          <div class="tmeta">#${t.id} · ${t.status==="open"?"opened":"closed"} ${t.age} by ${t.reporter}</div>
+        </div>
+        <div class="tright">
+          ${t.attachments?`<span class="ccount">${I.imgSm} ${t.attachments}</span>`:""}
+          ${t.comments?`<span class="ccount">${I.comment} ${t.comments}</span>`:""}
+        </div>
+      </button>
+    `).join(""):`<div class="empty">No ${filter==="all"?"":filter+" "}tickets. All quiet on the warehouse front.</div>`}
+  </div>
+  </div>`;
+}
+
+function renderNewModal(){
+  document.getElementById("nmodal").innerHTML=`
+  <div class="npanel" role="dialog" aria-modal="true">
+    <div class="nhead">
+      <div class="ntitle">New ticket</div>
+      <button class="sclose" onclick="closeNew()" title="Close">✕</button>
+    </div>
+    <div class="nbody">
+      <div class="pg-sub" style="margin:0 0 14px">Describe the problem or request — a developer will pick it up from here.</div>
+      <div class="frow">
+        <div class="flabel">Title <span class="freq">required</span><span class="fhint">54 / 120</span></div>
+        <input class="finput" value="Shopee import batch 415 stuck at “Processing” since this morning">
+      </div>
+      <div class="frow">
+        <div class="flabel">Category <span class="freq">required</span></div>
+        <div class="catgrid">
+          ${Object.entries(CAT_LABEL).map(([k,v])=>`<button class="catbtn${newCat===k?" on":""}" onclick="pickCat('${k}')">${v}</button>`).join("")}
+        </div>
+        ${newCat==="other"?`<input class="finput" style="margin-top:8px" placeholder="What is it about? (short note)">`:""}
+      </div>
+      <div class="frow" style="position:relative">
+        <div class="flabel">Description <span class="fhint">optional — type # to reference a parcel</span></div>
+        <textarea class="ftext" id="ta-newdesc" placeholder="What happened? What did you expect instead? Which page were you on?" oninput="taInput('newdesc')" onkeydown="taKey(event,'newdesc')"></textarea>
+        <div id="mpop-newdesc"></div>
+      </div>
+      <div class="frow" style="position:relative">
+        <div class="flabel">Related parcel <span class="fhint">optional — tracking or order number</span></div>
+        <input class="finput" id="inp-relparcel" value="TH263188493800G" placeholder="Search tracking or order…" onfocus="fieldPop()" oninput="fieldPop()">
+        <div id="mpop-relparcel"></div>
+      </div>
+      <div class="frow" style="margin-bottom:4px">
+        <div class="flabel">Attachments <span class="fhint">screenshots or files</span></div>
+        <div class="dropzone">Drag images or files here or <b>browse</b></div>
+        <div class="fileup">
+          <div class="thumb">${I.img}<button class="rm">✕</button></div>
+          <span class="fchip">${I.file}shopee-batch-415.xlsx <span class="fsize">184 KB</span><button class="rm" style="position:absolute;top:-6px;right:-6px">✕</button></span>
+        </div>
+      </div>
+    </div>
+    <div class="nfoot">
+      <div class="fas">Filing as <b>${USER.name}</b> · ${USER.email}</div>
+      <div style="flex:1"></div>
+      <button class="btn ghost pill" onclick="closeNew()">Cancel</button>
+      <button class="btn primary pill">Submit ticket</button>
+    </div>
+  </div>`;
+}
+/* '#' parcel mention popup — GitHub-style: anchored below the caret, typing after '#'
+   filters in place (no inner search input), ↑/↓ + Enter to pick. Row design from
+   AlertReconcileDropdown. */
+let mAnchor=null, mHits=[], mSel=0;
+function mHitList(term){
+  const t=(term||"").toLowerCase();
+  return PARCELS.filter(p=>!t||p.trk.toLowerCase().includes(t)||p.ord.toLowerCase().includes(t)).slice(0,5);
+}
+/* highlight the matched character run (contiguous substring, any start position —
+   same behaviour as the export-invoice search bar) */
+function hl(str,term){
+  const t=(term||"").toLowerCase();
+  if(!t)return str;
+  const i=str.toLowerCase().indexOf(t);
+  if(i<0)return str;
+  return str.slice(0,i)+`<span class="hlm">${str.slice(i,i+t.length)}</span>`+str.slice(i+t.length);
+}
+function mrowsHtml(term){
+  return mHits.length?mHits.map((p,i)=>`
+    <button class="mrow${i===mSel?" sel":""}" onclick="insertParcel('${p.trk}')" onmouseenter="mSel=${i};paintRows()">
+      <span class="plat" style="background:${p.platBg}">${p.plat}</span>
+      <div style="flex:1;min-width:0">
+        <div class="trk">${hl(p.trk,term)}</div>
+        <div class="sub">${hl(p.ord,term)} · ${p.when} <span class="sbadge" style="${p.sCls}">${p.status}</span></div>
+      </div>
+    </button>`).join(""):`<div class="mempty">No parcel matches “${term}”</div>`;
+}
+function paintRows(){
+  const r=document.getElementById("mrows");
+  if(r)r.querySelectorAll(".mrow").forEach((el,i)=>el.classList.toggle("sel",i===mSel));
+}
+/* caret x/y inside a textarea via a hidden mirror div */
+function caretXY(ta){
+  const d=document.createElement("div"), s=getComputedStyle(ta);
+  for(const p of ["fontFamily","fontSize","fontWeight","letterSpacing","lineHeight","paddingTop","paddingRight","paddingBottom","paddingLeft","borderWidth","boxSizing"]) d.style[p]=s[p];
+  d.style.position="absolute";d.style.visibility="hidden";d.style.whiteSpace="pre-wrap";
+  d.style.wordWrap="break-word";d.style.width=ta.clientWidth+"px";d.style.top="0";d.style.left="0";
+  d.textContent=ta.value.substring(0,ta.selectionStart);
+  const sp=document.createElement("span");sp.textContent="​";d.appendChild(sp);
+  ta.parentElement.appendChild(d);
+  const lh=parseFloat(s.lineHeight)||18;
+  const xy={x:sp.offsetLeft,y:sp.offsetTop+lh};
+  d.remove();
+  return xy;
+}
+function openMention(anchor,term){
+  mAnchor=anchor;mHits=mHitList(term);mSel=0;
+  const ta=document.getElementById("ta-"+anchor);
+  const {x,y}=caretXY(ta);
+  const left=Math.min(ta.offsetLeft+x, Math.max(0,(ta.parentElement.clientWidth||360)-310));
+  const top=ta.offsetTop+y-ta.scrollTop+4;
+  document.getElementById("mpop-"+anchor).innerHTML=`
+  <div class="mpop" style="left:${left}px;top:${top}px">
+    <div id="mrows">${mrowsHtml(term)}</div>
+  </div>`;
+}
+function closeMention(){
+  if(!mAnchor)return;
+  const c=document.getElementById("mpop-"+mAnchor);
+  if(c)c.innerHTML="";
+  mAnchor=null;mHits=[];mSel=0;
+}
+function taInput(which){
+  const ta=document.getElementById("ta-"+which);
+  const m=ta.value.substring(0,ta.selectionStart).match(/#([\w-]*)$/);
+  if(m)openMention(which,m[1]);
+  else if(mAnchor===which)closeMention();
+}
+function taKey(e,which){
+  if(mAnchor!==which)return;
+  if(e.key==="ArrowDown"){e.preventDefault();mSel=Math.min(mSel+1,mHits.length-1);paintRows();}
+  else if(e.key==="ArrowUp"){e.preventDefault();mSel=Math.max(mSel-1,0);paintRows();}
+  else if(e.key==="Enter"){e.preventDefault();if(mHits[mSel])insertParcel(mHits[mSel].trk);}
+  else if(e.key==="Escape"){closeMention();}
+}
+function fieldPop(){
+  mAnchor="relparcel";
+  const v=document.getElementById("inp-relparcel").value;
+  mHits=mHitList(v);mSel=0;
+  document.getElementById("mpop-relparcel").innerHTML=`
+  <div class="mpop below">
+    <div class="mhint">Matching parcels — tracking or order</div>
+    <div id="mrows">${mrowsHtml(v)}</div>
+  </div>`;
+}
+function insertParcel(trk){
+  const a=mAnchor;closeMention();
+  if(a==="relparcel"){document.getElementById("inp-relparcel").value=trk;}
+  else if(a){const ta=document.getElementById("ta-"+a);ta.value=ta.value.replace(/#[\w-]*$/,trk+" ");ta.focus();}
+}
+
+/* Order Timeline modal — mirrors OrderTimelineModal.tsx from the main dashboard */
+function openTimeline(ref){
+  const step=(dot,ic,lab,time,badge,badgeStyle,op)=>`
+    <li class="tstep">
+      <span class="tdot" style="background:${dot}"></span>
+      <div class="trow2">${ic}
+        <div style="flex:1;min-width:0">
+          <div class="tlab">${lab}${badge?`<span class="tbadge" style="${badgeStyle}">${badge}</span>`:""}</div>
+          <div class="ttime">${time}</div>
+          ${op||""}
+        </div>
+      </div>
+    </li>`;
+  const oper=(tag,tagStyle,name,stn)=>`<div class="oprow"><span class="optag" style="${tagStyle}">${tag}</span>${name}<span class="stn">${stn}</span></div>`;
+  document.getElementById("tmodal").innerHTML=`
+  <div class="tpanel" role="dialog" aria-modal="true">
+    <div class="thead2">
+      <div class="tic">${I.clockL}</div>
+      <div class="tt"><div class="a">Order Timeline</div><div class="b">${ref}</div></div>
+      <button class="wfbtn">Workflow Events ${I.ext}</button>
+      <button class="tclose" onclick="closeTimeline()" title="Close">✕</button>
+    </div>
+    <div class="tbody2">
+      <ol class="tsteps">
+        ${step("#7C3AED",I.box,"Ordered","28 Jul 2026, 09:12","12 items","background:color-mix(in srgb,#7C3AED 14%,transparent);color:#7C3AED")}
+        <div class="gapchip">⏱ 3m</div>
+        ${step("#DB2777",I.bill,"Paid","28 Jul 2026, 09:15")}
+        ${step("var(--muted-foreground)",I.doc,"Submitted","28 Jul 2026, 09:40")}
+        <div class="gapchip">⏱ 2h 5m</div>
+        ${step("var(--open)",I.donecheck(15),"QC Passed","28 Jul 2026, 11:45","QC Passed","background:var(--open-surface);color:var(--open)",
+          oper("QC","background:var(--open-surface);color:var(--open)","Malee J.","Station 2"))}
+        ${step("#2563EB",I.imp,"Packed","28 Jul 2026, 11:58",null,null,
+          oper("PK","background:color-mix(in srgb,#2563EB 13%,transparent);color:#2563EB","Somchai P.","Station 5"))}
+        <li class="tstep">
+          <span class="tdot" style="background:var(--open)"></span>
+          <div class="trow2">${I.video}
+            <div style="flex:1;min-width:0;display:flex;align-items:flex-start;gap:10px">
+              <div style="flex:1;min-width:0">
+                <div class="tlab" style="color:var(--open)">Video — Completed</div>
+                <div class="ttime">28 Jul 2026, 11:58</div>
+                <div class="vfile">TH263188493800G_st5.mp4</div>
+              </div>
+              <button class="pvbtn">Preview</button>
+            </div>
+          </div>
+        </li>
+        ${step("var(--brand)",I.truck,"Shipped","28 Jul 2026, 14:20","Flash Express","background:var(--brand-surface);color:var(--brand)",
+          oper("SH","background:var(--brand-surface);color:var(--brand)","Somchai P.","Station 5"))}
+      </ol>
+    </div>
+  </div>`;
+  document.getElementById("tscrim").classList.add("show");
+  document.getElementById("tmodal").classList.add("show");
+}
+function closeTimeline(){
+  document.getElementById("tscrim").classList.remove("show");
+  document.getElementById("tmodal").classList.remove("show");
+}
+
+function openNew(){
+  renderNewModal();
+  document.getElementById("nscrim").classList.add("show");
+  document.getElementById("nmodal").classList.add("show");
+}
+function closeNew(){
+  document.getElementById("nscrim").classList.remove("show");
+  document.getElementById("nmodal").classList.remove("show");
+}
+
+function viewDetail(){
+  const t=TICKETS[0];
+  const items=THREAD.map(it=>{
+    if(it.kind==="event"){
+      const closed=it.ev==="closed";
+      const cls=closed?(it.reason==="completed"?"done":"gray"):"open";
+      const glyph=closed?(it.reason==="completed"?I.donecheck(13):it.reason==="duplicate"?I.dup(13):I.slash(13)):I.opendot(13);
+      const text=closed?`closed this as <b>${it.reason.replace("_"," ")}</b>`:`reopened this`;
+      return `<div class="evrow"><span class="evic ${cls}">${glyph}</span><span><b>${it.who}</b> ${text} · ${it.when}</span></div>`;
+    }
+    const atts=[
+      it.attachImg?`<div class="thumb">${I.img}</div>`:"",
+      it.attachFile?`<span class="fchip">${I.file}${it.attachFile} <span class="fsize">${it.attachSize}</span></span>`:"",
+    ].join("");
+    return `
+    <div class="ccard">
+      <div class="chead">
+        <div class="avatar">${it.initials}</div>
+        <b>${it.who}</b><span class="when">${it.kind==="post"?"opened":"commented"} ${it.when}</span>
+        ${it.edited?`<span class="edited">(edited)</span>`:""}
+        ${it.mine?`<button class="editbtn">Edit</button>`:""}
+      </div>
+      <div class="cbody">${it.body}
+        ${atts?`<div class="attachrow">${atts}</div>`:""}
+      </div>
+    </div>`;
+  }).join("");
+
+  return `
+  <div class="pagehead">
+    <div class="crumb"><button onclick="go('list')">Support</button>${I.crumb}<span class="cur">Ticket #${t.id}</span></div>
+  </div>
+  <div class="pbody">
+  <div class="dhead">
+    <div class="dmeta" style="margin:0 0 10px">
+      <span class="spill open">${I.opendot(13)} Open</span>
+      ${chip(t)}
+      <span>Open for 2 hours</span>
+    </div>
+    <div class="dtitle">${t.title} <span class="dnum">#${t.id}</span></div>
+    <div class="dmeta" style="margin-top:7px">
+      <span><b style="color:var(--foreground)">${t.reporter}</b> opened this ${t.age} · ${t.comments} comments</span>
+    </div>
+  </div>
+  <div class="grid2">
+    <div>
+      ${items}
+      <div class="cformwrap">
+        <div class="cform" style="position:relative">
+          <div id="mpop-composer"></div>
+          <textarea id="ta-composer" placeholder="Leave a comment…  (type # to reference a parcel)" oninput="taInput('composer')" onkeydown="taKey(event,'composer')"></textarea>
+          <div class="cactions">
+            <button class="attachbtn">${I.imgSm} Attach file</button>
+            <div class="caspacer"></div>
+            <button class="btn primary">Comment</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="sidecard">
+        <div class="sclabel">Status</div>
+        <select class="reasonsel">
+          <option>Close as completed — done, fixed, or answered</option>
+          <option>Close as not planned — won’t fix, out of scope</option>
+          <option>Close as duplicate — already reported</option>
+        </select>
+        <button class="btn primary" style="width:100%;justify-content:center">${I.donecheck(13)} Close ticket</button>
+        <div class="sidenote">Anyone can close or reopen a ticket. The change is recorded in the thread with your name.</div>
+      </div>
+      <div class="sidecard">
+        <div class="sclabel">Details</div>
+        <div class="kv"><span class="k">Reporter</span><span class="v"><span class="avatar" style="width:20px;height:20px;font-size:8px">NC</span>${t.reporter}</span></div>
+        <div class="kv"><span class="k">Email</span><span class="v" style="font-weight:500">${t.email}</span></div>
+        <div class="kv"><span class="k">Category</span><span class="v">${chip(t)}</span></div>
+        <div class="kv"><span class="k">Tracking</span><span class="v" style="font-weight:500">${tlink(t.tracking)}</span></div>
+        <div class="kv"><span class="k">Order</span><span class="v" style="font-weight:500">${tlink(t.order)}</span></div>
+        <div class="kv"><span class="k">Opened</span><span class="v">${t.age}</span></div>
+        <div class="kv"><span class="k">Attachments</span><span class="v">2</span></div>
+      </div>
+    </div>
+  </div>
+  </div>`;
+}
+
+/* ============ settings modal theme seg (round 3) ============ */
 function renderTheme(){
   const segIcons={
     system: icon('<rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>'),
@@ -309,6 +1005,11 @@ function renderTheme(){
   ).join("");
 }
 
+/* ============ wiring ============ */
+function go(v){view=v;reasonOpen=false;renderMain();}
+function setFilter(f){filter=f;renderMain();}
+function pickCat(c){newCat=c;renderNewModal();}
+function toggleReason(){reasonOpen=!reasonOpen;renderMain();}
 function openSettings(){menuOpen=false;renderSidebar();document.getElementById("scrim").classList.add("show");document.getElementById("smodal").classList.add("show");}
 function closeSettings(){document.getElementById("scrim").classList.remove("show");document.getElementById("smodal").classList.remove("show");}
 function toggleMenu(e){e.stopPropagation();menuOpen=!menuOpen;renderSidebar();}
@@ -321,10 +1022,15 @@ function pick(t){
 }
 function toggleDark(){document.documentElement.classList.toggle("dark");syncDarkBtn();}
 function syncDarkBtn(){document.getElementById("darkbtn").textContent=document.documentElement.classList.contains("dark")?"Light":"Dark";}
-document.addEventListener("click",()=>{if(menuOpen){menuOpen=false;renderSidebar();}});
-document.addEventListener("keydown",e=>{if(e.key==="Escape")closeSettings();});
-renderSidebar();renderTheme();
-openSettings(); /* open on load for review */
+document.addEventListener("click",e=>{
+  let dirty=false;
+  if(menuOpen){menuOpen=false;renderSidebar();}
+  if(reasonOpen){reasonOpen=false;dirty=true;}
+  if(mAnchor && !e.target.closest(".mpop") && !e.target.closest("#inp-relparcel") && !e.target.closest("textarea"))closeMention();
+  if(dirty)renderMain();
+});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){closeSettings();closeNew();closeTimeline();closeMention();if(reasonOpen){reasonOpen=false;renderMain();}}});
+renderSidebar();renderTheme();renderMain();
 </script>
 </body>
 </html>
