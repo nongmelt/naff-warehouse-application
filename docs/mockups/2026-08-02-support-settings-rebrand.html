@@ -148,32 +148,17 @@ aside.rail .version{display:none}
 .sclose:hover{border-color:var(--border);color:var(--foreground)}
 .scontent{flex:1;overflow-y:auto;padding:6px 28px 28px}
 h2.pref{font-size:18px;font-weight:800;letter-spacing:-.01em;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:22px}
-.srow{display:flex;gap:24px;align-items:flex-start;justify-content:space-between}
+.srow{display:flex;gap:24px;align-items:center;justify-content:space-between}
 .slabel{font-size:14px;font-weight:700}
-.scaption{font-size:12px;color:var(--muted-foreground);margin-top:3px;max-width:220px;line-height:1.45}
 
-/* theme cards */
-.tcards{display:flex;gap:12px}
-.tcard{display:flex;flex-direction:column;align-items:center;gap:7px}
-.thumb{
-  width:96px;height:66px;border-radius:11px;border:2px solid var(--border);overflow:hidden;position:relative;
-  transition:border-color .12s;
+/* theme segmented control (Claude.ai style: monitor / sun / moon icons) */
+.tseg{display:inline-flex;align-items:center;gap:2px;background:var(--muted);border-radius:10px;padding:3px}
+.tseg button{
+  width:32px;height:26px;border-radius:8px;display:grid;place-items:center;
+  color:var(--muted-foreground);transition:all .12s;
 }
-.tcard:hover .thumb{border-color:var(--dust)}
-.tcard.on .thumb{border-color:var(--brand);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 18%,transparent)}
-.tcard .tlabel{font-size:12px;font-weight:700;color:var(--muted-foreground)}
-.tcard.on .tlabel{color:var(--brand)}
-.mini{position:absolute;inset:0;display:flex}
-.mini .mside{width:26%;height:100%;border-right:1px solid}
-.mini .mbody{flex:1;padding:8px 8px}
-.mini .bar{height:5px;border-radius:3px;margin-bottom:5px}
-.mini.light{background:#F3F0EE}
-.mini.light .mside{background:#FFFFFF;border-color:#E8E2DA}
-.mini.light .bar{background:#DDD8D2}
-.mini.dark{background:#141413}
-.mini.dark .mside{background:#1A1A19;border-color:#333332}
-.mini.dark .bar{background:#33322F}
-.half{position:absolute;inset:0;clip-path:polygon(100% 0,100% 100%,0 100%)}
+.tseg button:hover{color:var(--foreground)}
+.tseg button.on{background:var(--card);color:var(--foreground);box-shadow:0 1px 4px rgba(0,0,0,.12)}
 
 /* ============ control bar ============ */
 .bar{
@@ -220,11 +205,8 @@ h2.pref{font-size:18px;font-weight:800;letter-spacing:-.01em;padding-bottom:14px
       <div class="scontent">
         <h2 class="pref">Preferences</h2>
         <div class="srow">
-          <div>
-            <div class="slabel">Appearance</div>
-            <div class="scaption">Choose how the dashboard looks. "System" follows this device's colour scheme.</div>
-          </div>
-          <div class="tcards" id="tcards"></div>
+          <div class="slabel">Appearance</div>
+          <div class="tseg" id="tseg"></div>
         </div>
       </div>
     </div>
@@ -317,14 +299,14 @@ function renderSidebar(){
 }
 
 function renderTheme(){
-  const mk=(t,thumb)=>`
-    <button class="tcard${themeSel===t?" on":""}" onclick="pick('${t}')">
-      <div class="thumb">${thumb}</div><div class="tlabel">${t[0].toUpperCase()+t.slice(1)}</div>
-    </button>`;
-  const light=`<div class="mini light"><div class="mside"></div><div class="mbody"><div class="bar" style="width:70%"></div><div class="bar" style="width:45%"></div><div class="bar" style="width:58%"></div></div></div>`;
-  const dark=`<div class="mini dark"><div class="mside"></div><div class="mbody"><div class="bar" style="width:70%"></div><div class="bar" style="width:45%"></div><div class="bar" style="width:58%"></div></div></div>`;
-  const sys=light+`<div class="half">${dark}</div>`;
-  document.getElementById("tcards").innerHTML=mk("system",sys)+mk("dark",dark)+mk("light",light);
+  const segIcons={
+    system: icon('<rect x="2.5" y="4" width="19" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>'),
+    light:  icon('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
+    dark:   icon('<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>'),
+  };
+  document.getElementById("tseg").innerHTML=["system","light","dark"].map(t=>
+    `<button class="${themeSel===t?"on":""}" onclick="pick('${t}')" title="${t[0].toUpperCase()+t.slice(1)}">${segIcons[t]}</button>`
+  ).join("");
 }
 
 function openSettings(){menuOpen=false;renderSidebar();document.getElementById("scrim").classList.add("show");document.getElementById("smodal").classList.add("show");}
