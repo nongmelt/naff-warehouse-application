@@ -85,7 +85,8 @@ CREATE TABLE IF NOT EXISTS public.support_tickets (
     CONSTRAINT support_tickets_status_chk CHECK (status IN ('open','closed')),
     CONSTRAINT support_tickets_close_reason_chk CHECK (
         (status = 'open'   AND close_reason IS NULL) OR
-        (status = 'closed' AND close_reason IN ('completed','not_planned','duplicate'))
+        (status = 'closed' AND close_reason IS NOT NULL
+                           AND close_reason IN ('completed','not_planned','duplicate'))
     )
 );
 
@@ -148,6 +149,8 @@ CREATE TABLE IF NOT EXISTS public.support_ticket_attachments (
 CREATE INDEX IF NOT EXISTS idx_support_ticket_attachments_ticket
     ON public.support_ticket_attachments (ticket_id);
 ```
+
+**The `close_reason IS NOT NULL` in `support_tickets_close_reason_chk` is load-bearing — do not "simplify" it away.** Without it, `status = 'closed'` with `close_reason IS NULL` makes the `IN (...)` test evaluate to NULL under three-valued logic; the first disjunct is FALSE, `FALSE OR NULL` is NULL, and a CHECK constraint rejects only FALSE, never NULL. The constraint would therefore admit a closed ticket with no close reason — exactly the row the constraint exists to forbid. (Amended at T19; the shipped migration `20260803120000_support_tickets.sql` has always carried the `IS NOT NULL` form.)
 
 **Event kind set is fixed here** (#92 item 6 deferred it to spec freeze): `filed`, `edited`, `closed`, `reopened`. Comments are *not* events — the thread is the union of `support_ticket_comments` and `support_ticket_events` sorted by timestamp, so a `commented` event would duplicate every comment. **[spec-level derivation]**
 
