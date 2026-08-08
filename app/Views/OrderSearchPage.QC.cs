@@ -150,7 +150,7 @@ public partial class OrderSearchPage
             }
             UpdateScanIndicator(barcode, found: false);
             UpdateSearchStatus(blockedByQcPassed
-                ? $"SKU '{barcode}' belongs to a QC Passed order — no changes allowed"
+                ? $"SKU '{barcode}' belongs to a finalized order (QC Passed or Duplicate) — no changes allowed"
                 : $"SKU '{barcode}' not found in this order");
             return;
         }
@@ -218,9 +218,15 @@ public partial class OrderSearchPage
     private PackingList? FindOrderForItem(ProductItem item) =>
         Results.FirstOrDefault(o => o.ParsedProducts.Contains(item));
 
+    // "Finalized / read-only" — the order can no longer be edited by a scan or a
+    // qty change. Named QcPassed for history, but it now also covers a reissue
+    // Duplicate (spec §13.6): the backend 409s every status writer on a Duplicate
+    // parcel, and the client mirrors that lock across all edit paths that gate on
+    // this helper (pick, qty-change overlay, keyboard qty).
     private bool IsOrderQcPassed(PackingList order) =>
         _completedPackingIds.Contains(order.PackingId)
-        || string.Equals(order.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase);
+        || string.Equals(order.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase)
+        || order.IsDuplicate;
 
     private void ApplySkuDeduction(ProductItem item, string? qtyText, DeductionSource source)
     {

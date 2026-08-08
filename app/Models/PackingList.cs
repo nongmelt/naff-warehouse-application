@@ -649,6 +649,13 @@ public class PackingList : INotifyPropertyChanged
     public string? ShippingOptions { get; set; }
     public bool? AllItemsCleared { get; set; }
 
+    // Reissue-duplicate detection (spec §4.3 / §13.6). Populated ONLY by the
+    // get_detail endpoint (GET /packing-lists/{tracking}) for a Shopee + Instant
+    // Delivery parcel whose order's summed parcel qty overflows the ordered qty.
+    // The list/search endpoint never sets these — default false/null there.
+    public bool PossibleReissue { get; set; }
+    public string? ReissueExistingTracking { get; set; }
+
     private string? _packingStatus;
     public string? PackingStatus
     {
@@ -661,6 +668,8 @@ public class PackingList : INotifyPropertyChanged
             OnPropertyChanged(nameof(IsNotQcHold));
             OnPropertyChanged(nameof(ResetOpacity));
             OnPropertyChanged(nameof(IsPacked));
+            OnPropertyChanged(nameof(IsDuplicate));
+            OnPropertyChanged(nameof(IsNotDuplicate));
             OnPropertyChanged(nameof(IsPackedComplete));
             OnPropertyChanged(nameof(StatusDisplay));
             OnPropertyChanged(nameof(StatusBgColor));
@@ -730,6 +739,10 @@ public class PackingList : INotifyPropertyChanged
     public double ResetOpacity => IsQcHold ? 1.0 : 0.0;
     public bool IsPacked  => string.Equals(_packingStatus, "Packed",   StringComparison.OrdinalIgnoreCase);
     public bool IsShipped => string.Equals(_packingStatus, "Shipped",  StringComparison.OrdinalIgnoreCase);
+    // A parcel marked as a reissue duplicate (spec §13.6): QC-locked, not billed.
+    // Terminal — only exit is the undo endpoint. Every other status writer 409s.
+    public bool IsDuplicate    => string.Equals(_packingStatus, "Duplicate", StringComparison.OrdinalIgnoreCase);
+    public bool IsNotDuplicate => !IsDuplicate;
     // Shipped is the step after Packed — treat it as packed-complete so the green "QC Passed"
     // pill shows beside the orange Shipped status pill.
     public bool IsPackedComplete =>
@@ -745,6 +758,7 @@ public class PackingList : INotifyPropertyChanged
         "completed" or "done" or "qc passed" => Color.FromArgb("#dcfce7"),
         "in_progress" or "packing" or "qc hold" => Color.FromArgb("#fef9c3"),
         "packed" or "shipped"                 => Color.FromArgb("#ffedd5"),
+        "duplicate"                           => Color.FromArgb("#e2e8f0"),
         _                                     => Color.FromArgb("#f3f4f6"),
     };
 
@@ -753,6 +767,7 @@ public class PackingList : INotifyPropertyChanged
         "completed" or "done" or "qc passed" => Color.FromArgb("#166534"),
         "in_progress" or "packing" or "qc hold" => Color.FromArgb("#713f12"),
         "packed" or "shipped"                 => Color.FromArgb("#9a3412"),
+        "duplicate"                           => Color.FromArgb("#475569"),
         _                                     => Color.FromArgb("#374151"),
     };
 

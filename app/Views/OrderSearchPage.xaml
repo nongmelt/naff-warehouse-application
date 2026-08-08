@@ -902,6 +902,23 @@
                                    FontSize="13"
                                    FontAttributes="Bold"/>
                         </Border>
+                        <Border x:Name="UndoDuplicateButton"
+                                IsVisible="False"
+                                BackgroundColor="#f1f5f9"
+                                Stroke="#cbd5e1"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 4"
+                                Padding="10,5"
+                                ToolTipProperties.Text="Undo the duplicate mark and restore the parcel"
+                                Style="{StaticResource HoverButton}">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnUndoDuplicateButtonTapped"/>
+                            </Border.GestureRecognizers>
+                            <Label Text="↺ Undo duplicate"
+                                   TextColor="#475569"
+                                   FontSize="13"
+                                   FontAttributes="Bold"/>
+                        </Border>
                     </HorizontalStackLayout>
                 </Grid>
 
@@ -2875,6 +2892,230 @@
                                HorizontalTextAlignment="Center"/>
                     </Border>
                 </VerticalStackLayout>
+            </Border>
+        </Grid>
+
+        <!-- ── Duplicate-order card (spec §13.6 / #116) — amber ALERT overlay ──
+             ZIndex 7: above normal page content (0) but BELOW the QC image
+             overlay (ProductImageOverlay, ZIndex 8) so tapping a product photo
+             here re-opens the existing image viewer ON TOP of this card. -->
+        <Grid x:Name="DuplicateOrderOverlay"
+              Grid.Row="0"
+              Grid.RowSpan="5"
+              BackgroundColor="#9E111827"
+              IsVisible="False"
+              ZIndex="7">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="OnDuplicateOverlayBackdropTapped"/>
+            </Grid.GestureRecognizers>
+            <Border HorizontalOptions="Center"
+                    VerticalOptions="Center"
+                    Stroke="Transparent"
+                    StrokeShape="RoundRectangle 18"
+                    BackgroundColor="White"
+                    WidthRequest="720"
+                    MaximumHeightRequest="760"
+                    Padding="0"
+                    InputTransparent="False">
+                <Border.Shadow>
+                    <Shadow Brush="#40111827" Offset="0,18" Radius="40"/>
+                </Border.Shadow>
+                <!-- Swallow backdrop taps so clicks inside the card don't dismiss it. -->
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer/>
+                </Border.GestureRecognizers>
+                <Grid RowDefinitions="Auto,*,Auto">
+
+                    <!-- Header -->
+                    <VerticalStackLayout Grid.Row="0" Spacing="15" Padding="26,22,26,20">
+                        <HorizontalStackLayout Spacing="14">
+                            <Border BackgroundColor="#fff7ed" Stroke="Transparent"
+                                    StrokeShape="RoundRectangle 999"
+                                    WidthRequest="50" HeightRequest="50">
+                                <Label Text="&#x29C9;" FontSize="25" FontAttributes="Bold" TextColor="#ea580c"
+                                       HorizontalOptions="Center" VerticalOptions="Center"
+                                       HorizontalTextAlignment="Center" VerticalTextAlignment="Center"/>
+                            </Border>
+                            <Label Text="Duplicate order?" FontSize="28" FontAttributes="Bold"
+                                   TextColor="#c2410c" VerticalOptions="Center"/>
+                        </HorizontalStackLayout>
+                        <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" ColumnSpacing="12">
+                            <Label Grid.Column="0" Text="ORDER" FontSize="11" FontAttributes="Bold"
+                                   TextColor="#9ca3af" VerticalOptions="Center"/>
+                            <Label Grid.Column="1" x:Name="DupOrderNumber"
+                                   FontSize="20" FontAttributes="Bold" TextColor="#111827"
+                                   FontFamily="Consolas" VerticalOptions="Center">
+                                <Label.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnDuplicateCopyOrderTapped"/>
+                                </Label.GestureRecognizers>
+                            </Label>
+                            <Border Grid.Column="3" x:Name="DupPlatformBadge"
+                                    Stroke="Transparent" StrokeShape="RoundRectangle 6"
+                                    Padding="10,4" VerticalOptions="Center" IsVisible="False">
+                                <Label x:Name="DupPlatformLabel" FontSize="13" FontAttributes="Bold"
+                                       TextColor="White"/>
+                            </Border>
+                            <Border Grid.Column="4" x:Name="DupShipChip"
+                                    BackgroundColor="#512BD4" Stroke="Transparent"
+                                    StrokeShape="RoundRectangle 999" Padding="12,6"
+                                    VerticalOptions="Center" IsVisible="False">
+                                <Label x:Name="DupShipLabel" FontSize="14" FontAttributes="Bold"
+                                       TextColor="White"/>
+                            </Border>
+                        </Grid>
+                    </VerticalStackLayout>
+
+                    <!-- Comparison -->
+                    <Grid Grid.Row="1" ColumnDefinitions="*,Auto,*" BackgroundColor="#e5e7eb">
+                        <!-- Left: already processed (sibling) -->
+                        <ScrollView Grid.Column="0" BackgroundColor="#fbfbfc">
+                            <VerticalStackLayout x:Name="DupSiblingColumn" Padding="18,16" Spacing="6">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <Label Grid.Column="0" Text="&#x2713; Already processed"
+                                           FontSize="15" FontAttributes="Bold" TextColor="#166534"
+                                           VerticalOptions="Center"/>
+                                    <Border Grid.Column="1" BackgroundColor="{Binding StatusBgColor}"
+                                            Stroke="Transparent" StrokeShape="RoundRectangle 5" Padding="10,3">
+                                        <Label Text="{Binding StatusDisplay}" FontSize="12" FontAttributes="Bold"
+                                               TextColor="{Binding StatusFgColor}"/>
+                                    </Border>
+                                </Grid>
+                                <Label Text="{Binding TrackingNumber}" FontSize="19" FontAttributes="Bold"
+                                       TextColor="#111827" FontFamily="Consolas" LineBreakMode="CharacterWrap">
+                                    <Label.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnDuplicateCopyTrackingTapped"/>
+                                    </Label.GestureRecognizers>
+                                </Label>
+                                <Label x:Name="DupSiblingMeta" FontSize="11.5" TextColor="#6b7280" Margin="0,2,0,10"/>
+                                <FlexLayout Direction="Row" Wrap="Wrap" AlignItems="Start"
+                                            BindableLayout.ItemsSource="{Binding ParsedProducts}">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate x:DataType="models:ProductItem">
+                                            <VerticalStackLayout Spacing="6" Margin="0,0,14,14" WidthRequest="86">
+                                                <VerticalStackLayout.GestureRecognizers>
+                                                    <TapGestureRecognizer Tapped="OnDuplicateProductTapped"/>
+                                                </VerticalStackLayout.GestureRecognizers>
+                                                <Grid WidthRequest="86" HeightRequest="86">
+                                                    <Border StrokeShape="RoundRectangle 12" Stroke="#e5e7eb"
+                                                            StrokeThickness="1" BackgroundColor="#ffffff" Padding="0">
+                                                        <Image Source="{Binding LocalImagePath}" IsVisible="{Binding HasLocalImage}"
+                                                               Aspect="AspectFill" HeightRequest="86" WidthRequest="86"/>
+                                                    </Border>
+                                                    <Border StrokeShape="RoundRectangle 12" Stroke="#e5e7eb"
+                                                            StrokeThickness="1" BackgroundColor="#ffffff" Padding="0"
+                                                            IsVisible="{Binding HasNoLocalImage}">
+                                                        <Image Source="{Binding ImageSource}" IsVisible="{Binding HasImage}"
+                                                               Aspect="AspectFill" HeightRequest="86" WidthRequest="86"/>
+                                                    </Border>
+                                                    <Border HorizontalOptions="End" VerticalOptions="End"
+                                                            BackgroundColor="#111827" Stroke="White" StrokeThickness="2"
+                                                            StrokeShape="RoundRectangle 999" Padding="6,1" Margin="0,0,-4,-4">
+                                                        <Label Text="{Binding RequiredQuantity, StringFormat='&#215;{0}'}"
+                                                               TextColor="White" FontFamily="Consolas"
+                                                               FontAttributes="Bold" FontSize="12"/>
+                                                    </Border>
+                                                </Grid>
+                                                <Border IsVisible="{Binding HasVariation}" BackgroundColor="{Binding VariationBadgeBg}"
+                                                        Stroke="Transparent" StrokeShape="RoundRectangle 6" Padding="7,2"
+                                                        HorizontalOptions="Start">
+                                                    <Label Text="{Binding Variation}" TextColor="{Binding VariationBadgeTextColor}"
+                                                           FontSize="11" FontAttributes="Bold"
+                                                           LineBreakMode="TailTruncation" MaxLines="1"/>
+                                                </Border>
+                                            </VerticalStackLayout>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </FlexLayout>
+                            </VerticalStackLayout>
+                        </ScrollView>
+
+                        <BoxView Grid.Column="1" WidthRequest="1" BackgroundColor="#e5e7eb"/>
+
+                        <!-- Right: just scanned -->
+                        <ScrollView Grid.Column="2" BackgroundColor="White">
+                            <VerticalStackLayout x:Name="DupScannedColumn" Padding="18,16" Spacing="6">
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <Label Grid.Column="0" Text="&#x25CF; Just scanned"
+                                           FontSize="15" FontAttributes="Bold" TextColor="#c2410c"
+                                           VerticalOptions="Center"/>
+                                    <Border Grid.Column="1" BackgroundColor="{Binding StatusBgColor}"
+                                            Stroke="Transparent" StrokeShape="RoundRectangle 5" Padding="10,3">
+                                        <Label Text="{Binding StatusDisplay}" FontSize="12" FontAttributes="Bold"
+                                               TextColor="{Binding StatusFgColor}"/>
+                                    </Border>
+                                </Grid>
+                                <Label Text="{Binding TrackingNumber}" FontSize="19" FontAttributes="Bold"
+                                       TextColor="#111827" FontFamily="Consolas" LineBreakMode="CharacterWrap">
+                                    <Label.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnDuplicateCopyTrackingTapped"/>
+                                    </Label.GestureRecognizers>
+                                </Label>
+                                <Label x:Name="DupScannedMeta" FontSize="11.5" TextColor="#6b7280" Margin="0,2,0,10"/>
+                                <FlexLayout Direction="Row" Wrap="Wrap" AlignItems="Start"
+                                            BindableLayout.ItemsSource="{Binding ParsedProducts}">
+                                    <BindableLayout.ItemTemplate>
+                                        <DataTemplate x:DataType="models:ProductItem">
+                                            <VerticalStackLayout Spacing="6" Margin="0,0,14,14" WidthRequest="86">
+                                                <VerticalStackLayout.GestureRecognizers>
+                                                    <TapGestureRecognizer Tapped="OnDuplicateProductTapped"/>
+                                                </VerticalStackLayout.GestureRecognizers>
+                                                <Grid WidthRequest="86" HeightRequest="86">
+                                                    <Border StrokeShape="RoundRectangle 12" Stroke="#e5e7eb"
+                                                            StrokeThickness="1" BackgroundColor="#ffffff" Padding="0">
+                                                        <Image Source="{Binding LocalImagePath}" IsVisible="{Binding HasLocalImage}"
+                                                               Aspect="AspectFill" HeightRequest="86" WidthRequest="86"/>
+                                                    </Border>
+                                                    <Border StrokeShape="RoundRectangle 12" Stroke="#e5e7eb"
+                                                            StrokeThickness="1" BackgroundColor="#ffffff" Padding="0"
+                                                            IsVisible="{Binding HasNoLocalImage}">
+                                                        <Image Source="{Binding ImageSource}" IsVisible="{Binding HasImage}"
+                                                               Aspect="AspectFill" HeightRequest="86" WidthRequest="86"/>
+                                                    </Border>
+                                                    <Border HorizontalOptions="End" VerticalOptions="End"
+                                                            BackgroundColor="#111827" Stroke="White" StrokeThickness="2"
+                                                            StrokeShape="RoundRectangle 999" Padding="6,1" Margin="0,0,-4,-4">
+                                                        <Label Text="{Binding RequiredQuantity, StringFormat='&#215;{0}'}"
+                                                               TextColor="White" FontFamily="Consolas"
+                                                               FontAttributes="Bold" FontSize="12"/>
+                                                    </Border>
+                                                </Grid>
+                                                <Border IsVisible="{Binding HasVariation}" BackgroundColor="{Binding VariationBadgeBg}"
+                                                        Stroke="Transparent" StrokeShape="RoundRectangle 6" Padding="7,2"
+                                                        HorizontalOptions="Start">
+                                                    <Label Text="{Binding Variation}" TextColor="{Binding VariationBadgeTextColor}"
+                                                           FontSize="11" FontAttributes="Bold"
+                                                           LineBreakMode="TailTruncation" MaxLines="1"/>
+                                                </Border>
+                                            </VerticalStackLayout>
+                                        </DataTemplate>
+                                    </BindableLayout.ItemTemplate>
+                                </FlexLayout>
+                            </VerticalStackLayout>
+                        </ScrollView>
+                    </Grid>
+
+                    <!-- Footer -->
+                    <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12"
+                          Padding="22,16" BackgroundColor="White">
+                        <Border Grid.Column="1" x:Name="DupDismissButton"
+                                BackgroundColor="White" Stroke="#d1d5db" StrokeThickness="1.5"
+                                StrokeShape="RoundRectangle 10" Padding="26,13">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnDuplicateDismissTapped"/>
+                            </Border.GestureRecognizers>
+                            <Label Text="Dismiss" FontSize="15" FontAttributes="Bold" TextColor="#111827"/>
+                        </Border>
+                        <Border Grid.Column="2" x:Name="DupMarkButton"
+                                BackgroundColor="#ea580c" Stroke="Transparent"
+                                StrokeShape="RoundRectangle 10" Padding="26,13">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnDuplicateMarkTapped"/>
+                            </Border.GestureRecognizers>
+                            <Label x:Name="DupMarkButtonLabel" Text="Mark as duplicate" FontSize="15"
+                                   FontAttributes="Bold" TextColor="White"/>
+                        </Border>
+                    </Grid>
+                </Grid>
             </Border>
         </Grid>
 
