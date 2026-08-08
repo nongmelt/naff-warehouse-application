@@ -715,6 +715,7 @@ public partial class OrderSearchPage
 
     private void NavigateOverlayProduct(int direction)
     {
+        if (_overlayReadOnly) return;
         if (_overlayItem == null) return;
         var allProducts = Results.SelectMany(o => o.ParsedProducts).ToList();
         var currentIdx = allProducts.IndexOf(_overlayItem);

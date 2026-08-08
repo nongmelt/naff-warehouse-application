@@ -247,7 +247,7 @@ public partial class OrderSearchPage
         // +/- keys verify/unverify active product card
         const Windows.System.VirtualKey VkPlus = (Windows.System.VirtualKey)187;  // = / + key
         const Windows.System.VirtualKey VkMinus = (Windows.System.VirtualKey)189; // - / _ key
-        var plusTarget = ProductImageOverlay.IsVisible ? _overlayItem : null;
+        var plusTarget = ProductImageOverlay.IsVisible && !_overlayReadOnly ? _overlayItem : null;
         if ((e.Key == VkPlus || e.Key == Windows.System.VirtualKey.Add) && plusTarget != null)
         {
             if (ProductImageOverlay.IsVisible)
