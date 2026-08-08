@@ -113,6 +113,12 @@ public partial class OrderSearchPage
 
     private async Task ShowDuplicateOverlayAnimatedAsync()
     {
+        // #119: an auto-opened single-product image overlay (ZIndex 8) would sit
+        // on top of this card (ZIndex 7). Dismiss it first so the card is the
+        // only surface demanding the reissue decision.
+        if (ProductImageOverlay.IsVisible)
+            await DismissImageOverlayAsync("duplicate_card_raised");
+
         DuplicateOrderOverlay.Opacity = 0;
         DuplicateOrderOverlay.IsVisible = true;
         await DuplicateOrderOverlay.FadeToAsync(1, 220, Easing.CubicOut);
