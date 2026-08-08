@@ -185,7 +185,7 @@ public partial class OrderSearchPage
     private void OnDuplicateProductTapped(object sender, TappedEventArgs e)
     {
         if (sender is VisualElement { BindingContext: ProductItem item })
-            ShowProductImageOverlay(item, "duplicate_card_peek");
+            ShowProductImageOverlay(item, "duplicate_card_peek", readOnly: true);
     }
 
     // Undo a duplicate mark from the parcel header (any operator). The backend
