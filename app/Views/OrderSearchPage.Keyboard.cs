@@ -175,7 +175,7 @@ public partial class OrderSearchPage
                 ? (int)e.Key - (int)Windows.System.VirtualKey.NumberPad0
                 : (int)e.Key - (int)Windows.System.VirtualKey.Number0;
 
-            if (ProductImageOverlay.IsVisible && _overlayItem != null)
+            if (ProductImageOverlay.IsVisible && _overlayItem != null && !_overlayReadOnly)
             {
                 // Bundle with active component — allow number input if component not fully verified
                 if (_overlayItem.IsBundle && _activeComponentIndex >= 0

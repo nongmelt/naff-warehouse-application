@@ -516,8 +516,8 @@ public partial class OrderSearchPage
 
         OverlayStandardPanel.IsVisible = true;
         OverlayNavHint.IsVisible = true;
-        OverlayMinusBtn.IsVisible = true;
-        OverlayPlusBtn.IsVisible = true;
+        OverlayMinusBtn.IsVisible = !_overlayReadOnly;
+        OverlayPlusBtn.IsVisible = !_overlayReadOnly;
         PopulateStandardPanelForBundle(bundleParent);
         HideOverlayPickEntry();
 
