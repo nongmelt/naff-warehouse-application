@@ -66,15 +66,24 @@ no visual feedback on the now-hidden buttons:
 
 `OnDuplicateProductTapped` (`OrderSearchPage.DuplicateOverlay.cs`) passes `readOnly: true`.
 
-### Why this is safe and minimal
+### Why this matters — the two card columns are not equivalent
 
-- Persistence was already impossible: the sibling `ProductItem` shown on the card is not a member
-  of any order in `Results`, so `FindOrderForItem` returns null and `DoOverlayPlus` / `DoOverlayMinus`
-  early-return on `order == null`. This change removes the *misleading controls*, not a data path.
-- Read-only cannot leak into a subsequent normal open: `NavigateOverlayProduct` looks the current
-  item up in `Results` via `IndexOf`; for the card's sibling item that returns −1 and the method
-  no-ops, so prev/next cannot navigate out of the peek, and every other entry re-enters
-  `ShowProductImageOverlay` with the default `readOnly: false`.
+The card shows two columns: a sibling `ProductItem` and the SCANNED parcel's `ProductItem`, which
+`CheckReissueAsync` (`OrderSearchPage.DuplicateOverlay.cs`) pulls directly from `Results`. Only the
+sibling column gets a free pass from the pre-existing null-owner safety net:
+
+- **Sibling column** — not a member of any order in `Results`, so `FindOrderForItem` returns null
+  and `DoOverlayPlus` / `DoOverlayMinus` already early-return on `order == null`, independent of
+  this change.
+- **Scanned column** — *is* in `Results`, so `FindOrderForItem` returns a real order, and that
+  order is not QC-passed (its `packing_status` is `'To be packed'`). The null-owner / QC-passed
+  safety net that protects every other read-only surface does not apply here.
+
+So for the scanned column the read-only mechanism is **load-bearing, not cosmetic**: the hidden
++/- buttons, the three tap-handler early-returns (`OnOverlayImageTapped` / `OnOverlayPlusTapped` /
+`OnOverlayMinusTapped`), the keyboard pick-entry guard, the keyboard +/- guard, and the
+`NavigateOverlayProduct` guard are what close real mutation-and-persistence paths against a live,
+non-null-owner order — not a redundant layer on top of an already-safe no-op.
 
 ### Files
 
