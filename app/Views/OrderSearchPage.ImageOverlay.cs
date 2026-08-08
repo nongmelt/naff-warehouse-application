@@ -23,9 +23,10 @@ public partial class OrderSearchPage
         ShowProductImageOverlay(item, "card_click");
     }
 
-    private void ShowProductImageOverlay(ProductItem item, string? openTrigger = null)
+    private void ShowProductImageOverlay(ProductItem item, string? openTrigger = null, bool readOnly = false)
     {
         _completionDismissCts?.Cancel();
+        _overlayReadOnly = readOnly;
         if (item.IsBundle)
         {
             ShowBundleOverlay(item);
@@ -143,8 +144,8 @@ public partial class OrderSearchPage
         OverlayPickEntry.Text = "";
         OverlayVerifiedQty.IsVisible = true;
 
-        OverlayMinusBtn.IsVisible = true;
-        OverlayPlusBtn.IsVisible = true;
+        OverlayMinusBtn.IsVisible = !readOnly;
+        OverlayPlusBtn.IsVisible = !readOnly;
 
         if (!ProductImageOverlay.IsVisible)
         {
@@ -281,6 +282,7 @@ public partial class OrderSearchPage
 
     private async void OnOverlayImageTapped(object sender, TappedEventArgs e)
     {
+        if (_overlayReadOnly) return;
         _ = AnimateScanButtonAsync();
 
         if (_overlayItem?.IsBundle == true && _activeComponentIndex >= 0
@@ -309,6 +311,7 @@ public partial class OrderSearchPage
 
     private async void OnOverlayPlusTapped(object sender, TappedEventArgs e)
     {
+        if (_overlayReadOnly) return;
         _ = AnimateOverlayBtnAsync(OverlayPlusBtn, "#7C5CF0", "#5B31E0");
 
         if (_overlayItem?.IsBundle == true && _activeComponentIndex >= 0
@@ -354,6 +357,7 @@ public partial class OrderSearchPage
 
     private async void OnOverlayMinusTapped(object sender, TappedEventArgs e)
     {
+        if (_overlayReadOnly) return;
         _ = AnimateOverlayBtnAsync(OverlayMinusBtn, "#fca5a5", "#ef4444");
 
         if (_overlayItem?.IsBundle == true && _activeComponentIndex >= 0

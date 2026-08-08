@@ -82,6 +82,7 @@ public partial class OrderSearchPage : ContentPage
     // SKU picking state — set after an order loads; cleared on new search
     private bool _orderLoaded;
     private bool _isFirstItemScan;
+    private bool _overlayReadOnly;
     private ProductItem? _pendingSkuProduct;
     private BundleComponentItem? _activeComponent;
     private readonly HashSet<int> _completedPackingIds = [];
