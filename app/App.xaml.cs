@@ -32,7 +32,24 @@ public partial class App : Application
 
 	protected override Window CreateWindow(IActivationState? activationState)
 	{
-		var window = new Window(new AppShell()) { Title = "Warehouse", MinimumWidth = 800 };
+		// First-launch gate: with no MinIO credentials the station isn't enrolled
+		// yet, so block on the enrollment page until it connects (creds arrive from
+		// POST /enroll). Once present, boot straight into the shell.
+		Page root;
+		try
+		{
+			bool enrolled = !string.IsNullOrWhiteSpace(Services.AppSettings.MinioAccessKey)
+						 && !string.IsNullOrWhiteSpace(Services.AppSettings.MinioSecretKey)
+						 && !string.IsNullOrWhiteSpace(Services.AppSettings.MinioEndpoint);
+			root = enrolled ? new AppShell() : new Views.EnrollmentPage();
+		}
+		catch (Exception ex)
+		{
+			Services.Logger.Log($"App.CreateWindow: enrollment gate failed, defaulting to shell — {ex.Message}");
+			root = new AppShell();
+		}
+
+		var window = new Window(root) { Title = "Warehouse", MinimumWidth = 800 };
 		window.Activated += (_, _) => _windowActive = true;
 		window.Deactivated += (_, _) => _windowActive = false;
 		window.Destroying += OnWindowDestroying;

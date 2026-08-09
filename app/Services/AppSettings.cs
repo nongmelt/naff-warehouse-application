@@ -12,6 +12,8 @@ public static class AppSettings
     private const string KeyVideoFolderMinFreeSpace = "settings.video_folder_min_free_bytes";
     private const string KeyApiUrl = "settings.api_url";
     private const string KeyStationId = "settings.station_id";
+    private const string KeyStationName = "settings.station_name";
+    private const string KeyStationKey = "settings.station_key";
     private const string KeyUseDeclarativeWorkflow = "settings.use_declarative_workflow";
     private const string KeyAutoDeleteCompletedVideos = "settings.auto_delete_completed_videos";
     private const string KeyMaxConcurrentUploads = "settings.max_concurrent_uploads";
@@ -29,8 +31,11 @@ public static class AppSettings
     private const string KeyCfAccessClientId = "settings.cf.access_client_id";
     private const string KeyCfAccessClientSecret = "settings.cf.access_client_secret";
 
+    // UserProfile, not SpecialFolder.MyVideos: guarantees the physical
+    // C:\Users\<user>\Videos\Warehouse even when OneDrive redirects the Videos
+    // known folder. Recordings must stay on local disk, not sync to OneDrive.
     public static readonly string DefaultVideoFolder =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Warehouse");
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Videos", "Warehouse");
 
     public const string DefaultApiUrl = "http://localhost:8080";
 
@@ -86,6 +91,11 @@ public static class AppSettings
                         !string.IsNullOrWhiteSpace(sid.GetString()))
                         Preferences.Default.Set(KeyStationId, sid.GetString()!);
 
+                    if (doc.TryGetProperty("stationName", out var sn) && !string.IsNullOrWhiteSpace(sn.GetString()))
+                        Preferences.Default.Set(KeyStationName, sn.GetString()!);
+                    if (doc.TryGetProperty("stationKey", out var sk) && !string.IsNullOrWhiteSpace(sk.GetString()))
+                        Preferences.Default.Set(KeyStationKey, sk.GetString()!);
+
                     if (doc.TryGetProperty("useDeclarativeWorkflow", out var udw) &&
                         udw.ValueKind is JsonValueKind.True or JsonValueKind.False)
                         Preferences.Default.Set(KeyUseDeclarativeWorkflow, udw.GetBoolean());
@@ -104,35 +114,25 @@ public static class AppSettings
             catch (Exception ex) { Logger.Log($"AppSettings.Initialize: {ex.Message}"); }
             finally { Preferences.Default.Set(KeySeeded, true); }
         }
-
-        // ── MinIO — seed any empty field from appsettings.json ───────────────
-        // No flag: runs every launch so reinstalls always pick up new credentials.
-        // User overrides in Settings are preserved because we only write when empty.
-        try
-        {
-            if (File.Exists(configPath))
-            {
-                var doc = JsonDocument.Parse(File.ReadAllText(configPath)).RootElement;
-                if (doc.TryGetProperty("minio", out var minio))
-                {
-                    SeedIfEmpty(KeyMinioBucket, minio, "bucket");
-                    SeedIfEmpty(KeyMinioAccess, minio, "accessKey");
-                    SeedIfEmpty(KeyMinioSecret, minio, "secretKey");
-                    SeedIfEmpty(KeyMinioEndpoint, minio, "endpoint");
-                    SeedIfEmpty(KeyMinioRawBucket, minio, "rawBucket");
-                    Logger.Log("AppSettings: MinIO fields synced from appsettings.json");
-                }
-            }
-        }
-        catch (Exception ex) { Logger.Log($"AppSettings.InitializeMinio: {ex.Message}"); }
     }
 
-    private static void SeedIfEmpty(string key, JsonElement parent, string property)
+    private static readonly Lazy<JsonElement?> _bakedConfig = new(() =>
     {
-        if (parent.TryGetProperty(property, out var val) &&
-            !string.IsNullOrWhiteSpace(val.GetString()) &&
-            string.IsNullOrWhiteSpace(Preferences.Default.Get(key, string.Empty)))
-            Preferences.Default.Set(key, val.GetString()!);
+        try
+        {
+            var configPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
+            if (!File.Exists(configPath)) return null;
+            using var doc = JsonDocument.Parse(File.ReadAllText(configPath));
+            return doc.RootElement.Clone();   // Clone detaches from the disposed doc
+        }
+        catch { return null; }
+    });
+
+    private static string? ReadConfigString(string property)
+    {
+        if (_bakedConfig.Value is not { } root) return null;
+        return root.TryGetProperty(property, out var v) && !string.IsNullOrWhiteSpace(v.GetString())
+            ? v.GetString() : null;
     }
 
     // ── Settings ─────────────────────────────────────────────────────────────
@@ -291,6 +291,26 @@ public static class AppSettings
         set => Preferences.Default.Set(KeyApiUrl, value);
     }
 
+    public static string StationName
+    {
+        get
+        {
+            var v = Preferences.Default.Get(KeyStationName, string.Empty);
+            return string.IsNullOrWhiteSpace(v) ? (ReadConfigString("stationName") ?? string.Empty) : v;
+        }
+        set => Preferences.Default.Set(KeyStationName, value ?? string.Empty);
+    }
+
+    public static string StationKey
+    {
+        get
+        {
+            var v = Preferences.Default.Get(KeyStationKey, string.Empty);
+            return string.IsNullOrWhiteSpace(v) ? (ReadConfigString("stationKey") ?? string.Empty) : v;
+        }
+        set => Preferences.Default.Set(KeyStationKey, value ?? string.Empty);
+    }
+
     public static string MinioBucket
     {
         get => Preferences.Default.Get(KeyMinioBucket, string.Empty);
@@ -331,19 +351,19 @@ public static class AppSettings
 
     // ── Cloudflare Access service token ────────────────────────────────────────
     // Sent as CF-Access-Client-Id / CF-Access-Client-Secret on every backend request
-    // when present. Resolution order: the value saved in Settings (Preferences) first,
-    // then the CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET environment variables,
-    // otherwise empty. Empty means the header is simply not sent, so a backend that is
-    // not behind Cloudflare Access keeps working.
-
+    // (and on MinIO uploads) when present; blank for LAN/Bangkok so the header is simply
+    // not sent. Resolution order: the value saved in Settings (Preferences) first, then
+    // the installer-baked appsettings.json value (baked per online build), then the
+    // CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET environment variables.
     public static string CfAccessClientId
     {
         get
         {
             var stored = Preferences.Default.Get(KeyCfAccessClientId, string.Empty);
-            return !string.IsNullOrWhiteSpace(stored)
-                ? stored
-                : Environment.GetEnvironmentVariable("CF_ACCESS_CLIENT_ID") ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(stored)) return stored;
+            var baked = ReadConfigString("cfAccessClientId");
+            if (!string.IsNullOrWhiteSpace(baked)) return baked;
+            return Environment.GetEnvironmentVariable("CF_ACCESS_CLIENT_ID") ?? string.Empty;
         }
         set => Preferences.Default.Set(KeyCfAccessClientId, value ?? string.Empty);
     }
@@ -353,11 +373,30 @@ public static class AppSettings
         get
         {
             var stored = Preferences.Default.Get(KeyCfAccessClientSecret, string.Empty);
-            return !string.IsNullOrWhiteSpace(stored)
-                ? stored
-                : Environment.GetEnvironmentVariable("CF_ACCESS_CLIENT_SECRET") ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(stored)) return stored;
+            var baked = ReadConfigString("cfAccessClientSecret");
+            if (!string.IsNullOrWhiteSpace(baked)) return baked;
+            return Environment.GetEnvironmentVariable("CF_ACCESS_CLIENT_SECRET") ?? string.Empty;
         }
         set => Preferences.Default.Set(KeyCfAccessClientSecret, value ?? string.Empty);
+    }
+
+    /// <summary>Persist the CF Access service token (called from the enrollment page before connecting).</summary>
+    public static void SaveCfCreds(string id, string secret)
+    {
+        CfAccessClientId = id;
+        CfAccessClientSecret = secret;
+    }
+
+    /// <summary>
+    /// Persist MinIO credentials returned by POST /enroll.
+    /// </summary>
+    public static void SaveMinioCredentials(string endpoint, string bucket, string accessKey, string secretKey)
+    {
+        MinioEndpoint  = endpoint  ?? string.Empty;
+        MinioBucket    = bucket    ?? string.Empty;
+        MinioAccessKey = accessKey ?? string.Empty;
+        MinioSecretKey = secretKey ?? string.Empty;
     }
 
     private const string KeySearchHistoryMax = "search.history.max";

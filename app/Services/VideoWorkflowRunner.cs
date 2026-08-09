@@ -5,7 +5,10 @@ using Minio.DataModel.Args;
 using Minio.Exceptions;
 using System.Diagnostics;
 using System.Net;
+using System.Net.Http;
 using System.Runtime.Versioning;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace app.Services;
 
@@ -263,6 +266,17 @@ public sealed class VideoWorkflowRunner
             _sharedMinio = builder.Build();
             return _sharedMinio;
         }
+    }
+
+    /// <summary>
+    /// Drop the cached MinIO client so the next upload rebuilds it with fresh creds
+    /// (called after enrollment saves new credentials). Null under the lock — do NOT
+    /// dispose: enrollment runs at first launch with no upload in flight, and disposing
+    /// a client another task might hold would break that upload.
+    /// </summary>
+    internal static void ResetMinioClient()
+    {
+        lock (_minioLock) { _sharedMinio = null; }
     }
 
     /// <summary>
