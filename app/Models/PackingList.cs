@@ -758,7 +758,7 @@ public class PackingList : INotifyPropertyChanged
         "completed" or "done" or "qc passed" => Color.FromArgb("#dcfce7"),
         "in_progress" or "packing" or "qc hold" => Color.FromArgb("#fef9c3"),
         "packed" or "shipped"                 => Color.FromArgb("#ffedd5"),
-        "duplicate"                           => Color.FromArgb("#e2e8f0"),
+        "duplicate"                           => Color.FromArgb("#ffe4e6"),
         _                                     => Color.FromArgb("#f3f4f6"),
     };
 
@@ -767,7 +767,7 @@ public class PackingList : INotifyPropertyChanged
         "completed" or "done" or "qc passed" => Color.FromArgb("#166534"),
         "in_progress" or "packing" or "qc hold" => Color.FromArgb("#713f12"),
         "packed" or "shipped"                 => Color.FromArgb("#9a3412"),
-        "duplicate"                           => Color.FromArgb("#475569"),
+        "duplicate"                           => Color.FromArgb("#9f1239"),
         _                                     => Color.FromArgb("#374151"),
     };
 
