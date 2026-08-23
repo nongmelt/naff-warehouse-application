@@ -3003,6 +3003,7 @@
                     <Grid Grid.Row="2" ColumnDefinitions="*,Auto,*" BackgroundColor="#e5e7eb">
                         <!-- Left: already processed (sibling) -->
                         <ScrollView Grid.Column="0" BackgroundColor="#fbfbfc">
+                          <Grid>
                             <VerticalStackLayout x:Name="DupSiblingColumn" Padding="18,16" Spacing="6"
                                                  x:DataType="models:PackingList">
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
@@ -3139,12 +3140,21 @@
                                     </BindableLayout.ItemTemplate>
                                 </FlexLayout>
                             </VerticalStackLayout>
+                            <Border x:Name="DupSiblingSimBadge" BackgroundColor="#dcfce7" Stroke="#86efac" StrokeThickness="1"
+                                    StrokeShape="RoundRectangle 999" Padding="12,5" Margin="0,-6,-6,0"
+                                    HorizontalOptions="End" VerticalOptions="Start"
+                                    IsVisible="False" InputTransparent="True">
+                                <Label x:Name="DupSiblingSimLabel" Text="&#x2713; Will ship" FontSize="12"
+                                       FontAttributes="Bold" TextColor="#166534"/>
+                            </Border>
+                          </Grid>
                         </ScrollView>
 
                         <BoxView Grid.Column="1" WidthRequest="1" BackgroundColor="#e5e7eb"/>
 
                         <!-- Right: just scanned -->
                         <ScrollView Grid.Column="2" BackgroundColor="White">
+                          <Grid>
                             <VerticalStackLayout x:Name="DupScannedColumn" Padding="18,16" Spacing="6"
                                                  x:DataType="models:PackingList">
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
@@ -3276,17 +3286,25 @@
                                     </BindableLayout.ItemTemplate>
                                 </FlexLayout>
                             </VerticalStackLayout>
+                            <Border x:Name="DupScannedSimBadge" BackgroundColor="#dcfce7" Stroke="#86efac" StrokeThickness="1"
+                                    StrokeShape="RoundRectangle 999" Padding="12,5" Margin="0,-6,-6,0"
+                                    HorizontalOptions="End" VerticalOptions="Start"
+                                    IsVisible="False" InputTransparent="True">
+                                <Label x:Name="DupScannedSimLabel" Text="&#x2713; Will ship" FontSize="12"
+                                       FontAttributes="Bold" TextColor="#166534"/>
+                            </Border>
+                          </Grid>
                         </ScrollView>
                     </Grid>
 
                     <!-- Footer -->
-                    <Grid Grid.Row="3" RowDefinitions="30,Auto" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12"
+                    <Grid Grid.Row="3" RowDefinitions="42,Auto" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12"
                           Padding="22,16" BackgroundColor="White">
                         <Border x:Name="DupFooterHintBubble" Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3"
                                 BackgroundColor="#E6111827" Stroke="Transparent" StrokeShape="RoundRectangle 6"
-                                Padding="10,5" HorizontalOptions="End" VerticalOptions="Center"
+                                Padding="12,7" HorizontalOptions="End" VerticalOptions="Center"
                                 Opacity="0" InputTransparent="True" Margin="0,0,0,4">
-                            <Label x:Name="DupFooterHint" FontSize="12" FontAttributes="Bold" TextColor="White"
+                            <Label x:Name="DupFooterHint" FontSize="13" FontAttributes="Bold" TextColor="White"
                                    LineBreakMode="TailTruncation"/>
                         </Border>
                         <Border Grid.Row="1" Grid.Column="1" x:Name="DupDismissButton"

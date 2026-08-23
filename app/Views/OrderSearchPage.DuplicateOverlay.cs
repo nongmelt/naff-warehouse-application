@@ -137,6 +137,7 @@ public partial class OrderSearchPage
         DupMarkButtonLabel.Text = "Mark as duplicate";
         DupMarkButton.Opacity = 1;
         DupFooterHintBubble.Opacity = 0;
+        HideShipSimulation();
 
         _ = ShowDuplicateOverlayAnimatedAsync();
     }
@@ -199,16 +200,53 @@ public partial class OrderSearchPage
     {
         DupFooterHint.Text = DuplicateMarkPolicy.DismissTooltip;
         DupFooterHintBubble.Opacity = 1;
+        ShowShipSimulation(markHover: false);
     }
 
     private void OnDupMarkHintEntered(object? sender, PointerEventArgs e)
     {
         DupFooterHint.Text = _dupMarkHint ?? string.Empty;
         DupFooterHintBubble.Opacity = 1;
+        ShowShipSimulation(markHover: true);
     }
 
     private void OnDupFooterHintExited(object? sender, PointerEventArgs e)
-        => DupFooterHintBubble.Opacity = 0;
+    {
+        DupFooterHintBubble.Opacity = 0;
+        HideShipSimulation();
+    }
+
+    // Hover simulation (Dismiss/Mark) — previews which leg ships before the
+    // operator commits. Dismiss ships both (status quo); Mark ships the
+    // non-target leg and voids (dims + rose-badges) _dupMarkTarget.
+    private void ShowShipSimulation(bool markHover)
+    {
+        SetSimBadge(DupSiblingSimBadge, DupSiblingSimLabel, ships: !markHover || !ReferenceEquals(_dupMarkTarget, _dupSibling));
+        SetSimBadge(DupScannedSimBadge, DupScannedSimLabel, ships: !markHover || ReferenceEquals(_dupMarkTarget, _dupSibling));
+        if (markHover)
+        {
+            var siblingMarked = ReferenceEquals(_dupMarkTarget, _dupSibling);
+            DupSiblingColumn.Opacity = siblingMarked ? 0.55 : 1;
+            DupScannedColumn.Opacity = siblingMarked ? 1 : 0.55;
+        }
+    }
+
+    private static void SetSimBadge(Border badge, Label label, bool ships)
+    {
+        badge.BackgroundColor = Color.FromArgb(ships ? "#dcfce7" : "#ffe4e6");
+        badge.Stroke = Color.FromArgb(ships ? "#86efac" : "#fecdd3");
+        label.Text = ships ? "✓ Will ship" : "✕ Duplicate";
+        label.TextColor = Color.FromArgb(ships ? "#166534" : "#9f1239");
+        badge.IsVisible = true;
+    }
+
+    private void HideShipSimulation()
+    {
+        DupSiblingSimBadge.IsVisible = false;
+        DupScannedSimBadge.IsVisible = false;
+        DupSiblingColumn.Opacity = 1;
+        DupScannedColumn.Opacity = 1;
+    }
 
     private async void OnDuplicateMarkTapped(object sender, TappedEventArgs e)
     {
