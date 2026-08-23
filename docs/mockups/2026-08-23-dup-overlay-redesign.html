@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Duplicate order? — redesign options</title>
+<!--
+  Mockup : Duplicate order? card redesign — 3 options (A/B/C)
+  Date   : 2026-08-23  ·  grilled with user, decisions locked:
+    ref theme = OrderSearchPage TrackingCardSection (xaml:750)
+    size ~1080px/92vw · no logos (platform = text badge in order row)
+    hovers: bg-tint + copy-icon reveal / tile border+shadow / button bg-shift
+    tooltips on Dismiss + Mark · order row = big number + "Ordered · Parcels"
+    amber only on title, banner, Mark button
+  Data   : QADUP0002 seed matrix (sibling QC Passed) + neither-processed toggle
+-->
+<style>
+:root{
+  --ink:#111827; --slate:#374151; --muted:#6b7280; --faint:#9ca3af;
+  --line:#e5e7eb; --chip:#f3f4f6; --card:#fff; --page:#f3f4f6;
+  --amber:#ea580c; --amber-deep:#c2410c; --amber-soft:#fff7ed; --amber-line:#fed7aa; --amber-ink:#9a3412;
+  --green:#166534; --green-soft:#dcfce7; --green-line:#86efac;
+  --violet:#5b21b6; --violet-soft:#ede9fe; --violet-line:#ddd6fe;
+  --dim:rgba(17,24,39,.62);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{font-family:"Segoe UI",system-ui,sans-serif;background:var(--page);color:var(--ink);overflow:hidden}
+.mono{font-family:Consolas,ui-monospace,monospace}
+svg{display:block;flex-shrink:0}
+
+/* ── mock toolbar (not part of the design — option picker) ── */
+.bar{position:fixed;inset:0 0 auto 0;z-index:50;display:flex;align-items:center;gap:18px;
+  padding:10px 18px;background:var(--ink);color:#e5e7eb;font-size:13px}
+.bar b{font-weight:600;color:#fff}
+.seg{display:flex;border:1px solid #4b5563;border-radius:8px;overflow:hidden}
+.seg button{all:unset;cursor:pointer;padding:6px 14px;font-size:12.5px;color:#d1d5db}
+.seg button.on{background:#fff;color:var(--ink);font-weight:600}
+.seg button:focus-visible{outline:2px solid #93c5fd;outline-offset:-2px}
+.bar label{display:flex;align-items:center;gap:7px;cursor:pointer;color:#d1d5db;font-size:12.5px}
+.bar .hint{margin-left:auto;color:#9ca3af;font-size:12px}
+
+/* ── simulated app page behind the overlay ── */
+.appbg{position:fixed;inset:0;padding-top:46px}
+.appbg .apphead{height:56px;background:#512BD4;opacity:.35}
+.appbg .appsearch{height:46px;margin:14px 22px;border:1px solid var(--line);border-radius:10px;background:#fff;opacity:.5}
+
+/* ── overlay + card shell ── */
+.overlay{position:fixed;inset:0;top:46px;background:var(--dim);display:grid;place-items:center;padding:20px}
+.card{background:var(--card);border-radius:18px;width:min(1080px,92vw);max-height:88vh;
+  display:flex;flex-direction:column;box-shadow:0 18px 40px rgba(17,24,39,.25);overflow:hidden}
+
+/* ── header: title + logo + order number + shipping merged in one row ── */
+.head{padding:20px 26px;border-bottom:1px solid var(--line)}
+.hrow{display:flex;align-items:center;gap:13px}
+.badge{width:46px;height:46px;border-radius:999px;background:var(--amber-soft);display:grid;place-items:center;flex-shrink:0}
+.badge svg{width:24px;height:24px;stroke:var(--amber);fill:none;stroke-width:2.1;stroke-linecap:round;stroke-linejoin:round}
+.head h1{font-size:26px;font-weight:700;color:var(--amber-deep)}
+.hid{margin-left:auto;display:flex;align-items:center;gap:12px}
+.num{font-size:20px;font-weight:700}
+.plat-logo{width:40px;height:40px;border-radius:9px;background:#ee4d2d;display:grid;place-items:center;
+  box-shadow:0 2px 6px rgba(238,77,45,.35);flex-shrink:0}
+.plat-logo svg{width:24px;height:24px;fill:#fff;stroke:none}
+.pills{display:flex;gap:6px;align-items:center}
+.pill{font-size:12px;font-weight:600;padding:5px 10px;border-radius:5px;border:1px solid transparent;white-space:nowrap}
+.pill.plat{background:var(--amber-soft);border-color:var(--amber-line);color:var(--amber-deep)}
+.pill.ship{background:var(--violet-soft);border-color:var(--violet-line);color:var(--violet)}
+.pill.green{background:var(--green-soft);border-color:var(--green-line);color:var(--green)}
+.pill.gray{background:var(--chip);border-color:var(--line);color:var(--slate)}
+.pill.dup{background:#ffe4e6;border-color:#fecdd3;color:#9f1239}
+
+/* ── copyables: bg-tint + copy-icon reveal, no opacity fade ── */
+.cp{display:inline-flex;align-items:center;gap:7px;padding:2px 8px;margin-left:-8px;border-radius:7px;
+  cursor:pointer;transition:background .12s ease;position:relative}
+.cp svg{width:14px;height:14px;stroke:var(--faint);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;
+  opacity:0;transition:opacity .12s ease}
+.cp:hover,.cp:focus-visible{background:var(--chip)}
+.cp:hover svg,.cp:focus-visible svg{opacity:1}
+.cp:focus-visible{outline:2px solid #93c5fd;outline-offset:1px}
+.cp .toast{position:absolute;left:100%;top:50%;translate:8px -50%;background:rgba(17,24,39,.9);color:#fff;
+  font-size:11px;font-weight:600;font-family:"Segoe UI",system-ui,sans-serif;padding:3px 9px;border-radius:6px;
+  white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s ease}
+.cp.copied .toast{opacity:1}
+
+/* ── neither-processed banner ── */
+.banner{display:none;background:var(--amber-soft);color:var(--amber-ink);font-size:12.5px;font-weight:600;
+  padding:10px 26px;border-bottom:1px solid var(--amber-line)}
+body.neither .banner{display:block}
+
+/* ── legs area ── */
+.legs{flex:1;overflow:auto;min-height:0}
+.leg{padding:16px 26px 18px}
+/* leg header — the signature: each parcel rendered as a tracking card */
+.lhead{display:grid;grid-template-columns:1fr auto;column-gap:14px;align-items:center}
+.eyebrow{font-size:12px;font-weight:700;letter-spacing:.02em;margin-bottom:4px}
+.eyebrow.done{color:var(--green)} .eyebrow.scan{color:var(--amber-deep)} .eyebrow.wait{color:var(--muted)}
+.tnum{font-size:19px;font-weight:700}
+.lmeta{margin-top:3px;font-size:11.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:14px}
+.lmeta b{font-weight:600;color:var(--slate)}
+.lmeta span i{font-style:normal;color:var(--faint)}
+
+/* product tiles — hover: border + shadow lift, no scale */
+.tiles{display:flex;flex-wrap:wrap;gap:16px;margin-top:14px}
+.tile{width:110px;cursor:zoom-in}
+.tile .ph{width:110px;height:110px;border-radius:14px;border:1.5px solid var(--line);position:relative;
+  transition:border-color .12s ease,box-shadow .12s ease;display:grid;place-items:center;
+  font-size:15px;font-weight:700;color:#fff;letter-spacing:.03em}
+.tile:hover .ph,.tile:focus-visible .ph{border-color:var(--faint);box-shadow:0 4px 14px rgba(17,24,39,.14)}
+.tile:focus-visible{outline:none}
+.tile.ok .ph{border-color:var(--green-line)}
+.tile.ok:hover .ph{border-color:#4ade80;box-shadow:0 4px 14px rgba(22,101,52,.18)}
+.ph.rose{background:linear-gradient(140deg,#fda4af,#e11d48)} .ph.blue{background:linear-gradient(140deg,#93c5fd,#2563eb)}
+.qty{position:absolute;right:-5px;bottom:-5px;background:var(--slate);color:#fff;border:2px solid #fff;
+  border-radius:999px;padding:1px 8px;font-size:12px;font-weight:700}
+.tile.ok .qty{background:var(--green)}
+.vari{margin-top:6px;display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px;
+  background:var(--chip);color:var(--slate)}
+
+/* layout A — side-by-side columns */
+body.opt-a .legs{display:grid;grid-template-columns:1fr 1fr}
+body.opt-a .leg.sib{background:#fbfbfc;border-right:1px solid var(--line)}
+
+/* ── footer ── */
+.foot{display:flex;justify-content:flex-end;gap:12px;padding:16px 22px;border-top:1px solid var(--line);background:#fff}
+.btn{font-size:15px;font-weight:600;padding:13px 26px;border-radius:10px;cursor:pointer;position:relative;
+  transition:background .12s ease,border-color .12s ease}
+.btn:focus-visible{outline:2px solid #93c5fd;outline-offset:2px}
+.btn.dismiss{background:#fff;border:1.5px solid #d1d5db;color:var(--ink)}
+.btn.dismiss:hover{background:#f9fafb;border-color:var(--faint)}
+.btn.mark{background:var(--amber);border:1.5px solid transparent;color:#fff}
+.btn.mark:hover{background:var(--amber-deep)}
+/* tooltips — delayed dark bubble */
+.btn[data-tip]::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 10px);right:0;
+  background:rgba(17,24,39,.92);color:#fff;font-size:12px;font-weight:400;padding:7px 11px;border-radius:8px;
+  white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s ease .4s}
+.btn[data-tip]:hover::after,.btn[data-tip]:focus-visible::after{opacity:1}
+
+/* state swaps */
+body.neither .only-done{display:none!important}
+body:not(.neither) .only-wait{display:none!important}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media (max-width:760px){
+  body.opt-a .legs{grid-template-columns:1fr}
+  body.opt-a .leg.sib{border-right:none;border-bottom:1px solid var(--line)}
+  .orow,.lhead{grid-template-columns:1fr}
+  .pills{margin-top:8px}
+}
+</style>
+</head>
+<body class="opt-a">
+
+<div class="bar">
+  <b>Duplicate order? — redesign (A · side-by-side · one-row header)</b>
+  <label><input type="checkbox" id="nei" onchange="document.body.classList.toggle('neither',this.checked)">
+    Neither parcel processed</label>
+  <span class="hint">hover the numbers, tiles and buttons</span>
+</div>
+
+<div class="appbg"><div class="apphead"></div><div class="appsearch"></div></div>
+
+<div class="overlay">
+  <div class="card">
+
+    <!-- header — one row: title left, identity right -->
+    <div class="head">
+      <div class="hrow">
+        <span class="badge"><svg viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M4.5 15.5V6a1.5 1.5 0 0 1 1.5-1.5h9.5"/></svg></span>
+        <h1>Duplicate order?</h1>
+        <div class="hid">
+          <span class="plat-logo" title="Shopee"><svg viewBox="0 0 24 24"><path d="M5 8h14l-1.1 11.2a1.5 1.5 0 0 1-1.5 1.3H7.6a1.5 1.5 0 0 1-1.5-1.3L5 8z"/><path d="M8.5 8a3.5 3.5 0 0 1 7 0" fill="none" stroke="#fff" stroke-width="1.6"/></svg></span>
+          <span class="cp mono num" tabindex="0" onclick="copyIt(this,'QADUP0002')">QADUP0002
+            <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+            <span class="toast">&#x2713; Copied</span></span>
+          <span class="pill ship">&#x26A1; Instant Delivery</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="banner">&#x26A0; Neither parcel has been processed — marking as duplicate voids the other parcel and ships the just-scanned one.</div>
+
+    <!-- legs -->
+    <div class="legs">
+
+      <!-- sibling -->
+      <div class="leg sib">
+        <div class="lhead">
+          <div>
+            <div class="eyebrow done only-done">&#x2713; Already processed</div>
+            <div class="eyebrow wait only-wait">&#x25F7; Other parcel</div>
+            <span class="cp mono tnum" tabindex="0" onclick="copyIt(this,'QADUPSIB0002')">QADUPSIB0002
+              <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+              <span class="toast">&#x2713; Copied</span></span>
+            <div class="lmeta">
+              <span class="only-done"><i>Packed:</i> <b>จู</b></span>
+              <span class="only-done"><i>Checked:</i> <b>เน</b></span>
+              <span class="only-done"><i>Checked at:</i> <b id="sibTime"></b></span>
+              <span class="only-wait"><i>Created:</i> <b id="sibCreated"></b></span>
+              <span><i>Items:</i> <b>3</b></span>
+            </div>
+          </div>
+          <div class="pills">
+            <span class="pill green only-done">&#x2713; QC Passed</span>
+            <span class="pill gray only-wait">To be packed</span>
+          </div>
+        </div>
+        <div class="tiles">
+          <div class="tile only-ok" tabindex="0" data-sku="QASKU1">
+            <div class="ph rose">QASKU1<span class="qty">&#215;2</span></div>
+            <span class="vari">Default</span>
+          </div>
+          <div class="tile only-ok" tabindex="0" data-sku="QASKU2">
+            <div class="ph blue">QASKU2<span class="qty">&#215;1</span></div>
+            <span class="vari">Blue</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- scanned -->
+      <div class="leg scan">
+        <div class="lhead">
+          <div>
+            <div class="eyebrow scan">&#x25CF; Just scanned</div>
+            <span class="cp mono tnum" tabindex="0" onclick="copyIt(this,'QADUPSCN0002')">QADUPSCN0002
+              <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+              <span class="toast">&#x2713; Copied</span></span>
+            <div class="lmeta">
+              <span><i>Checked at:</i> <b id="scanTime"></b></span>
+              <span><i>Items:</i> <b>3</b></span>
+            </div>
+          </div>
+          <div class="pills"><span class="pill gray">To be packed</span></div>
+        </div>
+        <div class="tiles">
+          <div class="tile" tabindex="0">
+            <div class="ph rose">QASKU1<span class="qty">&#215;2</span></div>
+            <span class="vari">Default</span>
+          </div>
+          <div class="tile" tabindex="0">
+            <div class="ph blue">QASKU2<span class="qty">&#215;1</span></div>
+            <span class="vari">Blue</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- footer -->
+    <div class="foot">
+      <button class="btn dismiss" data-tip="เก็บพัสดุทั้งสองไว้ และจัดส่งทั้งสองพัสดุ">Dismiss</button>
+      <button class="btn mark" data-tip="ทำเครื่องหมาย QADUPSCN0002 ว่าเป็นพัสดุซ้ำ และจัดส่งเฉพาะ QADUPSIB0002">Mark as duplicate</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+function copyIt(el,txt){
+  if(navigator.clipboard) navigator.clipboard.writeText(txt);
+  el.classList.add('copied');
+  clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('copied'),1100);
+}
+// verified-green tiles only when the sibling is processed;
+// neither-processed: the just-scanned parcel ships, so Mark targets the sibling
+const nei=document.getElementById('nei');
+function paint(){
+  document.querySelectorAll('.leg.sib .tile').forEach(t=>t.classList.toggle('ok',!nei.checked));
+  document.querySelector('.btn.mark').dataset.tip = nei.checked
+    ? 'ทำเครื่องหมาย QADUPSIB0002 ว่าเป็นพัสดุซ้ำ และจัดส่งเฉพาะ QADUPSCN0002'
+    : 'ทำเครื่องหมาย QADUPSCN0002 ว่าเป็นพัสดุซ้ำ และจัดส่งเฉพาะ QADUPSIB0002';
+}
+nei.addEventListener('change',paint); paint();
+// exact times, app format yyyy-MM-dd HH:mm (sibling checked 4 h ago; scanned = now)
+const fmt=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+const now=new Date();
+document.getElementById('sibTime').textContent=fmt(new Date(now-4*3600e3));
+document.getElementById('sibCreated').textContent=fmt(new Date(now-90*60e3));
+document.getElementById('scanTime').textContent=fmt(now);
+// deep-link: ?neither=1
+if(new URLSearchParams(location.search).get('neither')==='1'){nei.checked=true;document.body.classList.add('neither');paint();}
+</script>
+</body>
+</html>
