@@ -21,6 +21,7 @@ public partial class OrderSearchPage
     private string? _dupOverlayShownFor;
     private PackingList? _dupScanned;
     private PackingList? _dupSibling;
+    private PackingList? _dupMarkTarget;
 
     // Cheapness gate mirroring the backend: only a Shopee + Instant Delivery
     // parcel can possibly be a reissue, so every other scan skips the extra
@@ -124,6 +125,13 @@ public partial class OrderSearchPage
         DupBothUnprocessedBanner.IsVisible = !siblingProcessed && string.Equals(
             scanned.PackingStatus, "To be packed", StringComparison.OrdinalIgnoreCase);
 
+        // Neither-processed: the parcel in hand ships; Mark targets the sibling.
+        _dupMarkTarget = DuplicateMarkPolicy.MarksSibling(sibling.PackingStatus, scanned.PackingStatus)
+            ? sibling : scanned;
+        var shipSide = ReferenceEquals(_dupMarkTarget, sibling) ? scanned : sibling;
+        ToolTipProperties.SetText(DupMarkButton,
+            DuplicateMarkPolicy.BuildMarkTooltip(_dupMarkTarget.TrackingNumber, shipSide.TrackingNumber));
+
         DupMarkButtonLabel.Text = "Mark as duplicate";
         DupMarkButton.Opacity = 1;
 
@@ -183,21 +191,21 @@ public partial class OrderSearchPage
 
     private async void OnDuplicateMarkTapped(object sender, TappedEventArgs e)
     {
-        var scanned = _dupScanned;
-        if (scanned is null) { await DismissDuplicateOverlayAsync(); return; }
+        var target = _dupMarkTarget ?? _dupScanned;
+        if (target is null) { await DismissDuplicateOverlayAsync(); return; }
 
         DupMarkButtonLabel.Text = "Marking…";
         DupMarkButton.Opacity = 0.6;
 
         var result = await ApiService.MarkDuplicateAsync(
-            scanned.TrackingNumber, EffectiveOperator, AppSettings.ResolvedStationId);
+            target.TrackingNumber, EffectiveOperator, AppSettings.ResolvedStationId);
 
         if (result.Marked || result.AlreadyMarked)
         {
             // Status flip updates the pill and QC-locks the parcel reactively.
-            scanned.PackingStatus = "Duplicate";
+            target.PackingStatus = "Duplicate";
             UpdateHeaderOrderInfo();
-            UpdateSearchStatus($"{scanned.TrackingNumber} marked as duplicate — QC locked, not billed.");
+            UpdateSearchStatus($"{target.TrackingNumber} marked as duplicate — QC locked, not billed.");
             await DismissDuplicateOverlayAsync();
         }
         else

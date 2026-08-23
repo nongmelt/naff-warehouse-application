@@ -2949,6 +2949,24 @@
                         <Border Grid.Column="4" x:Name="DupOrderNumberWrap"
                                 BackgroundColor="Transparent" Stroke="Transparent"
                                 StrokeShape="RoundRectangle 7" Padding="8,2" VerticalOptions="Center">
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroupList>
+                                    <VisualStateGroup x:Name="CommonStates">
+                                        <VisualState x:Name="Normal">
+                                            <VisualState.Setters>
+                                                <Setter Property="BackgroundColor" Value="Transparent"/>
+                                                <Setter TargetName="DupOrderCopyGlyph" Property="Label.Opacity" Value="0"/>
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="PointerOver">
+                                            <VisualState.Setters>
+                                                <Setter Property="BackgroundColor" Value="#f3f4f6"/>
+                                                <Setter TargetName="DupOrderCopyGlyph" Property="Label.Opacity" Value="1"/>
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                    </VisualStateGroup>
+                                </VisualStateGroupList>
+                            </VisualStateManager.VisualStateGroups>
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnDuplicateCopyOrderTapped"/>
                             </Border.GestureRecognizers>
@@ -2977,7 +2995,7 @@
                     <!-- Neither-processed banner -->
                     <Border Grid.Row="1" x:Name="DupBothUnprocessedBanner" BackgroundColor="#fff7ed"
                             Stroke="Transparent" Padding="26,10" IsVisible="False">
-                        <Label Text="&#x26A0; Neither parcel has been processed — check which label is live before marking one as duplicate."
+                        <Label Text="&#x26A0; Neither parcel has been processed — marking as duplicate voids the other parcel and ships the just-scanned one."
                                FontSize="12.5" FontAttributes="Bold" TextColor="#9a3412"/>
                     </Border>
 
@@ -2996,6 +3014,24 @@
                                                     BackgroundColor="Transparent" Stroke="Transparent"
                                                     StrokeShape="RoundRectangle 7" Padding="6,1" Margin="-6,0,0,0"
                                                     HorizontalOptions="Start">
+                                                <VisualStateManager.VisualStateGroups>
+                                                    <VisualStateGroupList>
+                                                        <VisualStateGroup x:Name="CommonStates">
+                                                            <VisualState x:Name="Normal">
+                                                                <VisualState.Setters>
+                                                                    <Setter Property="BackgroundColor" Value="Transparent"/>
+                                                                    <Setter TargetName="DupSiblingCopyGlyph" Property="Label.Opacity" Value="0"/>
+                                                                </VisualState.Setters>
+                                                            </VisualState>
+                                                            <VisualState x:Name="PointerOver">
+                                                                <VisualState.Setters>
+                                                                    <Setter Property="BackgroundColor" Value="#f3f4f6"/>
+                                                                    <Setter TargetName="DupSiblingCopyGlyph" Property="Label.Opacity" Value="1"/>
+                                                                </VisualState.Setters>
+                                                            </VisualState>
+                                                        </VisualStateGroup>
+                                                    </VisualStateGroupList>
+                                                </VisualStateManager.VisualStateGroups>
                                                 <Border.GestureRecognizers>
                                                     <TapGestureRecognizer Tapped="OnDuplicateCopyTrackingTapped"/>
                                                 </Border.GestureRecognizers>
@@ -3033,15 +3069,15 @@
                                             BindableLayout.ItemsSource="{Binding ParsedProducts}">
                                     <BindableLayout.ItemTemplate>
                                         <DataTemplate x:DataType="models:ProductItem">
-                                            <VerticalStackLayout Spacing="6" Margin="0,0,14,14" WidthRequest="86">
+                                            <VerticalStackLayout Spacing="6" Margin="0,0,14,14" WidthRequest="110">
                                                 <VisualStateManager.VisualStateGroups>
                                                     <VisualStateGroupList>
                                                         <VisualStateGroup x:Name="CommonStates">
                                                             <VisualState x:Name="Normal">
-                                                                <VisualState.Setters><Setter Property="Scale" Value="1"/></VisualState.Setters>
+                                                                <VisualState.Setters><Setter Property="TranslationY" Value="0"/></VisualState.Setters>
                                                             </VisualState>
                                                             <VisualState x:Name="PointerOver">
-                                                                <VisualState.Setters><Setter Property="Scale" Value="1.05"/></VisualState.Setters>
+                                                                <VisualState.Setters><Setter Property="TranslationY" Value="-2"/></VisualState.Setters>
                                                             </VisualState>
                                                         </VisualStateGroup>
                                                     </VisualStateGroupList>
@@ -3049,17 +3085,17 @@
                                                 <VerticalStackLayout.GestureRecognizers>
                                                     <TapGestureRecognizer Tapped="OnDuplicateProductTapped"/>
                                                 </VerticalStackLayout.GestureRecognizers>
-                                                <Grid WidthRequest="86" HeightRequest="86">
+                                                <Grid WidthRequest="110" HeightRequest="110">
                                                     <Border StrokeShape="RoundRectangle 12" Stroke="{Binding TileBorderColor}"
                                                             StrokeThickness="{Binding TileBorderWidth}" BackgroundColor="#ffffff" Padding="0">
                                                         <Image Source="{Binding LocalImagePath}" IsVisible="{Binding HasLocalImage}"
-                                                               Aspect="AspectFill" HeightRequest="86" WidthRequest="86"/>
+                                                               Aspect="AspectFill" HeightRequest="110" WidthRequest="110"/>
                                                     </Border>
                                                     <Border StrokeShape="RoundRectangle 12" Stroke="{Binding TileBorderColor}"
                                                             StrokeThickness="{Binding TileBorderWidth}" BackgroundColor="#ffffff" Padding="0"
                                                             IsVisible="{Binding HasNoLocalImage}">
                                                         <Image Source="{Binding ImageSource}" IsVisible="{Binding HasImage}"
-                                                               Aspect="AspectFill" HeightRequest="86" WidthRequest="86"/>
+                                                               Aspect="AspectFill" HeightRequest="110" WidthRequest="110"/>
                                                     </Border>
                                                     <Border HorizontalOptions="End" VerticalOptions="End"
                                                             BackgroundColor="{Binding TileQtyBadgeBg}" Stroke="White" StrokeThickness="2"
@@ -3098,6 +3134,24 @@
                                                     BackgroundColor="Transparent" Stroke="Transparent"
                                                     StrokeShape="RoundRectangle 7" Padding="6,1" Margin="-6,0,0,0"
                                                     HorizontalOptions="Start">
+                                                <VisualStateManager.VisualStateGroups>
+                                                    <VisualStateGroupList>
+                                                        <VisualStateGroup x:Name="CommonStates">
+                                                            <VisualState x:Name="Normal">
+                                                                <VisualState.Setters>
+                                                                    <Setter Property="BackgroundColor" Value="Transparent"/>
+                                                                    <Setter TargetName="DupScannedCopyGlyph" Property="Label.Opacity" Value="0"/>
+                                                                </VisualState.Setters>
+                                                            </VisualState>
+                                                            <VisualState x:Name="PointerOver">
+                                                                <VisualState.Setters>
+                                                                    <Setter Property="BackgroundColor" Value="#f3f4f6"/>
+                                                                    <Setter TargetName="DupScannedCopyGlyph" Property="Label.Opacity" Value="1"/>
+                                                                </VisualState.Setters>
+                                                            </VisualState>
+                                                        </VisualStateGroup>
+                                                    </VisualStateGroupList>
+                                                </VisualStateManager.VisualStateGroups>
                                                 <Border.GestureRecognizers>
                                                     <TapGestureRecognizer Tapped="OnDuplicateCopyTrackingTapped"/>
                                                 </Border.GestureRecognizers>
@@ -3130,15 +3184,15 @@
                                             BindableLayout.ItemsSource="{Binding ParsedProducts}">
                                     <BindableLayout.ItemTemplate>
                                         <DataTemplate x:DataType="models:ProductItem">
-                                            <VerticalStackLayout Spacing="6" Margin="0,0,14,14" WidthRequest="86">
+                                            <VerticalStackLayout Spacing="6" Margin="0,0,14,14" WidthRequest="110">
                                                 <VisualStateManager.VisualStateGroups>
                                                     <VisualStateGroupList>
                                                         <VisualStateGroup x:Name="CommonStates">
                                                             <VisualState x:Name="Normal">
-                                                                <VisualState.Setters><Setter Property="Scale" Value="1"/></VisualState.Setters>
+                                                                <VisualState.Setters><Setter Property="TranslationY" Value="0"/></VisualState.Setters>
                                                             </VisualState>
                                                             <VisualState x:Name="PointerOver">
-                                                                <VisualState.Setters><Setter Property="Scale" Value="1.05"/></VisualState.Setters>
+                                                                <VisualState.Setters><Setter Property="TranslationY" Value="-2"/></VisualState.Setters>
                                                             </VisualState>
                                                         </VisualStateGroup>
                                                     </VisualStateGroupList>
@@ -3146,17 +3200,17 @@
                                                 <VerticalStackLayout.GestureRecognizers>
                                                     <TapGestureRecognizer Tapped="OnDuplicateProductTapped"/>
                                                 </VerticalStackLayout.GestureRecognizers>
-                                                <Grid WidthRequest="86" HeightRequest="86">
+                                                <Grid WidthRequest="110" HeightRequest="110">
                                                     <Border StrokeShape="RoundRectangle 12" Stroke="{Binding TileBorderColor}"
                                                             StrokeThickness="{Binding TileBorderWidth}" BackgroundColor="#ffffff" Padding="0">
                                                         <Image Source="{Binding LocalImagePath}" IsVisible="{Binding HasLocalImage}"
-                                                               Aspect="AspectFill" HeightRequest="86" WidthRequest="86"/>
+                                                               Aspect="AspectFill" HeightRequest="110" WidthRequest="110"/>
                                                     </Border>
                                                     <Border StrokeShape="RoundRectangle 12" Stroke="{Binding TileBorderColor}"
                                                             StrokeThickness="{Binding TileBorderWidth}" BackgroundColor="#ffffff" Padding="0"
                                                             IsVisible="{Binding HasNoLocalImage}">
                                                         <Image Source="{Binding ImageSource}" IsVisible="{Binding HasImage}"
-                                                               Aspect="AspectFill" HeightRequest="86" WidthRequest="86"/>
+                                                               Aspect="AspectFill" HeightRequest="110" WidthRequest="110"/>
                                                     </Border>
                                                     <Border HorizontalOptions="End" VerticalOptions="End"
                                                             BackgroundColor="{Binding TileQtyBadgeBg}" Stroke="White" StrokeThickness="2"
@@ -3186,15 +3240,22 @@
                           Padding="22,16" BackgroundColor="White">
                         <Border Grid.Column="1" x:Name="DupDismissButton"
                                 BackgroundColor="White" Stroke="#d1d5db" StrokeThickness="1.5"
-                                StrokeShape="RoundRectangle 10" Padding="26,13">
+                                StrokeShape="RoundRectangle 10" Padding="26,13"
+                                ToolTipProperties.Text="เก็บพัสดุทั้งสองไว้ และจัดส่งทั้งสองพัสดุ">
                             <VisualStateManager.VisualStateGroups>
                                 <VisualStateGroupList>
                                     <VisualStateGroup x:Name="CommonStates">
                                         <VisualState x:Name="Normal">
-                                            <VisualState.Setters><Setter Property="Opacity" Value="1"/></VisualState.Setters>
+                                            <VisualState.Setters>
+                                                <Setter Property="BackgroundColor" Value="White"/>
+                                                <Setter Property="Stroke" Value="#d1d5db"/>
+                                            </VisualState.Setters>
                                         </VisualState>
                                         <VisualState x:Name="PointerOver">
-                                            <VisualState.Setters><Setter Property="Opacity" Value="0.85"/></VisualState.Setters>
+                                            <VisualState.Setters>
+                                                <Setter Property="BackgroundColor" Value="#f9fafb"/>
+                                                <Setter Property="Stroke" Value="#9ca3af"/>
+                                            </VisualState.Setters>
                                         </VisualState>
                                     </VisualStateGroup>
                                 </VisualStateGroupList>
@@ -3211,10 +3272,10 @@
                                 <VisualStateGroupList>
                                     <VisualStateGroup x:Name="CommonStates">
                                         <VisualState x:Name="Normal">
-                                            <VisualState.Setters><Setter Property="Opacity" Value="1"/></VisualState.Setters>
+                                            <VisualState.Setters><Setter Property="BackgroundColor" Value="#ea580c"/></VisualState.Setters>
                                         </VisualState>
                                         <VisualState x:Name="PointerOver">
-                                            <VisualState.Setters><Setter Property="Opacity" Value="0.85"/></VisualState.Setters>
+                                            <VisualState.Setters><Setter Property="BackgroundColor" Value="#c2410c"/></VisualState.Setters>
                                         </VisualState>
                                     </VisualStateGroup>
                                 </VisualStateGroupList>
