@@ -3074,10 +3074,32 @@
                                                     <VisualStateGroupList>
                                                         <VisualStateGroup x:Name="CommonStates">
                                                             <VisualState x:Name="Normal">
-                                                                <VisualState.Setters><Setter Property="TranslationY" Value="0"/></VisualState.Setters>
+                                                                <VisualState.Setters>
+                                                                    <Setter TargetName="DupTileBorderLocal" Property="Border.Shadow">
+                                                                        <Setter.Value>
+                                                                            <Shadow Brush="#0f172a" Opacity="0" Radius="14" Offset="0,4"/>
+                                                                        </Setter.Value>
+                                                                    </Setter>
+                                                                    <Setter TargetName="DupTileBorderRemote" Property="Border.Shadow">
+                                                                        <Setter.Value>
+                                                                            <Shadow Brush="#0f172a" Opacity="0" Radius="14" Offset="0,4"/>
+                                                                        </Setter.Value>
+                                                                    </Setter>
+                                                                </VisualState.Setters>
                                                             </VisualState>
                                                             <VisualState x:Name="PointerOver">
-                                                                <VisualState.Setters><Setter Property="TranslationY" Value="-2"/></VisualState.Setters>
+                                                                <VisualState.Setters>
+                                                                    <Setter TargetName="DupTileBorderLocal" Property="Border.Shadow">
+                                                                        <Setter.Value>
+                                                                            <Shadow Brush="#0f172a" Opacity="0.25" Radius="14" Offset="0,4"/>
+                                                                        </Setter.Value>
+                                                                    </Setter>
+                                                                    <Setter TargetName="DupTileBorderRemote" Property="Border.Shadow">
+                                                                        <Setter.Value>
+                                                                            <Shadow Brush="#0f172a" Opacity="0.25" Radius="14" Offset="0,4"/>
+                                                                        </Setter.Value>
+                                                                    </Setter>
+                                                                </VisualState.Setters>
                                                             </VisualState>
                                                         </VisualStateGroup>
                                                     </VisualStateGroupList>
@@ -3086,12 +3108,12 @@
                                                     <TapGestureRecognizer Tapped="OnDuplicateProductTapped"/>
                                                 </VerticalStackLayout.GestureRecognizers>
                                                 <Grid WidthRequest="110" HeightRequest="110">
-                                                    <Border StrokeShape="RoundRectangle 12" Stroke="{Binding TileBorderColor}"
+                                                    <Border x:Name="DupTileBorderLocal" StrokeShape="RoundRectangle 12" Stroke="{Binding TileBorderColor}"
                                                             StrokeThickness="{Binding TileBorderWidth}" BackgroundColor="#ffffff" Padding="0">
                                                         <Image Source="{Binding LocalImagePath}" IsVisible="{Binding HasLocalImage}"
                                                                Aspect="AspectFill" HeightRequest="110" WidthRequest="110"/>
                                                     </Border>
-                                                    <Border StrokeShape="RoundRectangle 12" Stroke="{Binding TileBorderColor}"
+                                                    <Border x:Name="DupTileBorderRemote" StrokeShape="RoundRectangle 12" Stroke="{Binding TileBorderColor}"
                                                             StrokeThickness="{Binding TileBorderWidth}" BackgroundColor="#ffffff" Padding="0"
                                                             IsVisible="{Binding HasNoLocalImage}">
                                                         <Image Source="{Binding ImageSource}" IsVisible="{Binding HasImage}"
@@ -3189,10 +3211,32 @@
                                                     <VisualStateGroupList>
                                                         <VisualStateGroup x:Name="CommonStates">
                                                             <VisualState x:Name="Normal">
-                                                                <VisualState.Setters><Setter Property="TranslationY" Value="0"/></VisualState.Setters>
+                                                                <VisualState.Setters>
+                                                                    <Setter TargetName="DupTileBorderLocal" Property="Border.Shadow">
+                                                                        <Setter.Value>
+                                                                            <Shadow Brush="#0f172a" Opacity="0" Radius="14" Offset="0,4"/>
+                                                                        </Setter.Value>
+                                                                    </Setter>
+                                                                    <Setter TargetName="DupTileBorderRemote" Property="Border.Shadow">
+                                                                        <Setter.Value>
+                                                                            <Shadow Brush="#0f172a" Opacity="0" Radius="14" Offset="0,4"/>
+                                                                        </Setter.Value>
+                                                                    </Setter>
+                                                                </VisualState.Setters>
                                                             </VisualState>
                                                             <VisualState x:Name="PointerOver">
-                                                                <VisualState.Setters><Setter Property="TranslationY" Value="-2"/></VisualState.Setters>
+                                                                <VisualState.Setters>
+                                                                    <Setter TargetName="DupTileBorderLocal" Property="Border.Shadow">
+                                                                        <Setter.Value>
+                                                                            <Shadow Brush="#0f172a" Opacity="0.25" Radius="14" Offset="0,4"/>
+                                                                        </Setter.Value>
+                                                                    </Setter>
+                                                                    <Setter TargetName="DupTileBorderRemote" Property="Border.Shadow">
+                                                                        <Setter.Value>
+                                                                            <Shadow Brush="#0f172a" Opacity="0.25" Radius="14" Offset="0,4"/>
+                                                                        </Setter.Value>
+                                                                    </Setter>
+                                                                </VisualState.Setters>
                                                             </VisualState>
                                                         </VisualStateGroup>
                                                     </VisualStateGroupList>
@@ -3201,12 +3245,12 @@
                                                     <TapGestureRecognizer Tapped="OnDuplicateProductTapped"/>
                                                 </VerticalStackLayout.GestureRecognizers>
                                                 <Grid WidthRequest="110" HeightRequest="110">
-                                                    <Border StrokeShape="RoundRectangle 12" Stroke="{Binding TileBorderColor}"
+                                                    <Border x:Name="DupTileBorderLocal" StrokeShape="RoundRectangle 12" Stroke="{Binding TileBorderColor}"
                                                             StrokeThickness="{Binding TileBorderWidth}" BackgroundColor="#ffffff" Padding="0">
                                                         <Image Source="{Binding LocalImagePath}" IsVisible="{Binding HasLocalImage}"
                                                                Aspect="AspectFill" HeightRequest="110" WidthRequest="110"/>
                                                     </Border>
-                                                    <Border StrokeShape="RoundRectangle 12" Stroke="{Binding TileBorderColor}"
+                                                    <Border x:Name="DupTileBorderRemote" StrokeShape="RoundRectangle 12" Stroke="{Binding TileBorderColor}"
                                                             StrokeThickness="{Binding TileBorderWidth}" BackgroundColor="#ffffff" Padding="0"
                                                             IsVisible="{Binding HasNoLocalImage}">
                                                         <Image Source="{Binding ImageSource}" IsVisible="{Binding HasImage}"
@@ -3236,12 +3280,15 @@
                     </Grid>
 
                     <!-- Footer -->
-                    <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12"
+                    <Grid Grid.Row="3" RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12"
                           Padding="22,16" BackgroundColor="White">
-                        <Border Grid.Column="1" x:Name="DupDismissButton"
+                        <Label x:Name="DupFooterHint" Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
+                               FontSize="12" TextColor="#6b7280"
+                               HorizontalOptions="Center" HorizontalTextAlignment="Center"
+                               Opacity="0" HeightRequest="18" Margin="0,0,0,2"/>
+                        <Border Grid.Row="1" Grid.Column="1" x:Name="DupDismissButton"
                                 BackgroundColor="White" Stroke="#d1d5db" StrokeThickness="1.5"
-                                StrokeShape="RoundRectangle 10" Padding="26,13"
-                                ToolTipProperties.Text="เก็บพัสดุทั้งสองไว้ และจัดส่งทั้งสองพัสดุ">
+                                StrokeShape="RoundRectangle 10" Padding="26,13">
                             <VisualStateManager.VisualStateGroups>
                                 <VisualStateGroupList>
                                     <VisualStateGroup x:Name="CommonStates">
@@ -3262,10 +3309,11 @@
                             </VisualStateManager.VisualStateGroups>
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnDuplicateDismissTapped"/>
+                                <PointerGestureRecognizer PointerEntered="OnDupDismissHintEntered" PointerExited="OnDupFooterHintExited"/>
                             </Border.GestureRecognizers>
                             <Label Text="Dismiss" FontSize="15" FontAttributes="Bold" TextColor="#111827"/>
                         </Border>
-                        <Border Grid.Column="2" x:Name="DupMarkButton"
+                        <Border Grid.Row="1" Grid.Column="2" x:Name="DupMarkButton"
                                 BackgroundColor="#ea580c" Stroke="Transparent"
                                 StrokeShape="RoundRectangle 10" Padding="26,13">
                             <VisualStateManager.VisualStateGroups>
@@ -3282,6 +3330,7 @@
                             </VisualStateManager.VisualStateGroups>
                             <Border.GestureRecognizers>
                                 <TapGestureRecognizer Tapped="OnDuplicateMarkTapped"/>
+                                <PointerGestureRecognizer PointerEntered="OnDupMarkHintEntered" PointerExited="OnDupFooterHintExited"/>
                             </Border.GestureRecognizers>
                             <Label x:Name="DupMarkButtonLabel" Text="Mark as duplicate" FontSize="15"
                                    FontAttributes="Bold" TextColor="White"/>

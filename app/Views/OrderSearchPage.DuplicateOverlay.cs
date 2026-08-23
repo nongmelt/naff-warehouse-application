@@ -22,6 +22,7 @@ public partial class OrderSearchPage
     private PackingList? _dupScanned;
     private PackingList? _dupSibling;
     private PackingList? _dupMarkTarget;
+    private string? _dupMarkHint;
 
     // Cheapness gate mirroring the backend: only a Shopee + Instant Delivery
     // parcel can possibly be a reissue, so every other scan skips the extra
@@ -129,11 +130,11 @@ public partial class OrderSearchPage
         _dupMarkTarget = DuplicateMarkPolicy.MarksSibling(sibling.PackingStatus, scanned.PackingStatus)
             ? sibling : scanned;
         var shipSide = ReferenceEquals(_dupMarkTarget, sibling) ? scanned : sibling;
-        ToolTipProperties.SetText(DupMarkButton,
-            DuplicateMarkPolicy.BuildMarkTooltip(_dupMarkTarget.TrackingNumber, shipSide.TrackingNumber));
+        _dupMarkHint = DuplicateMarkPolicy.BuildMarkTooltip(_dupMarkTarget.TrackingNumber, shipSide.TrackingNumber);
 
         DupMarkButtonLabel.Text = "Mark as duplicate";
         DupMarkButton.Opacity = 1;
+        DupFooterHint.Opacity = 0;
 
         _ = ShowDuplicateOverlayAnimatedAsync();
     }
@@ -188,6 +189,24 @@ public partial class OrderSearchPage
 
     private async void OnDuplicateDismissTapped(object sender, TappedEventArgs e)
         => await DismissDuplicateOverlayAsync();
+
+    // Instant footer hint replacing native ToolTipProperties (too slow to
+    // respond per live QA feedback). Opacity-only toggle onto a reserved-space
+    // label so button layout never shifts.
+    private void OnDupDismissHintEntered(object? sender, PointerEventArgs e)
+    {
+        DupFooterHint.Text = DuplicateMarkPolicy.DismissTooltip;
+        DupFooterHint.Opacity = 1;
+    }
+
+    private void OnDupMarkHintEntered(object? sender, PointerEventArgs e)
+    {
+        DupFooterHint.Text = _dupMarkHint ?? string.Empty;
+        DupFooterHint.Opacity = 1;
+    }
+
+    private void OnDupFooterHintExited(object? sender, PointerEventArgs e)
+        => DupFooterHint.Opacity = 0;
 
     private async void OnDuplicateMarkTapped(object sender, TappedEventArgs e)
     {
