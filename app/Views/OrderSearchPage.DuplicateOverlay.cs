@@ -58,21 +58,22 @@ public partial class OrderSearchPage
         if (sibling is null) return;
         await EnrichProductItemsAsync(sibling.ParsedProducts);
 
-        // Operator pill shows the human nickname, not the raw staff_code.
-        // Cached lookup; falls back to the code itself when unknown (e.g. the
-        // QADUP0001 seed's fake codes).
-        var opCode = !string.IsNullOrWhiteSpace(sibling.CheckedBy) ? sibling.CheckedBy : sibling.PackedBy;
-        var opName = await ApiService.ResolveOperatorNicknameAsync(opCode) ?? opCode;
+        // Meta line shows both roles by nickname (falls back to the raw code).
+        var packedName = string.IsNullOrWhiteSpace(sibling.PackedBy) ? null
+            : await ApiService.ResolveOperatorNicknameAsync(sibling.PackedBy) ?? sibling.PackedBy;
+        var checkedName = string.IsNullOrWhiteSpace(sibling.CheckedBy) ? null
+            : await ApiService.ResolveOperatorNicknameAsync(sibling.CheckedBy) ?? sibling.CheckedBy;
 
         // Re-check after the awaits above.
         if (!string.Equals(CurrentOrder?.TrackingNumber, scanned.TrackingNumber, StringComparison.OrdinalIgnoreCase))
             return;
 
         _dupOverlayShownFor = scanned.TrackingNumber;
-        MainThread.BeginInvokeOnMainThread(() => ShowDuplicateOverlay(scanned, sibling, opName));
+        MainThread.BeginInvokeOnMainThread(() => ShowDuplicateOverlay(scanned, sibling, packedName, checkedName));
     }
 
-    private void ShowDuplicateOverlay(PackingList scanned, PackingList sibling, string? siblingOperatorName)
+    private void ShowDuplicateOverlay(PackingList scanned, PackingList sibling,
+        string? packedName, string? checkedName)
     {
         _dupScanned = scanned;
         _dupSibling = sibling;
@@ -96,29 +97,20 @@ public partial class OrderSearchPage
         DupSiblingColumn.BindingContext = sibling;
         DupScannedColumn.BindingContext = scanned;
 
-        // Pill row: operator (nickname) + time + product count. Unprocessed
-        // sibling has no operator — show its creation time instead.
-        var hasChecked = !string.IsNullOrWhiteSpace(sibling.CheckedBy);
-        var hasPacked  = !string.IsNullOrWhiteSpace(sibling.PackedBy);
-        if (hasChecked || hasPacked)
-        {
-            DupSiblingOpPill.IsVisible = true;
-            DupSiblingOpLabel.Text = hasChecked
-                ? $"\U0001F464 {siblingOperatorName}"
-                : $"\U0001F464 {siblingOperatorName} · packed";
-            DupSiblingTimePill.IsVisible = true;
-            // No PackedAt on the model — updated_at is the pack-time proxy.
-            DupSiblingTimeLabel.Text =
-                "\U0001F550 " + (hasChecked ? sibling.CheckedAtDisplay : sibling.UpdatedAtDisplay);
-        }
-        else
-        {
-            DupSiblingOpPill.IsVisible = false;
-            DupSiblingTimePill.IsVisible = true;
-            DupSiblingTimeLabel.Text = $"Created {sibling.CreatedAtDisplay}";
-        }
-        DupSiblingCountLabel.Text = $"\U0001F4E6 {sibling.ParsedProducts.Count} products";
-        DupScannedCountLabel.Text = $"\U0001F4E6 {scanned.ParsedProducts.Count} products";
+        // Meta lines in tracking-card grammar (faint label + slate value),
+        // exact timestamps per the 2026-08-23 mockup.
+        DupSiblingMetaLabel.FormattedText = checkedName is not null
+            ? MetaLine(("Packed:", packedName ?? "—"), ("Checked:", checkedName),
+                       ("Checked at:", sibling.CheckedAtDisplay), ("Items:", sibling.TotalItemsDisplay))
+            : packedName is not null
+                ? MetaLine(("Packed:", packedName), ("Packed at:", sibling.UpdatedAtDisplay),
+                           ("Items:", sibling.TotalItemsDisplay))
+                : MetaLine(("Created:", sibling.CreatedAtDisplay), ("Items:", sibling.TotalItemsDisplay));
+
+        // The scan moment IS the check moment for the parcel in hand.
+        DupScannedMetaLabel.FormattedText = MetaLine(
+            ("Checked at:", DateTime.Now.ToString("yyyy-MM-dd HH:mm")),
+            ("Items:", scanned.TotalItemsDisplay));
 
         // §13.6 honesty fix: the backend fires possibleReissue on qty overflow
         // alone — the sibling may itself be unprocessed. Don't claim
@@ -136,6 +128,29 @@ public partial class OrderSearchPage
         DupMarkButton.Opacity = 1;
 
         _ = ShowDuplicateOverlayAnimatedAsync();
+    }
+
+    private static FormattedString MetaLine(params (string Label, string Value)[] parts)
+    {
+        var fs = new FormattedString();
+        for (var i = 0; i < parts.Length; i++)
+        {
+            if (i > 0) fs.Spans.Add(new Span { Text = "   " });
+            fs.Spans.Add(new Span
+            {
+                Text = parts[i].Label + " ",
+                TextColor = Color.FromArgb("#9ca3af"),
+                FontSize = 11.5,
+            });
+            fs.Spans.Add(new Span
+            {
+                Text = parts[i].Value,
+                TextColor = Color.FromArgb("#374151"),
+                FontSize = 11.5,
+                FontAttributes = FontAttributes.Bold,
+            });
+        }
+        return fs;
     }
 
     private async Task ShowDuplicateOverlayAnimatedAsync()
