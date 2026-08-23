@@ -3282,10 +3282,10 @@
                     <!-- Footer -->
                     <Grid Grid.Row="3" RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12"
                           Padding="22,16" BackgroundColor="White">
-                        <Label x:Name="DupFooterHint" Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2"
+                        <Label x:Name="DupFooterHint" Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3"
                                FontSize="12" TextColor="#6b7280"
                                HorizontalOptions="Center" HorizontalTextAlignment="Center"
-                               Opacity="0" HeightRequest="18" Margin="0,0,0,2"/>
+                               Opacity="0" HeightRequest="18" Margin="0,0,0,2" LineBreakMode="TailTruncation"/>
                         <Border Grid.Row="1" Grid.Column="1" x:Name="DupDismissButton"
                                 BackgroundColor="White" Stroke="#d1d5db" StrokeThickness="1.5"
                                 StrokeShape="RoundRectangle 10" Padding="26,13">

@@ -58,6 +58,8 @@ public partial class OrderSearchPage
 
         var sibling = await ApiService.GetDetailAsync(detail.ReissueExistingTracking!);
         if (sibling is null) return;
+        // Reissue already resolved — a Duplicate sibling means the card is noise.
+        if (sibling.IsDuplicate) return;
         await EnrichProductItemsAsync(sibling.ParsedProducts);
 
         // Meta line shows both roles by nickname (falls back to the raw code).
