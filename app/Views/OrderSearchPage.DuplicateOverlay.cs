@@ -79,21 +79,10 @@ public partial class OrderSearchPage
 
         DupOrderNumber.Text = scanned.OrderNumber;
 
-        // Platform badge — same colour map as the header badge.
-        if (!string.IsNullOrWhiteSpace(scanned.Platform))
-        {
-            DupPlatformBadge.IsVisible = true;
-            DupPlatformLabel.Text = scanned.Platform.ToUpperInvariant();
-            var p = scanned.Platform.ToLowerInvariant();
-            DupPlatformBadge.BackgroundColor = p switch
-            {
-                var s when s.Contains("shopee") => Color.FromArgb("#ee4d2d"),
-                var s when s.Contains("lazada") => Color.FromArgb("#0f146d"),
-                var s when s.Contains("tiktok") => Color.FromArgb("#111827"),
-                _ => Color.FromArgb("#6b7280"),
-            };
-        }
-        else DupPlatformBadge.IsVisible = false;
+        // Platform logo (same asset as the header tracking card) — no text badge.
+        DupPlatformIcon.IsVisible = scanned.HasPlatformIcon;
+        if (scanned.HasPlatformIcon)
+            DupPlatformIcon.Source = scanned.PlatformIcon;
 
         // Ship chip (Instant Delivery is the only firing condition, but render
         // whatever the parcel actually carries).

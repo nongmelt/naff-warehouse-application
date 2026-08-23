@@ -2918,8 +2918,8 @@
                     Stroke="Transparent"
                     StrokeShape="RoundRectangle 18"
                     BackgroundColor="White"
-                    WidthRequest="720"
-                    MaximumHeightRequest="760"
+                    WidthRequest="1080"
+                    MaximumHeightRequest="800"
                     Padding="0"
                     InputTransparent="False">
                 <Border.Shadow>
@@ -2931,62 +2931,48 @@
                 </Border.GestureRecognizers>
                 <Grid RowDefinitions="Auto,Auto,*,Auto">
 
-                    <!-- Header -->
-                    <VerticalStackLayout Grid.Row="0" Spacing="15" Padding="26,22,26,20">
-                        <HorizontalStackLayout Spacing="14">
-                            <Border BackgroundColor="#fff7ed" Stroke="Transparent"
-                                    StrokeShape="RoundRectangle 999"
-                                    WidthRequest="50" HeightRequest="50">
-                                <Label Text="&#x29C9;" FontSize="25" FontAttributes="Bold" TextColor="#ea580c"
-                                       HorizontalOptions="Center" VerticalOptions="Center"
-                                       HorizontalTextAlignment="Center" VerticalTextAlignment="Center"/>
-                            </Border>
-                            <Label Text="Duplicate order?" FontSize="28" FontAttributes="Bold"
-                                   TextColor="#c2410c" VerticalOptions="Center"/>
-                        </HorizontalStackLayout>
-                        <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto" ColumnSpacing="12">
-                            <Label Grid.Column="0" Text="ORDER" FontSize="11" FontAttributes="Bold"
-                                   TextColor="#9ca3af" VerticalOptions="Center"/>
-                            <Label Grid.Column="1" x:Name="DupOrderNumber"
-                                   FontSize="20" FontAttributes="Bold" TextColor="#111827"
-                                   FontFamily="Consolas" VerticalOptions="Center">
-                                <VisualStateManager.VisualStateGroups>
-                                    <VisualStateGroupList>
-                                        <VisualStateGroup x:Name="CommonStates">
-                                            <VisualState x:Name="Normal">
-                                                <VisualState.Setters><Setter Property="Opacity" Value="1"/></VisualState.Setters>
-                                            </VisualState>
-                                            <VisualState x:Name="PointerOver">
-                                                <VisualState.Setters><Setter Property="Opacity" Value="0.7"/></VisualState.Setters>
-                                            </VisualState>
-                                        </VisualStateGroup>
-                                    </VisualStateGroupList>
-                                </VisualStateManager.VisualStateGroups>
-                                <Label.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnDuplicateCopyOrderTapped"/>
-                                </Label.GestureRecognizers>
-                            </Label>
-                            <Border Grid.Column="2" x:Name="DupOrderCopiedToast" BackgroundColor="#E6111827"
-                                    Stroke="Transparent" StrokeShape="RoundRectangle 6" Padding="8,3"
-                                    HorizontalOptions="Start" VerticalOptions="Center"
-                                    IsVisible="False" Opacity="0" InputTransparent="True">
-                                <Label Text="&#x2713; Copied" FontSize="11" FontAttributes="Bold" TextColor="White"/>
-                            </Border>
-                            <Border Grid.Column="3" x:Name="DupPlatformBadge"
-                                    Stroke="Transparent" StrokeShape="RoundRectangle 6"
-                                    Padding="10,4" VerticalOptions="Center" IsVisible="False">
-                                <Label x:Name="DupPlatformLabel" FontSize="13" FontAttributes="Bold"
-                                       TextColor="White"/>
-                            </Border>
-                            <Border Grid.Column="4" x:Name="DupShipChip"
-                                    BackgroundColor="#512BD4" Stroke="Transparent"
-                                    StrokeShape="RoundRectangle 999" Padding="12,6"
-                                    VerticalOptions="Center" IsVisible="False">
-                                <Label x:Name="DupShipLabel" FontSize="14" FontAttributes="Bold"
-                                       TextColor="White"/>
-                            </Border>
-                        </Grid>
-                    </VerticalStackLayout>
+                    <!-- Header — one row: title left, order identity right (mockup 2026-08-23) -->
+                    <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto"
+                          ColumnSpacing="13" Padding="26,20">
+                        <Border Grid.Column="0" BackgroundColor="#fff7ed" Stroke="Transparent"
+                                StrokeShape="RoundRectangle 999"
+                                WidthRequest="46" HeightRequest="46">
+                            <Label Text="&#x29C9;" FontSize="23" FontAttributes="Bold" TextColor="#ea580c"
+                                   HorizontalOptions="Center" VerticalOptions="Center"
+                                   HorizontalTextAlignment="Center" VerticalTextAlignment="Center"/>
+                        </Border>
+                        <Label Grid.Column="1" Text="Duplicate order?" FontSize="26" FontAttributes="Bold"
+                               TextColor="#c2410c" VerticalOptions="Center"/>
+                        <Image Grid.Column="3" x:Name="DupPlatformIcon"
+                               WidthRequest="40" HeightRequest="40" Aspect="AspectFit"
+                               VerticalOptions="Center" IsVisible="False"/>
+                        <Border Grid.Column="4" x:Name="DupOrderNumberWrap"
+                                BackgroundColor="Transparent" Stroke="Transparent"
+                                StrokeShape="RoundRectangle 7" Padding="8,2" VerticalOptions="Center">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnDuplicateCopyOrderTapped"/>
+                            </Border.GestureRecognizers>
+                            <HorizontalStackLayout Spacing="7">
+                                <Label x:Name="DupOrderNumber" FontSize="20" FontAttributes="Bold"
+                                       TextColor="#111827" FontFamily="Consolas" VerticalOptions="Center"/>
+                                <Label x:Name="DupOrderCopyGlyph" Text="&#x2398;" FontSize="14"
+                                       TextColor="#9ca3af" Opacity="0" VerticalOptions="Center"/>
+                            </HorizontalStackLayout>
+                        </Border>
+                        <Border Grid.Column="5" x:Name="DupOrderCopiedToast" BackgroundColor="#E6111827"
+                                Stroke="Transparent" StrokeShape="RoundRectangle 6" Padding="8,3"
+                                HorizontalOptions="Start" VerticalOptions="Center"
+                                IsVisible="False" Opacity="0" InputTransparent="True">
+                            <Label Text="&#x2713; Copied" FontSize="11" FontAttributes="Bold" TextColor="White"/>
+                        </Border>
+                        <Border Grid.Column="6" x:Name="DupShipChip"
+                                BackgroundColor="#ede9fe" Stroke="#ddd6fe" StrokeThickness="1"
+                                StrokeShape="RoundRectangle 999" Padding="12,6"
+                                VerticalOptions="Center" IsVisible="False">
+                            <Label x:Name="DupShipLabel" FontSize="13" FontAttributes="Bold"
+                                   TextColor="#5b21b6"/>
+                        </Border>
+                    </Grid>
 
                     <!-- Neither-processed banner -->
                     <Border Grid.Row="1" x:Name="DupBothUnprocessedBanner" BackgroundColor="#fff7ed"
