@@ -136,7 +136,7 @@ public partial class OrderSearchPage
 
         DupMarkButtonLabel.Text = "Mark as duplicate";
         DupMarkButton.Opacity = 1;
-        DupFooterHint.Opacity = 0;
+        DupFooterHintBubble.Opacity = 0;
 
         _ = ShowDuplicateOverlayAnimatedAsync();
     }
@@ -198,17 +198,17 @@ public partial class OrderSearchPage
     private void OnDupDismissHintEntered(object? sender, PointerEventArgs e)
     {
         DupFooterHint.Text = DuplicateMarkPolicy.DismissTooltip;
-        DupFooterHint.Opacity = 1;
+        DupFooterHintBubble.Opacity = 1;
     }
 
     private void OnDupMarkHintEntered(object? sender, PointerEventArgs e)
     {
         DupFooterHint.Text = _dupMarkHint ?? string.Empty;
-        DupFooterHint.Opacity = 1;
+        DupFooterHintBubble.Opacity = 1;
     }
 
     private void OnDupFooterHintExited(object? sender, PointerEventArgs e)
-        => DupFooterHint.Opacity = 0;
+        => DupFooterHintBubble.Opacity = 0;
 
     private async void OnDuplicateMarkTapped(object sender, TappedEventArgs e)
     {

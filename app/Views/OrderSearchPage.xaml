@@ -2353,10 +2353,10 @@
                                        FontAttributes="Bold"
                                        TextColor="#6b7280"/>
                             </Border>
-                            <Border x:Name="OverlayReadOnlyPill" BackgroundColor="#f3f4f6" Stroke="#e5e7eb"
+                            <Border x:Name="OverlayReadOnlyPill" BackgroundColor="#dcfce7" Stroke="#86efac"
                                     StrokeThickness="1" StrokeShape="RoundRectangle 4" Padding="10,5"
                                     Margin="8,0,0,0" IsVisible="False">
-                                <Label Text="&#x1F441; View only" FontSize="13" FontAttributes="Bold" TextColor="#6b7280"/>
+                                <Label Text="View only" FontSize="13" FontAttributes="Bold" TextColor="#166534"/>
                             </Border>
                         </HorizontalStackLayout>
                         <Label x:Name="OverlayItemPosition"
@@ -3280,12 +3280,15 @@
                     </Grid>
 
                     <!-- Footer -->
-                    <Grid Grid.Row="3" RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12"
+                    <Grid Grid.Row="3" RowDefinitions="30,Auto" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12"
                           Padding="22,16" BackgroundColor="White">
-                        <Label x:Name="DupFooterHint" Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3"
-                               FontSize="12" TextColor="#6b7280"
-                               HorizontalOptions="Center" HorizontalTextAlignment="Center"
-                               Opacity="0" HeightRequest="18" Margin="0,0,0,2" LineBreakMode="TailTruncation"/>
+                        <Border x:Name="DupFooterHintBubble" Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3"
+                                BackgroundColor="#E6111827" Stroke="Transparent" StrokeShape="RoundRectangle 6"
+                                Padding="10,5" HorizontalOptions="End" VerticalOptions="Center"
+                                Opacity="0" InputTransparent="True" Margin="0,0,0,4">
+                            <Label x:Name="DupFooterHint" FontSize="12" FontAttributes="Bold" TextColor="White"
+                                   LineBreakMode="TailTruncation"/>
+                        </Border>
                         <Border Grid.Row="1" Grid.Column="1" x:Name="DupDismissButton"
                                 BackgroundColor="White" Stroke="#d1d5db" StrokeThickness="1.5"
                                 StrokeShape="RoundRectangle 10" Padding="26,13">
