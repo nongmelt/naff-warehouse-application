@@ -58,15 +58,21 @@ public partial class OrderSearchPage
         if (sibling is null) return;
         await EnrichProductItemsAsync(sibling.ParsedProducts);
 
+        // Operator pill shows the human nickname, not the raw staff_code.
+        // Cached lookup; falls back to the code itself when unknown (e.g. the
+        // QADUP0001 seed's fake codes).
+        var opCode = !string.IsNullOrWhiteSpace(sibling.CheckedBy) ? sibling.CheckedBy : sibling.PackedBy;
+        var opName = await ApiService.ResolveOperatorNicknameAsync(opCode) ?? opCode;
+
         // Re-check after the awaits above.
         if (!string.Equals(CurrentOrder?.TrackingNumber, scanned.TrackingNumber, StringComparison.OrdinalIgnoreCase))
             return;
 
         _dupOverlayShownFor = scanned.TrackingNumber;
-        MainThread.BeginInvokeOnMainThread(() => ShowDuplicateOverlay(scanned, sibling));
+        MainThread.BeginInvokeOnMainThread(() => ShowDuplicateOverlay(scanned, sibling, opName));
     }
 
-    private void ShowDuplicateOverlay(PackingList scanned, PackingList sibling)
+    private void ShowDuplicateOverlay(PackingList scanned, PackingList sibling, string? siblingOperatorName)
     {
         _dupScanned = scanned;
         _dupSibling = sibling;
@@ -101,9 +107,41 @@ public partial class OrderSearchPage
         DupSiblingColumn.BindingContext = sibling;
         DupScannedColumn.BindingContext = scanned;
 
-        DupSiblingMeta.Text =
-            $"Checked by {sibling.CheckedByDisplay} · {sibling.CheckedAtDisplay} · {sibling.ParsedProducts.Count} products";
-        DupScannedMeta.Text = $"Just now · {scanned.ParsedProducts.Count} products";
+        // Pill row: operator (nickname) + time + product count. Unprocessed
+        // sibling has no operator — show its creation time instead.
+        var hasChecked = !string.IsNullOrWhiteSpace(sibling.CheckedBy);
+        var hasPacked  = !string.IsNullOrWhiteSpace(sibling.PackedBy);
+        if (hasChecked || hasPacked)
+        {
+            DupSiblingOpPill.IsVisible = true;
+            DupSiblingOpLabel.Text = hasChecked
+                ? $"\U0001F464 {siblingOperatorName}"
+                : $"\U0001F464 {siblingOperatorName} · packed";
+            DupSiblingTimePill.IsVisible = true;
+            // No PackedAt on the model — updated_at is the pack-time proxy.
+            DupSiblingTimeLabel.Text =
+                "\U0001F550 " + (hasChecked ? sibling.CheckedAtDisplay : sibling.UpdatedAtDisplay);
+        }
+        else
+        {
+            DupSiblingOpPill.IsVisible = false;
+            DupSiblingTimePill.IsVisible = true;
+            DupSiblingTimeLabel.Text = $"Created {sibling.CreatedAtDisplay}";
+        }
+        DupSiblingCountLabel.Text = $"\U0001F4E6 {sibling.ParsedProducts.Count} products";
+        DupScannedCountLabel.Text = $"\U0001F4E6 {scanned.ParsedProducts.Count} products";
+
+        // §13.6 honesty fix: the backend fires possibleReissue on qty overflow
+        // alone — the sibling may itself be unprocessed. Don't claim
+        // "Already processed" when it isn't.
+        var siblingProcessed = !string.Equals(
+            sibling.PackingStatus, "To be packed", StringComparison.OrdinalIgnoreCase);
+        DupSiblingHeaderLabel.Text = siblingProcessed
+            ? "✓ Already processed"
+            : "◷ Other parcel";
+        DupSiblingHeaderLabel.TextColor = Color.FromArgb(siblingProcessed ? "#166534" : "#6b7280");
+        DupBothUnprocessedBanner.IsVisible = !siblingProcessed && string.Equals(
+            scanned.PackingStatus, "To be packed", StringComparison.OrdinalIgnoreCase);
 
         DupMarkButtonLabel.Text = "Mark as duplicate";
         DupMarkButton.Opacity = 1;
@@ -154,6 +192,7 @@ public partial class OrderSearchPage
         {
             // Status flip updates the pill and QC-locks the parcel reactively.
             scanned.PackingStatus = "Duplicate";
+            UpdateHeaderOrderInfo();
             UpdateSearchStatus($"{scanned.TrackingNumber} marked as duplicate — QC locked, not billed.");
             await DismissDuplicateOverlayAsync();
         }
@@ -169,11 +208,36 @@ public partial class OrderSearchPage
         }
     }
 
+    private CancellationTokenSource? _dupToastCts;
+
+    // The search-status confirmation sits BEHIND the card backdrop, so copy
+    // feedback surfaces as a tiny toast next to the tapped value instead.
+    private async Task ShowDupCopiedToastAsync(VisualElement toast)
+    {
+        _dupToastCts?.Cancel();
+        var cts = _dupToastCts = new CancellationTokenSource();
+        try
+        {
+            toast.Opacity = 0;
+            toast.IsVisible = true;
+            await toast.FadeToAsync(1, 120, Easing.CubicOut);
+            await Task.Delay(900, cts.Token);
+            await toast.FadeToAsync(0, 180, Easing.CubicIn);
+        }
+        catch (TaskCanceledException) { }
+        finally
+        {
+            toast.IsVisible = false;
+            toast.Opacity = 0;
+        }
+    }
+
     private async void OnDuplicateCopyOrderTapped(object sender, TappedEventArgs e)
     {
         if (_dupScanned is null) return;
         await Clipboard.Default.SetTextAsync(_dupScanned.OrderNumber);
         UpdateSearchStatus($"Copied  {_dupScanned.OrderNumber}");
+        await ShowDupCopiedToastAsync(DupOrderCopiedToast);
     }
 
     private async void OnDuplicateCopyTrackingTapped(object sender, TappedEventArgs e)
@@ -182,16 +246,23 @@ public partial class OrderSearchPage
         {
             await Clipboard.Default.SetTextAsync(pl.TrackingNumber);
             UpdateSearchStatus($"Copied  {pl.TrackingNumber}");
+            await ShowDupCopiedToastAsync(
+                ReferenceEquals(pl, _dupSibling) ? DupSiblingCopiedToast : DupScannedCopiedToast);
         }
     }
 
     // Click a product photo → re-open the existing QC image viewer on top of the
     // card (ZIndex 8 > 7). Read-only peek; the viewer's picking state doesn't
-    // apply to a card parcel.
+    // apply to a card parcel. Prev/next arrows browse the tapped parcel's own
+    // products, staying read-only (#118).
     private void OnDuplicateProductTapped(object sender, TappedEventArgs e)
     {
         if (sender is VisualElement { BindingContext: ProductItem item })
+        {
+            var source = _dupSibling?.ParsedProducts.Contains(item) == true ? _dupSibling : _dupScanned;
+            _overlayReadOnlyList = source?.ParsedProducts;
             ShowProductImageOverlay(item, "duplicate_card_peek", readOnly: true);
+        }
     }
 
     // Undo a duplicate mark from the parcel header (any operator). The backend
@@ -212,11 +283,25 @@ public partial class OrderSearchPage
             UpdateHeaderOrderInfo();
             UpdateSearchStatus($"{order.TrackingNumber} duplicate mark undone — restored to 'To be packed'.");
         }
+        else if (status == 409)
+        {
+            // Server says it's no longer a duplicate — our cached status is stale.
+            // Re-sync so the Undo button clears instead of 409-ing on every click.
+            var fresh = await ApiService.GetDetailAsync(order.TrackingNumber);
+            if (fresh is not null)
+            {
+                order.PackingStatus = fresh.PackingStatus;
+                UpdateHeaderOrderInfo();
+                UpdateSearchStatus($"{order.TrackingNumber} is no longer a duplicate — view refreshed.");
+            }
+            else
+            {
+                UpdateSearchStatus("Undo failed — check the connection and try again.");
+            }
+        }
         else
         {
-            UpdateSearchStatus(status == 409
-                ? "Nothing to undo — parcel is not a duplicate."
-                : "Undo failed — check the connection and try again.");
+            UpdateSearchStatus("Undo failed — check the connection and try again.");
         }
     }
 }

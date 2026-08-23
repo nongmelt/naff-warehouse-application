@@ -27,6 +27,7 @@ public partial class OrderSearchPage
     {
         _completionDismissCts?.Cancel();
         _overlayReadOnly = readOnly;
+        if (!readOnly) _overlayReadOnlyList = null;
         if (item.IsBundle)
         {
             ShowBundleOverlay(item);
@@ -76,17 +77,25 @@ public partial class OrderSearchPage
             OverlayNoImage.IsVisible = true;
         }
 
-        // Item position (e.g., "ITEM 03 of 14")
-        var order = FindOrderForItem(item);
-        if (order != null)
+        // Item position (e.g., "ITEM 03 of 14"). Read-only peeks position
+        // within the card parcel's list — its items are not in Results.
+        if (_overlayReadOnly && _overlayReadOnlyList is { Count: > 0 } roList)
         {
-            var idx = order.ParsedProducts.IndexOf(item) + 1;
-            var total = order.ParsedProducts.Count;
-            OverlayItemPosition.Text = $"ITEM {idx:D2} of {total}";
+            OverlayItemPosition.Text = $"ITEM {roList.IndexOf(item) + 1:D2} of {roList.Count}";
         }
         else
         {
-            OverlayItemPosition.Text = "";
+            var order = FindOrderForItem(item);
+            if (order != null)
+            {
+                var idx = order.ParsedProducts.IndexOf(item) + 1;
+                var total = order.ParsedProducts.Count;
+                OverlayItemPosition.Text = $"ITEM {idx:D2} of {total}";
+            }
+            else
+            {
+                OverlayItemPosition.Text = "";
+            }
         }
 
         // Counter — show verified / required, green when complete
@@ -146,6 +155,22 @@ public partial class OrderSearchPage
 
         OverlayMinusBtn.IsVisible = !readOnly;
         OverlayPlusBtn.IsVisible = !readOnly;
+
+        OverlayReadOnlyPill.IsVisible = readOnly;
+
+        // QC-verified item peeked from the card: carry the green accent onto
+        // the viewer itself. Non-verified/pick-mode opens reset to no stroke
+        // (the completion flash manages its own stroke later).
+        if (readOnly && item.IsFullyPicked)
+        {
+            OverlayCard.Stroke = Color.FromArgb("#22c55e");
+            OverlayCard.StrokeThickness = 3;
+        }
+        else
+        {
+            OverlayCard.Stroke = Colors.Transparent;
+            OverlayCard.StrokeThickness = 0;
+        }
 
         if (!ProductImageOverlay.IsVisible)
         {
@@ -715,8 +740,23 @@ public partial class OrderSearchPage
 
     private void NavigateOverlayProduct(int direction)
     {
-        if (_overlayReadOnly) return;
         if (_overlayItem == null) return;
+
+        // #118: read-only peeks used to block nav outright because advancing
+        // re-opened the overlay in pick mode. Navigate the card parcel's own
+        // list instead, staying read-only.
+        if (_overlayReadOnly)
+        {
+            if (_overlayReadOnlyList is not { Count: > 0 } list) return;
+            var idx = list.IndexOf(_overlayItem);
+            if (idx < 0) return;
+            var next = idx + direction;
+            if (next < 0) next = list.Count - 1;
+            if (next >= list.Count) next = 0;
+            ShowProductImageOverlay(list[next], readOnly: true);
+            return;
+        }
+
         var allProducts = Results.SelectMany(o => o.ParsedProducts).ToList();
         var currentIdx = allProducts.IndexOf(_overlayItem);
         if (currentIdx < 0) return;

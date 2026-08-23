@@ -169,6 +169,11 @@ public class ProductItem : INotifyPropertyChanged
             OnPropertyChanged(nameof(SkuPillBg));
             OnPropertyChanged(nameof(SkuPillBorder));
             OnPropertyChanged(nameof(SkuPillText));
+            OnPropertyChanged(nameof(TileBorderColor));
+            OnPropertyChanged(nameof(TileBorderWidth));
+            OnPropertyChanged(nameof(TileQtyBadgeBg));
+            OnPropertyChanged(nameof(TileQtyBadgeTextColor));
+            OnPropertyChanged(nameof(TileQtyDisplay));
         }
     }
 
@@ -237,6 +242,23 @@ public class ProductItem : INotifyPropertyChanged
     [JsonIgnore] public bool IsPartiallyVerified => !IsFullyPicked && VerifiedQuantity > 0;
 
     [JsonIgnore] public bool IsCompleted => IsFullyPicked || (IsBundle && IsBundleFullyVerified);
+
+    // ── Duplicate-card tile accents (spec §13.6 tweaks): a QC-verified item's
+    // photo tile goes green so the operator sees at a glance what was already
+    // checked on the sibling parcel. ──────────────────────────────────────────
+    [JsonIgnore] public Color TileBorderColor =>
+        IsFullyPicked ? Color.FromArgb("#22c55e") : Color.FromArgb("#e5e7eb");
+
+    [JsonIgnore] public double TileBorderWidth => IsFullyPicked ? 2 : 1;
+
+    [JsonIgnore] public Color TileQtyBadgeBg =>
+        IsFullyPicked ? Color.FromArgb("#dcfce7") : Color.FromArgb("#111827");
+
+    [JsonIgnore] public Color TileQtyBadgeTextColor =>
+        IsFullyPicked ? Color.FromArgb("#166534") : Colors.White;
+
+    [JsonIgnore] public string TileQtyDisplay =>
+        IsFullyPicked ? $"✓ ×{RequiredQuantity}" : $"×{RequiredQuantity}";
 
     [JsonIgnore] public Color CardBgColor
     {
