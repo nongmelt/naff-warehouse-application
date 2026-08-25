@@ -23,6 +23,10 @@ public partial class OrderSearchPage
     private PackingList? _dupSibling;
     private PackingList? _dupMarkTarget;
     private string? _dupMarkHint;
+    // Set once a Mark attempt 409s: the state _dupMarkTarget was computed
+    // from is stale, so no further hover stamp may be painted until the next
+    // ShowDuplicateOverlay re-arms it.
+    private bool _dupSimBlocked;
 
     // Cheapness gate mirroring the backend: only a Shopee + Instant Delivery
     // parcel can possibly be a reissue, so every other scan skips the extra
@@ -137,6 +141,7 @@ public partial class OrderSearchPage
         DupMarkButtonLabel.Text = "Mark as duplicate";
         DupMarkButton.Opacity = 1;
         DupFooterHintBubble.Opacity = 0;
+        _dupSimBlocked = false;
         HideShipSimulation();
 
         _ = ShowDuplicateOverlayAnimatedAsync();
@@ -183,6 +188,7 @@ public partial class OrderSearchPage
     private async Task DismissDuplicateOverlayAsync()
     {
         if (!DuplicateOrderOverlay.IsVisible) return;
+        HideShipSimulation();
         await DuplicateOrderOverlay.FadeToAsync(0, 180, Easing.CubicIn);
         DuplicateOrderOverlay.IsVisible = false;
     }
@@ -223,16 +229,21 @@ public partial class OrderSearchPage
     // stays centered in the viewport however far the leg is scrolled.
     private void ShowShipSimulation(bool markHover)
     {
-        if (_dupMarkTarget is null) return;
+        // _dupSimBlocked: a Mark attempt just 409'd — the state _dupMarkTarget
+        // was computed from is stale, so don't paint a verdict the server has
+        // already contradicted.
+        if (_dupMarkTarget is null || _dupSimBlocked) return;
         var siblingIsTarget = ReferenceEquals(_dupMarkTarget, _dupSibling);
 
-        SetSimStamp(DupSiblingStamp, DupSiblingStampLabel,
-            ships: ShipStampPolicy.LegShips(markHover, siblingIsTarget));
-        SetSimStamp(DupScannedStamp, DupScannedStampLabel,
-            ships: ShipStampPolicy.LegShips(markHover, !siblingIsTarget));
+        // Both stamp and dim are derived once from the same outcome, so they
+        // can't disagree the way two independent expressions could.
+        var (siblingShips, scannedShips) = ShipStampPolicy.LegOutcomes(markHover, siblingIsTarget);
 
-        DupSiblingColumn.Opacity = markHover && siblingIsTarget ? ShipStampPolicy.DimmedOpacity : 1;
-        DupScannedColumn.Opacity = markHover && !siblingIsTarget ? ShipStampPolicy.DimmedOpacity : 1;
+        SetSimStamp(DupSiblingStamp, DupSiblingStampLabel, siblingShips);
+        SetSimStamp(DupScannedStamp, DupScannedStampLabel, scannedShips);
+
+        DupSiblingColumn.Opacity = ShipStampPolicy.OpacityFor(siblingShips);
+        DupScannedColumn.Opacity = ShipStampPolicy.OpacityFor(scannedShips);
     }
 
     private static void SetSimStamp(Border stamp, Label label, bool ships)
@@ -278,6 +289,16 @@ public partial class OrderSearchPage
             // under it). Leave the card up so the operator can Dismiss.
             DupMarkButtonLabel.Text = "Mark as duplicate";
             DupMarkButton.Opacity = 1;
+
+            if (result.Status == 409)
+            {
+                // The decision _dupMarkTarget was computed from no longer
+                // holds — block the sim so re-hovering Mark can't paint a
+                // verdict the server just refused.
+                _dupSimBlocked = true;
+                HideShipSimulation();
+            }
+
             UpdateSearchStatus(result.Status == 409
                 ? "Can't mark — parcel is no longer 'To be packed'."
                 : "Mark failed — check the connection and try again.");

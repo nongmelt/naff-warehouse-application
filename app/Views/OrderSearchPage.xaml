@@ -3142,15 +3142,18 @@
                             </VerticalStackLayout>
                           </ScrollView>
                           <Border x:Name="DupSiblingStamp" BackgroundColor="#C7FFFFFF"
-                                  Stroke="#15803d" StrokeThickness="4" StrokeShape="RoundRectangle 12"
+                                  Stroke="Transparent" StrokeThickness="4" StrokeShape="RoundRectangle 12"
                                   Padding="28,12" Rotation="-8"
                                   HorizontalOptions="Center" VerticalOptions="Center"
                                   IsVisible="False" InputTransparent="True">
+                              <!-- Neutral shadow, not tinted per verdict: legs swap roles every scan,
+                                   so a tinted shadow would mean allocating a new Shadow in SetSimStamp
+                                   on every pointer event. See docs/plans/2026-08-25-will-ship-stamp.md. -->
                               <Border.Shadow>
                                   <Shadow Brush="#111827" Offset="0,4" Radius="18" Opacity="0.18"/>
                               </Border.Shadow>
-                              <Label x:Name="DupSiblingStampLabel" Text="จัดส่ง" FontSize="32"
-                                     FontAttributes="Bold" TextColor="#15803d" LineBreakMode="NoWrap"/>
+                              <Label x:Name="DupSiblingStampLabel" FontSize="32"
+                                     FontAttributes="Bold" LineBreakMode="NoWrap"/>
                           </Border>
                         </Grid>
 
@@ -3292,15 +3295,15 @@
                             </VerticalStackLayout>
                           </ScrollView>
                           <Border x:Name="DupScannedStamp" BackgroundColor="#C7FFFFFF"
-                                  Stroke="#15803d" StrokeThickness="4" StrokeShape="RoundRectangle 12"
+                                  Stroke="Transparent" StrokeThickness="4" StrokeShape="RoundRectangle 12"
                                   Padding="28,12" Rotation="-8"
                                   HorizontalOptions="Center" VerticalOptions="Center"
                                   IsVisible="False" InputTransparent="True">
                               <Border.Shadow>
                                   <Shadow Brush="#111827" Offset="0,4" Radius="18" Opacity="0.18"/>
                               </Border.Shadow>
-                              <Label x:Name="DupScannedStampLabel" Text="จัดส่ง" FontSize="32"
-                                     FontAttributes="Bold" TextColor="#15803d" LineBreakMode="NoWrap"/>
+                              <Label x:Name="DupScannedStampLabel" FontSize="32"
+                                     FontAttributes="Bold" LineBreakMode="NoWrap"/>
                           </Border>
                         </Grid>
                     </Grid>

@@ -25,4 +25,12 @@ public static class ShipStampPolicy
               : new ShipStampStyle(DuplicateText, DuplicateInk);
 
     public static bool LegShips(bool markHover, bool isMarkTarget) => !markHover || !isMarkTarget;
+
+    /// <summary>Both legs' ship outcomes from one call, so the leg→verdict mapping
+    /// is pinned by tests rather than by the order of two call sites in the view.</summary>
+    public static (bool SiblingShips, bool ScannedShips) LegOutcomes(bool markHover, bool siblingIsTarget) =>
+        (LegShips(markHover, siblingIsTarget), LegShips(markHover, !siblingIsTarget));
+
+    /// <summary>Content opacity for a leg — the dim is the ship outcome, not a second decision.</summary>
+    public static double OpacityFor(bool ships) => ships ? 1 : DimmedOpacity;
 }
