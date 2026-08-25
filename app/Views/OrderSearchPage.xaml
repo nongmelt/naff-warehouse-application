@@ -3002,8 +3002,8 @@
                     <!-- Comparison -->
                     <Grid Grid.Row="2" ColumnDefinitions="*,Auto,*" BackgroundColor="#e5e7eb">
                         <!-- Left: already processed (sibling) -->
-                        <ScrollView Grid.Column="0" BackgroundColor="#fbfbfc">
-                          <Grid>
+                        <Grid Grid.Column="0">
+                          <ScrollView BackgroundColor="#fbfbfc">
                             <VerticalStackLayout x:Name="DupSiblingColumn" Padding="18,16" Spacing="6"
                                                  x:DataType="models:PackingList">
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
@@ -3140,21 +3140,25 @@
                                     </BindableLayout.ItemTemplate>
                                 </FlexLayout>
                             </VerticalStackLayout>
-                            <Border x:Name="DupSiblingSimBadge" BackgroundColor="#dcfce7" Stroke="#86efac" StrokeThickness="1"
-                                    StrokeShape="RoundRectangle 999" Padding="12,5" Margin="0,-6,-6,0"
-                                    HorizontalOptions="End" VerticalOptions="Start"
-                                    IsVisible="False" InputTransparent="True">
-                                <Label x:Name="DupSiblingSimLabel" Text="&#x2713; Will ship" FontSize="12"
-                                       FontAttributes="Bold" TextColor="#166534"/>
-                            </Border>
-                          </Grid>
-                        </ScrollView>
+                          </ScrollView>
+                          <Border x:Name="DupSiblingStamp" BackgroundColor="#C7FFFFFF"
+                                  Stroke="#15803d" StrokeThickness="4" StrokeShape="RoundRectangle 12"
+                                  Padding="28,12" Rotation="-8"
+                                  HorizontalOptions="Center" VerticalOptions="Center"
+                                  IsVisible="False" InputTransparent="True">
+                              <Border.Shadow>
+                                  <Shadow Brush="#111827" Offset="0,4" Radius="18" Opacity="0.18"/>
+                              </Border.Shadow>
+                              <Label x:Name="DupSiblingStampLabel" Text="จัดส่ง" FontSize="32"
+                                     FontAttributes="Bold" TextColor="#15803d" LineBreakMode="NoWrap"/>
+                          </Border>
+                        </Grid>
 
                         <BoxView Grid.Column="1" WidthRequest="1" BackgroundColor="#e5e7eb"/>
 
                         <!-- Right: just scanned -->
-                        <ScrollView Grid.Column="2" BackgroundColor="White">
-                          <Grid>
+                        <Grid Grid.Column="2">
+                          <ScrollView BackgroundColor="White">
                             <VerticalStackLayout x:Name="DupScannedColumn" Padding="18,16" Spacing="6"
                                                  x:DataType="models:PackingList">
                                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
@@ -3286,15 +3290,19 @@
                                     </BindableLayout.ItemTemplate>
                                 </FlexLayout>
                             </VerticalStackLayout>
-                            <Border x:Name="DupScannedSimBadge" BackgroundColor="#dcfce7" Stroke="#86efac" StrokeThickness="1"
-                                    StrokeShape="RoundRectangle 999" Padding="12,5" Margin="0,-6,-6,0"
-                                    HorizontalOptions="End" VerticalOptions="Start"
-                                    IsVisible="False" InputTransparent="True">
-                                <Label x:Name="DupScannedSimLabel" Text="&#x2713; Will ship" FontSize="12"
-                                       FontAttributes="Bold" TextColor="#166534"/>
-                            </Border>
-                          </Grid>
-                        </ScrollView>
+                          </ScrollView>
+                          <Border x:Name="DupScannedStamp" BackgroundColor="#C7FFFFFF"
+                                  Stroke="#15803d" StrokeThickness="4" StrokeShape="RoundRectangle 12"
+                                  Padding="28,12" Rotation="-8"
+                                  HorizontalOptions="Center" VerticalOptions="Center"
+                                  IsVisible="False" InputTransparent="True">
+                              <Border.Shadow>
+                                  <Shadow Brush="#111827" Offset="0,4" Radius="18" Opacity="0.18"/>
+                              </Border.Shadow>
+                              <Label x:Name="DupScannedStampLabel" Text="จัดส่ง" FontSize="32"
+                                     FontAttributes="Bold" TextColor="#15803d" LineBreakMode="NoWrap"/>
+                          </Border>
+                        </Grid>
                     </Grid>
 
                     <!-- Footer -->

@@ -218,32 +218,37 @@ public partial class OrderSearchPage
 
     // Hover simulation (Dismiss/Mark) — previews which leg ships before the
     // operator commits. Dismiss ships both (status quo); Mark ships the
-    // non-target leg and voids (dims + rose-badges) _dupMarkTarget.
+    // non-target leg and voids (stamps + dims) _dupMarkTarget. Variation E:
+    // the stamp lives on the leg's wrapper Grid, OUTSIDE the ScrollView, so it
+    // stays centered in the viewport however far the leg is scrolled.
     private void ShowShipSimulation(bool markHover)
     {
-        SetSimBadge(DupSiblingSimBadge, DupSiblingSimLabel, ships: !markHover || !ReferenceEquals(_dupMarkTarget, _dupSibling));
-        SetSimBadge(DupScannedSimBadge, DupScannedSimLabel, ships: !markHover || ReferenceEquals(_dupMarkTarget, _dupSibling));
-        if (markHover)
-        {
-            var siblingMarked = ReferenceEquals(_dupMarkTarget, _dupSibling);
-            DupSiblingColumn.Opacity = siblingMarked ? 0.55 : 1;
-            DupScannedColumn.Opacity = siblingMarked ? 1 : 0.55;
-        }
+        if (_dupMarkTarget is null) return;
+        var siblingIsTarget = ReferenceEquals(_dupMarkTarget, _dupSibling);
+
+        SetSimStamp(DupSiblingStamp, DupSiblingStampLabel,
+            ships: ShipStampPolicy.LegShips(markHover, siblingIsTarget));
+        SetSimStamp(DupScannedStamp, DupScannedStampLabel,
+            ships: ShipStampPolicy.LegShips(markHover, !siblingIsTarget));
+
+        DupSiblingColumn.Opacity = markHover && siblingIsTarget ? ShipStampPolicy.DimmedOpacity : 1;
+        DupScannedColumn.Opacity = markHover && !siblingIsTarget ? ShipStampPolicy.DimmedOpacity : 1;
     }
 
-    private static void SetSimBadge(Border badge, Label label, bool ships)
+    private static void SetSimStamp(Border stamp, Label label, bool ships)
     {
-        badge.BackgroundColor = Color.FromArgb(ships ? "#dcfce7" : "#ffe4e6");
-        badge.Stroke = Color.FromArgb(ships ? "#86efac" : "#fecdd3");
-        label.Text = ships ? "✓ Will ship" : "✕ Duplicate";
-        label.TextColor = Color.FromArgb(ships ? "#166534" : "#9f1239");
-        badge.IsVisible = true;
+        var style = ShipStampPolicy.For(ships);
+        var ink = Color.FromArgb(style.Ink);
+        label.Text = style.Text;
+        label.TextColor = ink;
+        stamp.Stroke = ink;
+        stamp.IsVisible = true;
     }
 
     private void HideShipSimulation()
     {
-        DupSiblingSimBadge.IsVisible = false;
-        DupScannedSimBadge.IsVisible = false;
+        DupSiblingStamp.IsVisible = false;
+        DupScannedStamp.IsVisible = false;
         DupSiblingColumn.Opacity = 1;
         DupScannedColumn.Opacity = 1;
     }
