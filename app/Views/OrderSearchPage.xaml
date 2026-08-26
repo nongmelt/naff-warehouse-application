@@ -3003,10 +3003,9 @@
                     <Grid Grid.Row="2" ColumnDefinitions="*,Auto,*" BackgroundColor="#e5e7eb">
                         <!-- Left: already processed (sibling) -->
                         <Grid Grid.Column="0">
-                          <ScrollView BackgroundColor="#fbfbfc">
-                            <VerticalStackLayout x:Name="DupSiblingColumn" Padding="18,16" Spacing="6"
-                                                 x:DataType="models:PackingList">
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                          <Grid x:Name="DupSiblingBody" RowDefinitions="Auto,*" x:DataType="models:PackingList">
+                            <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="10"
+                              BackgroundColor="#fbfbfc" Padding="18,16,18,10">
                                     <VerticalStackLayout Grid.Column="0" Spacing="2">
                                         <Label x:Name="DupSiblingHeaderLabel" Text="&#x2713; Already processed"
                                                FontSize="12" FontAttributes="Bold" TextColor="#166534"/>
@@ -3065,7 +3064,12 @@
                                                    TextColor="{Binding StatusFgColor}"/>
                                         </Border>
                                     </HorizontalStackLayout>
-                                </Grid>
+                            </Grid>
+                            <BoxView Grid.Row="0" HeightRequest="1" BackgroundColor="#e5e7eb"
+                                     VerticalOptions="End"/>
+                            <ScrollView Grid.Row="1" x:Name="DupSiblingScroll" BackgroundColor="#fbfbfc">
+                              <VerticalStackLayout x:Name="DupSiblingColumn" Padding="18,10,18,16" Spacing="6"
+                                                   x:DataType="models:PackingList">
                                 <FlexLayout Direction="Row" Wrap="Wrap" AlignItems="Start"
                                             BindableLayout.ItemsSource="{Binding ParsedProducts}">
                                     <BindableLayout.ItemTemplate>
@@ -3139,8 +3143,9 @@
                                         </DataTemplate>
                                     </BindableLayout.ItemTemplate>
                                 </FlexLayout>
-                            </VerticalStackLayout>
-                          </ScrollView>
+                              </VerticalStackLayout>
+                            </ScrollView>
+                          </Grid>
                           <Border x:Name="DupSiblingStamp" BackgroundColor="#C7FFFFFF"
                                   Stroke="Transparent" StrokeThickness="4" StrokeShape="RoundRectangle 12"
                                   Padding="28,12" Rotation="-8"
@@ -3161,10 +3166,9 @@
 
                         <!-- Right: just scanned -->
                         <Grid Grid.Column="2">
-                          <ScrollView BackgroundColor="White">
-                            <VerticalStackLayout x:Name="DupScannedColumn" Padding="18,16" Spacing="6"
-                                                 x:DataType="models:PackingList">
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                          <Grid x:Name="DupScannedBody" RowDefinitions="Auto,*" x:DataType="models:PackingList">
+                            <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="10"
+                              BackgroundColor="White" Padding="18,16,18,10">
                                     <VerticalStackLayout Grid.Column="0" Spacing="2">
                                         <Label Text="&#x25CF; Just scanned"
                                                FontSize="12" FontAttributes="Bold" TextColor="#c2410c"/>
@@ -3218,7 +3222,12 @@
                                                    TextColor="{Binding StatusFgColor}"/>
                                         </Border>
                                     </HorizontalStackLayout>
-                                </Grid>
+                            </Grid>
+                            <BoxView Grid.Row="0" HeightRequest="1" BackgroundColor="#e5e7eb"
+                                     VerticalOptions="End"/>
+                            <ScrollView Grid.Row="1" x:Name="DupScannedScroll" BackgroundColor="White">
+                              <VerticalStackLayout x:Name="DupScannedColumn" Padding="18,10,18,16" Spacing="6"
+                                                   x:DataType="models:PackingList">
                                 <FlexLayout Direction="Row" Wrap="Wrap" AlignItems="Start"
                                             BindableLayout.ItemsSource="{Binding ParsedProducts}">
                                     <BindableLayout.ItemTemplate>
@@ -3292,8 +3301,9 @@
                                         </DataTemplate>
                                     </BindableLayout.ItemTemplate>
                                 </FlexLayout>
-                            </VerticalStackLayout>
-                          </ScrollView>
+                              </VerticalStackLayout>
+                            </ScrollView>
+                          </Grid>
                           <Border x:Name="DupScannedStamp" BackgroundColor="#C7FFFFFF"
                                   Stroke="Transparent" StrokeThickness="4" StrokeShape="RoundRectangle 12"
                                   Padding="28,12" Rotation="-8"

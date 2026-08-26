@@ -102,8 +102,14 @@ public partial class OrderSearchPage
         }
         else DupShipChip.IsVisible = false;
 
-        DupSiblingColumn.BindingContext = sibling;
-        DupScannedColumn.BindingContext = scanned;
+        DupSiblingBody.BindingContext = sibling;
+        DupScannedBody.BindingContext = scanned;
+
+        // D6: reset scroll position on reopen — a pinned header makes a stale
+        // offset plausible-looking instead of self-evident. Fire-and-forget
+        // (no animation); the overlay-open path must stay synchronous.
+        _ = DupSiblingScroll.ScrollToAsync(0, 0, false);
+        _ = DupScannedScroll.ScrollToAsync(0, 0, false);
 
         // Meta lines in tracking-card grammar (faint label + slate value),
         // exact timestamps per the 2026-08-23 mockup.
@@ -242,8 +248,8 @@ public partial class OrderSearchPage
         SetSimStamp(DupSiblingStamp, DupSiblingStampLabel, siblingShips);
         SetSimStamp(DupScannedStamp, DupScannedStampLabel, scannedShips);
 
-        DupSiblingColumn.Opacity = ShipStampPolicy.OpacityFor(siblingShips);
-        DupScannedColumn.Opacity = ShipStampPolicy.OpacityFor(scannedShips);
+        DupSiblingBody.Opacity = ShipStampPolicy.OpacityFor(siblingShips);
+        DupScannedBody.Opacity = ShipStampPolicy.OpacityFor(scannedShips);
     }
 
     private static void SetSimStamp(Border stamp, Label label, bool ships)
@@ -260,8 +266,8 @@ public partial class OrderSearchPage
     {
         DupSiblingStamp.IsVisible = false;
         DupScannedStamp.IsVisible = false;
-        DupSiblingColumn.Opacity = 1;
-        DupScannedColumn.Opacity = 1;
+        DupSiblingBody.Opacity = 1;
+        DupScannedBody.Opacity = 1;
     }
 
     private async void OnDuplicateMarkTapped(object sender, TappedEventArgs e)
