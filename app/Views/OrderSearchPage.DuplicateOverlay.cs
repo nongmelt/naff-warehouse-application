@@ -105,12 +105,6 @@ public partial class OrderSearchPage
         DupSiblingBody.BindingContext = sibling;
         DupScannedBody.BindingContext = scanned;
 
-        // D6: reset scroll position on reopen — a pinned header makes a stale
-        // offset plausible-looking instead of self-evident. Fire-and-forget
-        // (no animation); the overlay-open path must stay synchronous.
-        _ = DupSiblingScroll.ScrollToAsync(0, 0, false);
-        _ = DupScannedScroll.ScrollToAsync(0, 0, false);
-
         // Meta lines in tracking-card grammar (faint label + slate value),
         // exact timestamps per the 2026-08-23 mockup.
         DupSiblingMetaLabel.FormattedText = checkedName is not null
@@ -187,6 +181,21 @@ public partial class OrderSearchPage
         DuplicateOrderOverlay.Opacity = 0;
         DuplicateOrderOverlay.IsVisible = true;
         await DuplicateOrderOverlay.FadeToAsync(1, 220, Easing.CubicOut);
+
+        // D6: reset scroll position on reopen — a pinned header makes a stale
+        // offset plausible-looking instead of self-evident. Must run after the
+        // overlay is visible and arranged: on WinUI, ScrollViewer.ChangeView on
+        // a still-Collapsed/unmeasured element is a silent no-op (the returned
+        // Task never completes), and the BindingContext swap in
+        // ShowDuplicateOverlay means the tile FlexLayout needs a layout pass
+        // first anyway. By the time the fade above completes, IsVisible has
+        // been true for a full frame, so the subtree is measured and arranged.
+        // Awaited here rather than fire-and-forget — this method is itself
+        // invoked fire-and-forget from the synchronous overlay-open path, so
+        // awaiting adds no blocking there, and it keeps a scroll failure from
+        // becoming a second, independently-unobserved task exception.
+        await DupSiblingScroll.ScrollToAsync(0, 0, false);
+        await DupScannedScroll.ScrollToAsync(0, 0, false);
     }
 
     // Hide the card without a DB write. Called for both Dismiss and backdrop tap,
