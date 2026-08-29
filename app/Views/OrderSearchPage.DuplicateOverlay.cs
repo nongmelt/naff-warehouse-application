@@ -21,6 +21,12 @@ public partial class OrderSearchPage
     private string? _dupOverlayShownFor;
     private PackingList? _dupScanned;
     private PackingList? _dupSibling;
+    private PackingList? _dupMarkTarget;
+    private string? _dupMarkHint;
+    // Set once a Mark attempt 409s: the state _dupMarkTarget was computed
+    // from is stale, so no further hover stamp may be painted until the next
+    // ShowDuplicateOverlay re-arms it.
+    private bool _dupSimBlocked;
 
     // Cheapness gate mirroring the backend: only a Shopee + Instant Delivery
     // parcel can possibly be a reissue, so every other scan skips the extra
@@ -56,38 +62,36 @@ public partial class OrderSearchPage
 
         var sibling = await ApiService.GetDetailAsync(detail.ReissueExistingTracking!);
         if (sibling is null) return;
+        // Reissue already resolved — a Duplicate sibling means the card is noise.
+        if (sibling.IsDuplicate) return;
         await EnrichProductItemsAsync(sibling.ParsedProducts);
+
+        // Meta line shows both roles by nickname (falls back to the raw code).
+        var packedName = string.IsNullOrWhiteSpace(sibling.PackedBy) ? null
+            : await ApiService.ResolveOperatorNicknameAsync(sibling.PackedBy) ?? sibling.PackedBy;
+        var checkedName = string.IsNullOrWhiteSpace(sibling.CheckedBy) ? null
+            : await ApiService.ResolveOperatorNicknameAsync(sibling.CheckedBy) ?? sibling.CheckedBy;
 
         // Re-check after the awaits above.
         if (!string.Equals(CurrentOrder?.TrackingNumber, scanned.TrackingNumber, StringComparison.OrdinalIgnoreCase))
             return;
 
         _dupOverlayShownFor = scanned.TrackingNumber;
-        MainThread.BeginInvokeOnMainThread(() => ShowDuplicateOverlay(scanned, sibling));
+        MainThread.BeginInvokeOnMainThread(() => ShowDuplicateOverlay(scanned, sibling, packedName, checkedName));
     }
 
-    private void ShowDuplicateOverlay(PackingList scanned, PackingList sibling)
+    private void ShowDuplicateOverlay(PackingList scanned, PackingList sibling,
+        string? packedName, string? checkedName)
     {
         _dupScanned = scanned;
         _dupSibling = sibling;
 
         DupOrderNumber.Text = scanned.OrderNumber;
 
-        // Platform badge — same colour map as the header badge.
-        if (!string.IsNullOrWhiteSpace(scanned.Platform))
-        {
-            DupPlatformBadge.IsVisible = true;
-            DupPlatformLabel.Text = scanned.Platform.ToUpperInvariant();
-            var p = scanned.Platform.ToLowerInvariant();
-            DupPlatformBadge.BackgroundColor = p switch
-            {
-                var s when s.Contains("shopee") => Color.FromArgb("#ee4d2d"),
-                var s when s.Contains("lazada") => Color.FromArgb("#0f146d"),
-                var s when s.Contains("tiktok") => Color.FromArgb("#111827"),
-                _ => Color.FromArgb("#6b7280"),
-            };
-        }
-        else DupPlatformBadge.IsVisible = false;
+        // Platform logo (same asset as the header tracking card) — no text badge.
+        DupPlatformIcon.IsVisible = scanned.HasPlatformIcon;
+        if (scanned.HasPlatformIcon)
+            DupPlatformIcon.Source = scanned.PlatformIcon;
 
         // Ship chip (Instant Delivery is the only firing condition, but render
         // whatever the parcel actually carries).
@@ -98,24 +102,100 @@ public partial class OrderSearchPage
         }
         else DupShipChip.IsVisible = false;
 
-        DupSiblingColumn.BindingContext = sibling;
-        DupScannedColumn.BindingContext = scanned;
+        DupSiblingBody.BindingContext = sibling;
+        DupScannedBody.BindingContext = scanned;
 
-        DupSiblingMeta.Text =
-            $"Checked by {sibling.CheckedByDisplay} · {sibling.CheckedAtDisplay} · {sibling.ParsedProducts.Count} products";
-        DupScannedMeta.Text = $"Just now · {scanned.ParsedProducts.Count} products";
+        // Meta lines in tracking-card grammar (faint label + slate value),
+        // exact timestamps per the 2026-08-23 mockup.
+        DupSiblingMetaLabel.FormattedText = checkedName is not null
+            ? MetaLine(("Packed:", packedName ?? "—"), ("Checked:", checkedName),
+                       ("Checked at:", sibling.CheckedAtDisplay), ("Items:", sibling.TotalItemsDisplay))
+            : packedName is not null
+                ? MetaLine(("Packed:", packedName), ("Packed at:", sibling.UpdatedAtDisplay),
+                           ("Items:", sibling.TotalItemsDisplay))
+                : MetaLine(("Created:", sibling.CreatedAtDisplay), ("Items:", sibling.TotalItemsDisplay));
+
+        // The scan moment IS the check moment for the parcel in hand.
+        DupScannedMetaLabel.FormattedText = MetaLine(
+            ("Checked at:", DateTime.Now.ToString("yyyy-MM-dd HH:mm")),
+            ("Items:", scanned.TotalItemsDisplay));
+
+        // §13.6 honesty fix: the backend fires possibleReissue on qty overflow
+        // alone — the sibling may itself be unprocessed. Don't claim
+        // "Already processed" when it isn't.
+        var siblingProcessed = !string.Equals(
+            sibling.PackingStatus, "To be packed", StringComparison.OrdinalIgnoreCase);
+        DupSiblingHeaderLabel.Text = siblingProcessed
+            ? "✓ Already processed"
+            : "◷ Other parcel";
+        DupSiblingHeaderLabel.TextColor = Color.FromArgb(siblingProcessed ? "#166534" : "#6b7280");
+        DupBothUnprocessedBanner.IsVisible = !siblingProcessed && string.Equals(
+            scanned.PackingStatus, "To be packed", StringComparison.OrdinalIgnoreCase);
+
+        // Neither-processed: the parcel in hand ships; Mark targets the sibling.
+        _dupMarkTarget = DuplicateMarkPolicy.MarksSibling(sibling.PackingStatus, scanned.PackingStatus)
+            ? sibling : scanned;
+        var shipSide = ReferenceEquals(_dupMarkTarget, sibling) ? scanned : sibling;
+        _dupMarkHint = DuplicateMarkPolicy.BuildMarkTooltip(_dupMarkTarget.TrackingNumber, shipSide.TrackingNumber);
 
         DupMarkButtonLabel.Text = "Mark as duplicate";
         DupMarkButton.Opacity = 1;
+        DupFooterHintBubble.Opacity = 0;
+        _dupSimBlocked = false;
+        HideShipSimulation();
 
         _ = ShowDuplicateOverlayAnimatedAsync();
     }
 
+    private static FormattedString MetaLine(params (string Label, string Value)[] parts)
+    {
+        var fs = new FormattedString();
+        for (var i = 0; i < parts.Length; i++)
+        {
+            if (i > 0) fs.Spans.Add(new Span { Text = "   " });
+            fs.Spans.Add(new Span
+            {
+                Text = parts[i].Label + " ",
+                TextColor = Color.FromArgb("#9ca3af"),
+                FontSize = 11.5,
+            });
+            fs.Spans.Add(new Span
+            {
+                Text = parts[i].Value,
+                TextColor = Color.FromArgb("#374151"),
+                FontSize = 11.5,
+                FontAttributes = FontAttributes.Bold,
+            });
+        }
+        return fs;
+    }
+
     private async Task ShowDuplicateOverlayAnimatedAsync()
     {
+        // #119: an auto-opened single-product image overlay (ZIndex 8) would sit
+        // on top of this card (ZIndex 7). Dismiss it first so the card is the
+        // only surface demanding the reissue decision.
+        if (ProductImageOverlay.IsVisible)
+            await DismissImageOverlayAsync("duplicate_card_raised");
+
         DuplicateOrderOverlay.Opacity = 0;
         DuplicateOrderOverlay.IsVisible = true;
         await DuplicateOrderOverlay.FadeToAsync(1, 220, Easing.CubicOut);
+
+        // D6: reset scroll position on reopen — a pinned header makes a stale
+        // offset plausible-looking instead of self-evident. Must run after the
+        // overlay is visible and arranged: on WinUI, ScrollViewer.ChangeView on
+        // a still-Collapsed/unmeasured element is a silent no-op (the returned
+        // Task never completes), and the BindingContext swap in
+        // ShowDuplicateOverlay means the tile FlexLayout needs a layout pass
+        // first anyway. By the time the fade above completes, IsVisible has
+        // been true for a full frame, so the subtree is measured and arranged.
+        // Awaited here rather than fire-and-forget — this method is itself
+        // invoked fire-and-forget from the synchronous overlay-open path, so
+        // awaiting adds no blocking there, and it keeps a scroll failure from
+        // becoming a second, independently-unobserved task exception.
+        await DupSiblingScroll.ScrollToAsync(0, 0, false);
+        await DupScannedScroll.ScrollToAsync(0, 0, false);
     }
 
     // Hide the card without a DB write. Called for both Dismiss and backdrop tap,
@@ -123,6 +203,7 @@ public partial class OrderSearchPage
     private async Task DismissDuplicateOverlayAsync()
     {
         if (!DuplicateOrderOverlay.IsVisible) return;
+        HideShipSimulation();
         await DuplicateOrderOverlay.FadeToAsync(0, 180, Easing.CubicIn);
         DuplicateOrderOverlay.IsVisible = false;
     }
@@ -133,22 +214,88 @@ public partial class OrderSearchPage
     private async void OnDuplicateDismissTapped(object sender, TappedEventArgs e)
         => await DismissDuplicateOverlayAsync();
 
+    // Instant footer hint replacing native ToolTipProperties (too slow to
+    // respond per live QA feedback). Opacity-only toggle onto a reserved-space
+    // label so button layout never shifts.
+    private void OnDupDismissHintEntered(object? sender, PointerEventArgs e)
+    {
+        DupFooterHint.Text = DuplicateMarkPolicy.DismissTooltip;
+        DupFooterHintBubble.Opacity = 1;
+        ShowShipSimulation(markHover: false);
+    }
+
+    private void OnDupMarkHintEntered(object? sender, PointerEventArgs e)
+    {
+        DupFooterHint.Text = _dupMarkHint ?? string.Empty;
+        DupFooterHintBubble.Opacity = 1;
+        ShowShipSimulation(markHover: true);
+    }
+
+    private void OnDupFooterHintExited(object? sender, PointerEventArgs e)
+    {
+        DupFooterHintBubble.Opacity = 0;
+        HideShipSimulation();
+    }
+
+    // Hover simulation (Dismiss/Mark) — previews which leg ships before the
+    // operator commits. Dismiss ships both (status quo); Mark ships the
+    // non-target leg and voids (stamps + dims) _dupMarkTarget. Variation E:
+    // the stamp lives on the leg's wrapper Grid, OUTSIDE the ScrollView, so it
+    // stays centered in the viewport however far the leg is scrolled.
+    private void ShowShipSimulation(bool markHover)
+    {
+        // _dupSimBlocked: a Mark attempt just 409'd — the state _dupMarkTarget
+        // was computed from is stale, so don't paint a verdict the server has
+        // already contradicted.
+        if (_dupMarkTarget is null || _dupSimBlocked) return;
+        var siblingIsTarget = ReferenceEquals(_dupMarkTarget, _dupSibling);
+
+        // Both stamp and dim are derived once from the same outcome, so they
+        // can't disagree the way two independent expressions could.
+        var (siblingShips, scannedShips) = ShipStampPolicy.LegOutcomes(markHover, siblingIsTarget);
+
+        SetSimStamp(DupSiblingStamp, DupSiblingStampLabel, siblingShips);
+        SetSimStamp(DupScannedStamp, DupScannedStampLabel, scannedShips);
+
+        DupSiblingBody.Opacity = ShipStampPolicy.OpacityFor(siblingShips);
+        DupScannedBody.Opacity = ShipStampPolicy.OpacityFor(scannedShips);
+    }
+
+    private static void SetSimStamp(Border stamp, Label label, bool ships)
+    {
+        var style = ShipStampPolicy.For(ships);
+        var ink = Color.FromArgb(style.Ink);
+        label.Text = style.Text;
+        label.TextColor = ink;
+        stamp.Stroke = ink;
+        stamp.IsVisible = true;
+    }
+
+    private void HideShipSimulation()
+    {
+        DupSiblingStamp.IsVisible = false;
+        DupScannedStamp.IsVisible = false;
+        DupSiblingBody.Opacity = 1;
+        DupScannedBody.Opacity = 1;
+    }
+
     private async void OnDuplicateMarkTapped(object sender, TappedEventArgs e)
     {
-        var scanned = _dupScanned;
-        if (scanned is null) { await DismissDuplicateOverlayAsync(); return; }
+        var target = _dupMarkTarget ?? _dupScanned;
+        if (target is null) { await DismissDuplicateOverlayAsync(); return; }
 
         DupMarkButtonLabel.Text = "Marking…";
         DupMarkButton.Opacity = 0.6;
 
         var result = await ApiService.MarkDuplicateAsync(
-            scanned.TrackingNumber, EffectiveOperator, AppSettings.ResolvedStationId);
+            target.TrackingNumber, EffectiveOperator, AppSettings.ResolvedStationId);
 
         if (result.Marked || result.AlreadyMarked)
         {
             // Status flip updates the pill and QC-locks the parcel reactively.
-            scanned.PackingStatus = "Duplicate";
-            UpdateSearchStatus($"{scanned.TrackingNumber} marked as duplicate — QC locked, not billed.");
+            target.PackingStatus = "Duplicate";
+            UpdateHeaderOrderInfo();
+            UpdateSearchStatus($"{target.TrackingNumber} marked as duplicate — QC locked, not billed.");
             await DismissDuplicateOverlayAsync();
         }
         else
@@ -157,9 +304,43 @@ public partial class OrderSearchPage
             // under it). Leave the card up so the operator can Dismiss.
             DupMarkButtonLabel.Text = "Mark as duplicate";
             DupMarkButton.Opacity = 1;
+
+            if (result.Status == 409)
+            {
+                // The decision _dupMarkTarget was computed from no longer
+                // holds — block the sim so re-hovering Mark can't paint a
+                // verdict the server just refused.
+                _dupSimBlocked = true;
+                HideShipSimulation();
+            }
+
             UpdateSearchStatus(result.Status == 409
                 ? "Can't mark — parcel is no longer 'To be packed'."
                 : "Mark failed — check the connection and try again.");
+        }
+    }
+
+    private CancellationTokenSource? _dupToastCts;
+
+    // The search-status confirmation sits BEHIND the card backdrop, so copy
+    // feedback surfaces as a tiny toast next to the tapped value instead.
+    private async Task ShowDupCopiedToastAsync(VisualElement toast)
+    {
+        _dupToastCts?.Cancel();
+        var cts = _dupToastCts = new CancellationTokenSource();
+        try
+        {
+            toast.Opacity = 0;
+            toast.IsVisible = true;
+            await toast.FadeToAsync(1, 120, Easing.CubicOut);
+            await Task.Delay(900, cts.Token);
+            await toast.FadeToAsync(0, 180, Easing.CubicIn);
+        }
+        catch (TaskCanceledException) { }
+        finally
+        {
+            toast.IsVisible = false;
+            toast.Opacity = 0;
         }
     }
 
@@ -168,6 +349,7 @@ public partial class OrderSearchPage
         if (_dupScanned is null) return;
         await Clipboard.Default.SetTextAsync(_dupScanned.OrderNumber);
         UpdateSearchStatus($"Copied  {_dupScanned.OrderNumber}");
+        await ShowDupCopiedToastAsync(DupOrderCopiedToast);
     }
 
     private async void OnDuplicateCopyTrackingTapped(object sender, TappedEventArgs e)
@@ -176,16 +358,23 @@ public partial class OrderSearchPage
         {
             await Clipboard.Default.SetTextAsync(pl.TrackingNumber);
             UpdateSearchStatus($"Copied  {pl.TrackingNumber}");
+            await ShowDupCopiedToastAsync(
+                ReferenceEquals(pl, _dupSibling) ? DupSiblingCopiedToast : DupScannedCopiedToast);
         }
     }
 
     // Click a product photo → re-open the existing QC image viewer on top of the
     // card (ZIndex 8 > 7). Read-only peek; the viewer's picking state doesn't
-    // apply to a card parcel.
+    // apply to a card parcel. Prev/next arrows browse the tapped parcel's own
+    // products, staying read-only (#118).
     private void OnDuplicateProductTapped(object sender, TappedEventArgs e)
     {
         if (sender is VisualElement { BindingContext: ProductItem item })
-            ShowProductImageOverlay(item, "duplicate_card_peek");
+        {
+            var source = _dupSibling?.ParsedProducts.Contains(item) == true ? _dupSibling : _dupScanned;
+            _overlayReadOnlyList = source?.ParsedProducts;
+            ShowProductImageOverlay(item, "duplicate_card_peek", readOnly: true);
+        }
     }
 
     // Undo a duplicate mark from the parcel header (any operator). The backend
@@ -206,11 +395,25 @@ public partial class OrderSearchPage
             UpdateHeaderOrderInfo();
             UpdateSearchStatus($"{order.TrackingNumber} duplicate mark undone — restored to 'To be packed'.");
         }
+        else if (status == 409)
+        {
+            // Server says it's no longer a duplicate — our cached status is stale.
+            // Re-sync so the Undo button clears instead of 409-ing on every click.
+            var fresh = await ApiService.GetDetailAsync(order.TrackingNumber);
+            if (fresh is not null)
+            {
+                order.PackingStatus = fresh.PackingStatus;
+                UpdateHeaderOrderInfo();
+                UpdateSearchStatus($"{order.TrackingNumber} is no longer a duplicate — view refreshed.");
+            }
+            else
+            {
+                UpdateSearchStatus("Undo failed — check the connection and try again.");
+            }
+        }
         else
         {
-            UpdateSearchStatus(status == 409
-                ? "Nothing to undo — parcel is not a duplicate."
-                : "Undo failed — check the connection and try again.");
+            UpdateSearchStatus("Undo failed — check the connection and try again.");
         }
     }
 }

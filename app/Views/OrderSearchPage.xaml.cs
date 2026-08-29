@@ -82,6 +82,10 @@ public partial class OrderSearchPage : ContentPage
     // SKU picking state — set after an order loads; cleared on new search
     private bool _orderLoaded;
     private bool _isFirstItemScan;
+    private bool _overlayReadOnly;
+    // Read-only peeks navigate within this fixed list (the card parcel's own
+    // products) instead of Results, which never contains the sibling's items.
+    private IList<ProductItem>? _overlayReadOnlyList;
     private ProductItem? _pendingSkuProduct;
     private BundleComponentItem? _activeComponent;
     private readonly HashSet<int> _completedPackingIds = [];

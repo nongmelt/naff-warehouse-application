@@ -500,6 +500,10 @@ public partial class OrderSearchPage
     private void ShowBundleOverlay(ProductItem bundleParent, BundleComponentItem? highlightComponent = null)
     {
         _completionDismissCts?.Cancel();
+        // Bundle overlay never carries the peek's QC-verified stroke; clear any
+        // stale green left behind by a closed card peek (close doesn't reset it).
+        OverlayCard.Stroke = Colors.Transparent;
+        OverlayCard.StrokeThickness = 0;
         _overlayItem = bundleParent;
 
         if (highlightComponent != null && bundleParent.BundleComponents != null)
@@ -516,8 +520,9 @@ public partial class OrderSearchPage
 
         OverlayStandardPanel.IsVisible = true;
         OverlayNavHint.IsVisible = true;
-        OverlayMinusBtn.IsVisible = true;
-        OverlayPlusBtn.IsVisible = true;
+        OverlayMinusBtn.IsVisible = !_overlayReadOnly;
+        OverlayPlusBtn.IsVisible = !_overlayReadOnly;
+        OverlayReadOnlyPill.IsVisible = _overlayReadOnly;
         PopulateStandardPanelForBundle(bundleParent);
         HideOverlayPickEntry();
 

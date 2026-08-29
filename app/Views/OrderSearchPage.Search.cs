@@ -599,7 +599,12 @@ public partial class OrderSearchPage
     {
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            var order = Results.FirstOrDefault();
+            // Multi-leg (reissue) order: prefer the actionable leg so its Undo/QC is
+            // reachable, rather than whichever row sorts first (often the already-
+            // Shipped sibling).
+            var order = Results.FirstOrDefault(r => r.IsDuplicate)
+                     ?? Results.FirstOrDefault(r => !r.IsShipped)
+                     ?? Results.FirstOrDefault();
             CurrentOrder = order;
             if (order is null)
             {

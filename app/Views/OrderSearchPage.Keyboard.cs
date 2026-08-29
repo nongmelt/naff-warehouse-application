@@ -175,7 +175,7 @@ public partial class OrderSearchPage
                 ? (int)e.Key - (int)Windows.System.VirtualKey.NumberPad0
                 : (int)e.Key - (int)Windows.System.VirtualKey.Number0;
 
-            if (ProductImageOverlay.IsVisible && _overlayItem != null)
+            if (ProductImageOverlay.IsVisible && _overlayItem != null && !_overlayReadOnly)
             {
                 // Bundle with active component — allow number input if component not fully verified
                 if (_overlayItem.IsBundle && _activeComponentIndex >= 0
@@ -247,7 +247,7 @@ public partial class OrderSearchPage
         // +/- keys verify/unverify active product card
         const Windows.System.VirtualKey VkPlus = (Windows.System.VirtualKey)187;  // = / + key
         const Windows.System.VirtualKey VkMinus = (Windows.System.VirtualKey)189; // - / _ key
-        var plusTarget = ProductImageOverlay.IsVisible ? _overlayItem : null;
+        var plusTarget = ProductImageOverlay.IsVisible && !_overlayReadOnly ? _overlayItem : null;
         if ((e.Key == VkPlus || e.Key == Windows.System.VirtualKey.Add) && plusTarget != null)
         {
             if (ProductImageOverlay.IsVisible)
