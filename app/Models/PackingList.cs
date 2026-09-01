@@ -169,6 +169,11 @@ public class ProductItem : INotifyPropertyChanged
             OnPropertyChanged(nameof(SkuPillBg));
             OnPropertyChanged(nameof(SkuPillBorder));
             OnPropertyChanged(nameof(SkuPillText));
+            OnPropertyChanged(nameof(TileBorderColor));
+            OnPropertyChanged(nameof(TileBorderWidth));
+            OnPropertyChanged(nameof(TileQtyBadgeBg));
+            OnPropertyChanged(nameof(TileQtyBadgeTextColor));
+            OnPropertyChanged(nameof(TileQtyDisplay));
         }
     }
 
@@ -237,6 +242,23 @@ public class ProductItem : INotifyPropertyChanged
     [JsonIgnore] public bool IsPartiallyVerified => !IsFullyPicked && VerifiedQuantity > 0;
 
     [JsonIgnore] public bool IsCompleted => IsFullyPicked || (IsBundle && IsBundleFullyVerified);
+
+    // ── Duplicate-card tile accents (spec §13.6 tweaks): a QC-verified item's
+    // photo tile goes green so the operator sees at a glance what was already
+    // checked on the sibling parcel. ──────────────────────────────────────────
+    [JsonIgnore] public Color TileBorderColor =>
+        IsFullyPicked ? Color.FromArgb("#22c55e") : Color.FromArgb("#e5e7eb");
+
+    [JsonIgnore] public double TileBorderWidth => IsFullyPicked ? 2 : 1;
+
+    [JsonIgnore] public Color TileQtyBadgeBg =>
+        IsFullyPicked ? Color.FromArgb("#dcfce7") : Color.FromArgb("#111827");
+
+    [JsonIgnore] public Color TileQtyBadgeTextColor =>
+        IsFullyPicked ? Color.FromArgb("#166534") : Colors.White;
+
+    [JsonIgnore] public string TileQtyDisplay =>
+        IsFullyPicked ? $"✓ ×{RequiredQuantity}" : $"×{RequiredQuantity}";
 
     [JsonIgnore] public Color CardBgColor
     {
@@ -649,6 +671,13 @@ public class PackingList : INotifyPropertyChanged
     public string? ShippingOptions { get; set; }
     public bool? AllItemsCleared { get; set; }
 
+    // Reissue-duplicate detection (spec §4.3 / §13.6). Populated ONLY by the
+    // get_detail endpoint (GET /packing-lists/{tracking}) for a Shopee + Instant
+    // Delivery parcel whose order's summed parcel qty overflows the ordered qty.
+    // The list/search endpoint never sets these — default false/null there.
+    public bool PossibleReissue { get; set; }
+    public string? ReissueExistingTracking { get; set; }
+
     private string? _packingStatus;
     public string? PackingStatus
     {
@@ -661,6 +690,8 @@ public class PackingList : INotifyPropertyChanged
             OnPropertyChanged(nameof(IsNotQcHold));
             OnPropertyChanged(nameof(ResetOpacity));
             OnPropertyChanged(nameof(IsPacked));
+            OnPropertyChanged(nameof(IsDuplicate));
+            OnPropertyChanged(nameof(IsNotDuplicate));
             OnPropertyChanged(nameof(IsPackedComplete));
             OnPropertyChanged(nameof(StatusDisplay));
             OnPropertyChanged(nameof(StatusBgColor));
@@ -730,6 +761,10 @@ public class PackingList : INotifyPropertyChanged
     public double ResetOpacity => IsQcHold ? 1.0 : 0.0;
     public bool IsPacked  => string.Equals(_packingStatus, "Packed",   StringComparison.OrdinalIgnoreCase);
     public bool IsShipped => string.Equals(_packingStatus, "Shipped",  StringComparison.OrdinalIgnoreCase);
+    // A parcel marked as a reissue duplicate (spec §13.6): QC-locked, not billed.
+    // Terminal — only exit is the undo endpoint. Every other status writer 409s.
+    public bool IsDuplicate    => string.Equals(_packingStatus, "Duplicate", StringComparison.OrdinalIgnoreCase);
+    public bool IsNotDuplicate => !IsDuplicate;
     // Shipped is the step after Packed — treat it as packed-complete so the green "QC Passed"
     // pill shows beside the orange Shipped status pill.
     public bool IsPackedComplete =>
@@ -745,6 +780,7 @@ public class PackingList : INotifyPropertyChanged
         "completed" or "done" or "qc passed" => Color.FromArgb("#dcfce7"),
         "in_progress" or "packing" or "qc hold" => Color.FromArgb("#fef9c3"),
         "packed" or "shipped"                 => Color.FromArgb("#ffedd5"),
+        "duplicate"                           => Color.FromArgb("#ffe4e6"),
         _                                     => Color.FromArgb("#f3f4f6"),
     };
 
@@ -753,6 +789,7 @@ public class PackingList : INotifyPropertyChanged
         "completed" or "done" or "qc passed" => Color.FromArgb("#166534"),
         "in_progress" or "packing" or "qc hold" => Color.FromArgb("#713f12"),
         "packed" or "shipped"                 => Color.FromArgb("#9a3412"),
+        "duplicate"                           => Color.FromArgb("#9f1239"),
         _                                     => Color.FromArgb("#374151"),
     };
 

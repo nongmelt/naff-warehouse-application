@@ -363,6 +363,93 @@ public static class ApiService
         }
     }
 
+    // ── Reissue duplicate (spec §13.6) ─────────────────────────────────────────
+
+    /// <summary>
+    /// GET packing-lists/{tracking} — single-parcel detail. Unlike the
+    /// search/list endpoint, this is the ONLY source of PossibleReissue /
+    /// ReissueExistingTracking (populated server-side only for a Shopee +
+    /// Instant Delivery parcel whose order's summed parcel qty overflows the
+    /// ordered qty). Returns null on 404 or any transport error.
+    /// </summary>
+    public static async Task<PackingList?> GetDetailAsync(string tracking)
+    {
+        try
+        {
+            var resp = await Http.GetAsync($"packing-lists/{Uri.EscapeDataString(tracking)}");
+            if (!resp.IsSuccessStatusCode)
+            {
+                Logger.Log($"ApiService.GetDetailAsync: HTTP {(int)resp.StatusCode} for '{tracking}'");
+                return null;
+            }
+            return await resp.Content.ReadFromJsonAsync<PackingList>(JsonOpts);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.GetDetailAsync: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>Outcome of a mark-duplicate call. Status is the raw HTTP code
+    /// (0 = transport error); 409 = the parcel is not 'To be packed'.</summary>
+    public readonly record struct MarkDuplicateResult(int Status, bool Marked, bool AlreadyMarked);
+
+    /// <summary>PATCH packing-lists/scan/{barcode}/duplicate — mark a scanned
+    /// parcel as a reissue duplicate ('Duplicate', QC-locked, not billed).
+    /// Only succeeds for a 'To be packed' parcel; 409 otherwise.</summary>
+    public static async Task<MarkDuplicateResult> MarkDuplicateAsync(
+        string barcode, string markedBy, int? stationId = null)
+    {
+        try
+        {
+            var body = new { markedBy = markedBy.Replace(' ', '-'), stationId };
+            var json = JsonSerializer.Serialize(body, JsonOpts);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var resp = await Http.PatchAsync(
+                $"packing-lists/scan/{Uri.EscapeDataString(barcode)}/duplicate", content);
+            var status = (int)resp.StatusCode;
+            if (!resp.IsSuccessStatusCode)
+            {
+                Logger.Log($"ApiService.MarkDuplicateAsync: HTTP {status}");
+                return new MarkDuplicateResult(status, false, false);
+            }
+            var node = await resp.Content.ReadFromJsonAsync<JsonNode>(JsonOpts);
+            return new MarkDuplicateResult(
+                status,
+                node?["marked"]?.GetValue<bool>() ?? false,
+                node?["alreadyMarked"]?.GetValue<bool>() ?? false);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.MarkDuplicateAsync: {ex.Message}");
+            return new MarkDuplicateResult(0, false, false);
+        }
+    }
+
+    /// <summary>PATCH packing-lists/scan/{barcode}/duplicate/undo — reverse a
+    /// mark-duplicate, restoring the prior status. Any operator. Returns the raw
+    /// HTTP status (0 = transport error; 409 = the parcel is not a Duplicate).</summary>
+    public static async Task<int> UndoDuplicateAsync(string barcode, string undoneBy, int? stationId = null)
+    {
+        try
+        {
+            var body = new { undoneBy = undoneBy.Replace(' ', '-'), stationId };
+            var json = JsonSerializer.Serialize(body, JsonOpts);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var resp = await Http.PatchAsync(
+                $"packing-lists/scan/{Uri.EscapeDataString(barcode)}/duplicate/undo", content);
+            if (!resp.IsSuccessStatusCode)
+                Logger.Log($"ApiService.UndoDuplicateAsync: HTTP {(int)resp.StatusCode}");
+            return (int)resp.StatusCode;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.UndoDuplicateAsync: {ex.Message}");
+            return 0;
+        }
+    }
+
     public static async Task<(int Total, List<string?> Platforms)> GetShippedTodayAsync(int stationId)
     {
         try

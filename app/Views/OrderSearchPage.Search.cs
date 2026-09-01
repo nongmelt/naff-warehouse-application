@@ -68,6 +68,11 @@ public partial class OrderSearchPage
         UpdateHeaderOrderInfo();
         NotFoundCard.IsVisible = false;
 
+        // Re-arm the reissue-duplicate block for this fresh scan and clear any
+        // card left over from a previous order (spec §13.6).
+        _dupOverlayShownFor = null;
+        _ = DismissDuplicateOverlayAsync();
+
         Logger.Log($"OrderSearch: querying for '{input}'");
         var rows = preloaded ?? await ApiService.SearchAsync(input);
 
@@ -189,6 +194,11 @@ public partial class OrderSearchPage
         RefreshHistoryItems();
         UpdateHistoryHeader();
         SetSearchLoading(false);
+
+        // Reissue-duplicate detection (spec §13.6): once the scan has resolved,
+        // check whether the scanned parcel is a Shopee-Instant reissue and, if
+        // so, raise the Duplicate-order card. Fire-and-forget; self-guards.
+        _ = CheckReissueAsync(input);
 
         // Auto-open the image overlay when the whole result set is a single
         // non-bundle product that still needs picking (spec: one single product).
@@ -589,7 +599,12 @@ public partial class OrderSearchPage
     {
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            var order = Results.FirstOrDefault();
+            // Multi-leg (reissue) order: prefer the actionable leg so its Undo/QC is
+            // reachable, rather than whichever row sorts first (often the already-
+            // Shipped sibling).
+            var order = Results.FirstOrDefault(r => r.IsDuplicate)
+                     ?? Results.FirstOrDefault(r => !r.IsShipped)
+                     ?? Results.FirstOrDefault();
             CurrentOrder = order;
             if (order is null)
             {
@@ -598,6 +613,7 @@ public partial class OrderSearchPage
                 HeaderOrderNumber.IsVisible = false;
                 HeaderPlatformBadge.IsVisible = false;
                 HeaderTrackingLabel.IsVisible = false;
+                UndoDuplicateButton.IsVisible = false;
                 return;
             }
 
@@ -643,7 +659,11 @@ public partial class OrderSearchPage
             var isQcPassed = string.Equals(order.PackingStatus, "QC Passed", StringComparison.OrdinalIgnoreCase);
             var hasVerified = Results.Any(o => o.HasProducts && o.ParsedProducts.Any(p => p.Quantity != p.OriginalQuantity));
             var isHold = string.Equals(order.PackingStatus, "QC Hold", StringComparison.OrdinalIgnoreCase);
-            ResetButton.IsVisible = !isQcPassed && (hasVerified || isHold);
+            ResetButton.IsVisible = !isQcPassed && !order.IsDuplicate && (hasVerified || isHold);
+
+            // A Duplicate parcel is QC-locked; its only exit is the undo endpoint,
+            // offered here to any operator (spec §13.6).
+            UndoDuplicateButton.IsVisible = order.IsDuplicate;
 
             // Carrier pill — visible in Returns mode when shipping_options exists
             var carrier = order.ShippingOptions;
