@@ -25,13 +25,13 @@ public partial class HomePage : ContentPage
         base.OnSizeAllocated(width, height);
         if (width <= 0 || height <= 0) return;
 
-        // Each card takes ~38% of page width, gap is 24px, side margins 48px total
-        var cardWidth  = Math.Clamp((width - 120) / 2, 220, 520);
+        // Three cards across: 2 gaps of 24px + ~120px side margins.
+        var cardWidth  = Math.Clamp((width - 168) / 3, 200, 420);
         var cardHeight = Math.Clamp(height * 0.46,      200, 480);
         var padH       = Math.Clamp(cardWidth  * 0.13,   28,  60);
         var padV       = Math.Clamp(cardHeight * 0.11,   24,  52);
 
-        // Scale font sizes relative to card width (baseline card = 280px)
+        // Scale font sizes relative to card width (baseline card = 280px).
         var scale      = cardWidth / 280.0;
         var iconSize   = Math.Clamp(44 * scale, 36, 88);
         var titleSize  = Math.Clamp(16 * scale, 14, 30);
@@ -58,6 +58,15 @@ public partial class HomePage : ContentPage
         OrdersTitle.FontSize       = titleSize;
         OrdersDesc.FontSize        = descSize;
         OrdersArrow.FontSize       = arrowSize;
+
+        PackCard.WidthRequest      = cardWidth;
+        PackCard.HeightRequest     = cardHeight;
+        PackCard.Padding           = padding;
+        PackStack.Spacing          = spacing;
+        PackIcon.FontSize          = iconSize;
+        PackTitle.FontSize         = titleSize;
+        PackDesc.FontSize          = descSize;
+        PackArrow.FontSize         = arrowSize;
     }
 
     // ── Navigation ───────────────────────────────────────────────────────────
@@ -67,6 +76,9 @@ public partial class HomePage : ContentPage
 
     private async void OnGoToOrders(object sender, TappedEventArgs e)
         => await Shell.Current.GoToAsync("//orders");
+
+    private async void OnGoToPack(object sender, TappedEventArgs e)
+        => await Shell.Current.GoToAsync("//packstation");
 
     private async void OnOpenSettings(object sender, EventArgs e)
         => await Navigation.PushModalAsync(new SettingsPage());
@@ -98,6 +110,20 @@ public partial class HomePage : ContentPage
 
     private void OnOrdersCardReleased(object sender, PointerEventArgs e)
         => OrdersCard.BackgroundColor = _cardHover;
+
+    // ── Pack Station card hover ──────────────────────────────────────────────
+
+    private void OnPackCardEntered(object sender, PointerEventArgs e)
+        => ApplyHover(PackCard, PackArrow, true);
+
+    private void OnPackCardExited(object sender, PointerEventArgs e)
+        => ApplyHover(PackCard, PackArrow, false);
+
+    private void OnPackCardPressed(object sender, PointerEventArgs e)
+        => PackCard.BackgroundColor = _cardPressed;
+
+    private void OnPackCardReleased(object sender, PointerEventArgs e)
+        => PackCard.BackgroundColor = _cardHover;
 
     // ── Shared helper ────────────────────────────────────────────────────────
 

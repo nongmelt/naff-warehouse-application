@@ -1,0 +1,28 @@
+# traefik/traefik.yml — Traefik v3 STATIC configuration
+# Reverse proxy for the NAFF warehouse stack. Replaces docker/compose.nginx.yml.
+# Routing, services and the LAN allow-list live in traefik/dynamic.yml.
+
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+entryPoints:
+  web:
+    address: ":80"
+
+providers:
+  # File provider — all routers/services/middlewares are declared in dynamic.yml.
+  # watch:true reloads on change without restarting the container.
+  file:
+    filename: /etc/traefik/dynamic.yml
+    watch: true
+
+# Dashboard is served via the `dashboard` router in dynamic.yml
+# (Host(`traefik.warehouse.local`)), protected by the same LAN allow-list.
+api:
+  dashboard: true
+
+log:
+  level: INFO
+
+accessLog: {}

@@ -30,10 +30,13 @@ public partial class StationView : ContentView, IDisposable
     private Task? _recordingTask;
     private string? _pendingFilePath;
     private FileStream? _recordingFileStream;
+    private WindowsVideoRecorder? _recorder;
+    private bool _usingFallbackRecorder;
 
     // Diagnostics
     private DateTime _recordingStartedAt;
     private static readonly TimeSpan RecordingDurationWarnThreshold = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan StopRecordingTimeout = TimeSpan.FromSeconds(10);
 
     // Serializes barcode events so rapid double-scans cannot interleave state
     private readonly SemaphoreSlim _barcodeLock = new(1, 1);
@@ -565,6 +568,33 @@ public partial class StationView : ContentView, IDisposable
             if (_currentOperator is not null)
                 StartInactivityTimer();
 
+            // If recording task faulted, clean up state before processing next scan
+            if (_activeBarcode != null && _recordingTask is { IsCompleted: true, IsFaulted: true })
+            {
+                Logger.Log($"Station {_stationId}: Cleaning up faulted recording for {_activeBarcode}");
+                _activeBarcode = null;
+                _isRecording = false;
+                _recordingCts?.Cancel();
+                _recordingCts?.Dispose();
+                _recordingCts = null;
+                _recordingTask = null;
+                if (_recordingFileStream != null)
+                {
+                    await _recordingFileStream.DisposeAsync();
+                    _recordingFileStream = null;
+                }
+                _pendingFilePath = null;
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    BarcodeBadge.IsVisible = false;
+                    BarcodeLabel.Text = "";
+                    RecBadge.IsVisible = false;
+                    RecordingBorder.IsVisible = false;
+                    UpdateCardBorder();
+                    UpdateStatusFromDevices();
+                });
+            }
+
             var stationName = Environment.MachineName;
             var stationLabel = $"{stationName}-{_stationName.Replace(' ', '-')}";
 
@@ -654,10 +684,10 @@ public partial class StationView : ContentView, IDisposable
                     else
                     {
                         var stationId = await AppSettings.EnsureStationIdAsync();
-                        var videoId = await ApiService.CreateVideoRecordAsync(
+                        var result = await ApiService.CreateVideoResultAsync(
                             resetBarcode!, filePath, stationId, EffectiveOperator);
 
-                        if (videoId > 0)
+                        if (result.Kind == CreateVideoResultKind.Created)
                         {
                             StationEvents.Emit(
                                 workflowName: "Packing",
@@ -670,15 +700,20 @@ public partial class StationView : ContentView, IDisposable
                                 @operator: EffectiveOperator,
                                 payload: new Dictionary<string, object?>
                                 {
-                                    ["videoId"] = videoId,
+                                    ["videoId"] = result.VideoId,
                                 });
                             VideoWorkflowManager.Start(
-                                videoId, filePath, resetBarcode!,
+                                result.VideoId, filePath, resetBarcode!,
                                 EffectiveOperator, stationId);
+                        }
+                        else if (result.Kind == CreateVideoResultKind.NoPackingList)
+                        {
+                            Logger.Log($"Station {_stationId}: no packing list for '{resetBarcode}' — capturing as orphan via workflow");
+                            await StartOrphanWorkflowAsync(filePath, resetBarcode!, stationId, recordingStartedAt);
                         }
                         else
                         {
-                            Logger.Log($"Station {_stationId}: failed to create video record for reset, skipping upload");
+                            Logger.Log($"Station {_stationId}: failed to create video record for reset, leaving on disk");
                         }
                     }
                 }
@@ -739,10 +774,10 @@ public partial class StationView : ContentView, IDisposable
                     else
                     {
                         var stationId = await AppSettings.EnsureStationIdAsync();
-                        var videoId = await ApiService.CreateVideoRecordAsync(
+                        var result = await ApiService.CreateVideoResultAsync(
                             finishedBarcode!, filePath, stationId, EffectiveOperator);
 
-                        if (videoId > 0)
+                        if (result.Kind == CreateVideoResultKind.Created)
                         {
                             StationEvents.Emit(
                                 workflowName: "Packing",
@@ -755,15 +790,20 @@ public partial class StationView : ContentView, IDisposable
                                 @operator: EffectiveOperator,
                                 payload: new Dictionary<string, object?>
                                 {
-                                    ["videoId"] = videoId,
+                                    ["videoId"] = result.VideoId,
                                 });
                             VideoWorkflowManager.Start(
-                                videoId, filePath, finishedBarcode!,
+                                result.VideoId, filePath, finishedBarcode!,
                                 EffectiveOperator, stationId);
+                        }
+                        else if (result.Kind == CreateVideoResultKind.NoPackingList)
+                        {
+                            Logger.Log($"Station {_stationId}: no packing list for '{finishedBarcode}' — capturing as orphan via workflow");
+                            await StartOrphanWorkflowAsync(filePath, finishedBarcode!, stationId, recordingStartedAt);
                         }
                         else
                         {
-                            Logger.Log($"Station {_stationId}: failed to create video record, skipping upload");
+                            Logger.Log($"Station {_stationId}: failed to create video record, leaving on disk");
                         }
                     }
                 }
@@ -819,15 +859,44 @@ public partial class StationView : ContentView, IDisposable
             Directory.CreateDirectory(dir);
             _pendingFilePath = Path.Combine(dir, $"{DateTime.Now:yyyyMMdd_HHmmss}_{Environment.MachineName}_{prefix}_{barcode}.mp4");
 
-            // Open a seekable FileStream — toolkit calls .AsRandomAccessStream() on it internally,
-            // which requires CanSeek = true. Encoded MP4 bytes go straight to disk; no MemoryStream.
-            _recordingFileStream = new FileStream(_pendingFilePath,
-                FileMode.Create, FileAccess.ReadWrite, FileShare.None,
-                bufferSize: 65536, FileOptions.Asynchronous);
-
             var sw = Stopwatch.StartNew();
             _recordingCts = new CancellationTokenSource();
-            _recordingTask = CameraFeed.StartVideoRecording(_recordingFileStream, _recordingCts.Token);
+            _recorder ??= new WindowsVideoRecorder(CameraFeed, _stationId);
+            if (_recorder.IsAvailable)
+            {
+                // Contract-correct LowLag path: 1080p profile fixed before Prepare, native
+                // file sink, FinishAsync per clip. Works around the toolkit record path
+                // that wedges Media Foundation on Win10 1909.
+                _usingFallbackRecorder = false;
+                _recordingTask = _recorder.StartAsync(_pendingFilePath, _recordingCts.Token);
+            }
+            else
+            {
+                Logger.Log($"Station {_stationId}: [WARN] WindowsVideoRecorder unavailable " +
+                           "(handler detached or toolkit internals changed) — using toolkit record path");
+                _usingFallbackRecorder = true;
+                // Open a seekable FileStream — toolkit calls .AsRandomAccessStream() on it internally,
+                // which requires CanSeek = true. Encoded MP4 bytes go straight to disk; no MemoryStream.
+                _recordingFileStream = new FileStream(_pendingFilePath,
+                    FileMode.Create, FileAccess.ReadWrite, FileShare.None,
+                    bufferSize: 65536, FileOptions.Asynchronous);
+                _recordingTask = CameraFeed.StartVideoRecording(_recordingFileStream, _recordingCts.Token);
+            }
+            _ = _recordingTask.ContinueWith(t =>
+            {
+                if (!_isRecording) return;
+                var msg = t.Exception?.InnerException?.Message ?? "unknown error";
+                Logger.Log($"Station {_stationId}: [ERROR] Recording task faulted mid-recording: {msg}");
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    if (!_isRecording) return;
+                    _isRecording = false;
+                    RecBadge.IsVisible = false;
+                    RecordingBorder.IsVisible = false;
+                    UpdateCardBorder();
+                    UpdateStatus("Recording failed — scan again");
+                });
+            }, TaskContinuationOptions.OnlyOnFaulted);
             sw.Stop();
 
             Logger.Log($"Station {_stationId}: Recording started for barcode {barcode} → {_pendingFilePath} " +
@@ -845,7 +914,6 @@ public partial class StationView : ContentView, IDisposable
         {
             if (_recordingTask == null) return null;
 
-            // Duration warning
             var duration = DateTime.UtcNow - _recordingStartedAt;
             if (duration > RecordingDurationWarnThreshold)
                 Logger.Log($"Station {_stationId}: [WARN] Long recording: " +
@@ -854,17 +922,89 @@ public partial class StationView : ContentView, IDisposable
             Logger.Log($"Station {_stationId}: [DIAG] Memory before StopVideoRecording: " +
                        $"{GC.GetTotalMemory(false) / 1_048_576.0:F1} MB");
 
-            // Show UI feedback
-            // UpdateStatus("⏳ Saving...");
             await TryDispatchUIAsync(() => SavingOverlay.IsVisible = true);
 
             var swStop = Stopwatch.StartNew();
 
-            // Signal toolkit to finish encoding and flush remaining bytes to the FileStream
-            _ = await CameraFeed.StopVideoRecording(CancellationToken.None);
-            await _recordingTask;
+            // Give an in-flight start a moment to land so the stop doesn't no-op
+            // (recorder start is fire-and-forget and Prepare can be slow on the wedging box).
+            if (!_usingFallbackRecorder && _recordingTask is { IsCompleted: false })
+                await Task.WhenAny(_recordingTask, Task.Delay(TimeSpan.FromSeconds(2)));
 
-            // Flush and close the FileStream — all MP4 data is now on disk
+            // Phase 1: Stop encoding (wall-clock bounded — a wedged native call can
+            // ignore its cancellation token, so CancellationTokenSource(timeout) alone
+            // is not enough).
+            using var stopCts = new CancellationTokenSource(StopRecordingTimeout);
+            Task stopCall = _usingFallbackRecorder
+                ? CameraFeed.StopVideoRecording(stopCts.Token)
+                : _recorder!.StopAsync();
+            using var stopDelayCts = new CancellationTokenSource();
+            var stopWinner = await Task.WhenAny(stopCall, Task.Delay(StopRecordingTimeout, stopDelayCts.Token));
+            if (stopWinner == stopCall)
+            {
+                stopDelayCts.Cancel();
+                try
+                {
+                    await stopCall;
+                }
+                catch (OperationCanceledException)
+                {
+                    Logger.Log($"Station {_stationId}: [WARN] Stop cancelled — forcing cancel");
+                    _recordingCts?.Cancel();
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log($"Station {_stationId}: Stop threw: {ex.Message}");
+                    _recordingCts?.Cancel();
+                }
+            }
+            else
+            {
+                Logger.Log($"Station {_stationId}: [WARN] Stop exceeded " +
+                           $"{StopRecordingTimeout.TotalSeconds}s wall clock — abandoning, forcing cancel");
+                _recordingCts?.Cancel();
+                // Observe the abandoned task's eventual fault so it can't raise UnobservedTaskException.
+                _ = stopCall.ContinueWith(t => { _ = t.Exception; }, TaskScheduler.Default);
+            }
+
+            // Phase 2: Wait for recording task to finish (bounded).
+            if (_recordingTask is { IsCompleted: false })
+            {
+                _recordingCts?.Cancel();
+                using var delayCts = new CancellationTokenSource();
+                var completed = await Task.WhenAny(_recordingTask, Task.Delay(StopRecordingTimeout, delayCts.Token));
+                if (completed == _recordingTask)
+                    delayCts.Cancel();
+                if (completed != _recordingTask)
+                    Logger.Log($"Station {_stationId}: [WARN] Recording task did not complete within {StopRecordingTimeout.TotalSeconds}s — abandoning");
+                else if (_recordingTask.IsFaulted)
+                {
+                    var ex = _recordingTask.Exception;
+                    Logger.Log($"Station {_stationId}: Recording task faulted: {ex?.InnerException?.Message}");
+                }
+            }
+
+            // A start that was still preparing when Phase 1 ran may have landed during
+            // the Phase-2 wait — reap it so the camera isn't left recording invisibly.
+            if (!_usingFallbackRecorder && _recorder is { HasActiveRecording: true })
+            {
+                Logger.Log($"Station {_stationId}: [WARN] Late-started recording detected after stop — stopping again");
+                var lateStop = _recorder.StopAsync();
+                using var lateDelayCts = new CancellationTokenSource();
+                if (await Task.WhenAny(lateStop, Task.Delay(StopRecordingTimeout, lateDelayCts.Token)) == lateStop)
+                {
+                    lateDelayCts.Cancel();
+                    try { await lateStop; }
+                    catch (Exception ex) { Logger.Log($"Station {_stationId}: Late stop threw: {ex.Message}"); }
+                }
+                else
+                {
+                    Logger.Log($"Station {_stationId}: [WARN] Late stop exceeded {StopRecordingTimeout.TotalSeconds}s — abandoning");
+                    _ = lateStop.ContinueWith(t => { _ = t.Exception; }, TaskScheduler.Default);
+                }
+            }
+
+            // Phase 3: Flush and close the FileStream.
             if (_recordingFileStream != null)
             {
                 await _recordingFileStream.FlushAsync();
@@ -898,6 +1038,7 @@ public partial class StationView : ContentView, IDisposable
                 await _recordingFileStream.DisposeAsync();
                 _recordingFileStream = null;
             }
+            _recordingCts?.Cancel();
             _recordingCts?.Dispose();
             _recordingCts = null;
             _recordingTask = null;
@@ -911,6 +1052,37 @@ public partial class StationView : ContentView, IDisposable
     }
 
     // ── Helpers ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Registers an order-less recording as an orphan_videos row, then runs the
+    /// shared VideoWorkflowRunner against warehouse-raw + the /orphan-videos
+    /// status route (isOrphan: true). Best-effort: a failed register leaves the
+    /// file on disk for the next recovery pass.
+    /// </summary>
+    private async Task StartOrphanWorkflowAsync(
+        string filePath, string scannedText, int? stationId, DateTime recordedAtUtc)
+    {
+        var rawBucket = AppSettings.MinioRawBucket?.Trim();
+        if (string.IsNullOrWhiteSpace(rawBucket))
+        {
+            Logger.Log($"Station {_stationId}: raw bucket not configured — leaving orphan on disk");
+            return;
+        }
+
+        var objectKey = OrphanCapture.BuildRawObjectKey(filePath, DateTime.Now);
+        long fileSize = 0;
+        try { fileSize = new FileInfo(filePath).Length; } catch { /* best-effort */ }
+
+        var orphanId = await ApiService.CreateOrphanVideoAsync(
+            objectKey, rawBucket, scannedText, stationId, EffectiveOperator,
+            filePath, Path.GetFileName(filePath), recordedAtUtc, fileSize);
+
+        if (orphanId > 0)
+            VideoWorkflowManager.Start(
+                orphanId, filePath, scannedText, EffectiveOperator, stationId, isOrphan: true);
+        else
+            Logger.Log($"Station {_stationId}: orphan register failed for '{scannedText}' — leaving on disk");
+    }
 
     private void UpdateStatus(string text) =>
         TryDispatchUI(() => StatusLabel.Text = text);
@@ -1168,7 +1340,25 @@ public partial class StationView : ContentView, IDisposable
             _cameraPreviewActive = false;
         }
         StopInactivityTimer();
+
+        // Best-effort: release the recorder's native sink so the MP4 gets finalized and
+        // the camera isn't left pinned (the StorageFile sink is independent of
+        // _recordingFileStream, so disposing the stream below doesn't cover it).
+        _ = _recorder?.StopAsync().ContinueWith(t => { _ = t.Exception; }, TaskScheduler.Default);
+
+        // Cancel recording first — gives the recording task a chance to exit
+        // before we yank the FileStream from under it.
         _recordingCts?.Cancel();
+
+        // Best-effort wait for recording task to notice cancellation.
+        // Can't await in Dispose, so use synchronous Wait with timeout.
+        if (_recordingTask is { IsCompleted: false })
+        {
+            try { _recordingTask.Wait(TimeSpan.FromSeconds(2)); }
+            catch { /* task may fault — that's fine during shutdown */ }
+        }
+        _recordingTask = null;
+
         _recordingCts?.Dispose();
         _recordingFileStream?.Dispose();
         _recordingFileStream = null;

@@ -21,6 +21,13 @@ public static class AppSettings
     private const string KeyMinioAccess = "settings.minio.access_key";
     private const string KeyMinioSecret = "settings.minio.secret_key";
     private const string KeyMinioEndpoint = "settings.minio.endpoint";
+    private const string KeyMinioRawBucket = "settings.minio.raw_bucket";
+
+    /// <summary>Default bucket for stranded (orphan) videos with no packing_lists row.</summary>
+    public const string DefaultMinioRawBucket = "warehouse-raw";
+
+    private const string KeyCfAccessClientId = "settings.cf.access_client_id";
+    private const string KeyCfAccessClientSecret = "settings.cf.access_client_secret";
 
     public static readonly string DefaultVideoFolder =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Warehouse");
@@ -112,6 +119,7 @@ public static class AppSettings
                     SeedIfEmpty(KeyMinioAccess, minio, "accessKey");
                     SeedIfEmpty(KeyMinioSecret, minio, "secretKey");
                     SeedIfEmpty(KeyMinioEndpoint, minio, "endpoint");
+                    SeedIfEmpty(KeyMinioRawBucket, minio, "rawBucket");
                     Logger.Log("AppSettings: MinIO fields synced from appsettings.json");
                 }
             }
@@ -289,6 +297,20 @@ public static class AppSettings
         set => Preferences.Default.Set(KeyMinioBucket, value);
     }
 
+    /// <summary>
+    /// Bucket for orphan (order-less) videos. Defaults to "warehouse-raw" so the
+    /// orphan path works even on installs whose appsettings.json predates rawBucket.
+    /// </summary>
+    public static string MinioRawBucket
+    {
+        get
+        {
+            var v = Preferences.Default.Get(KeyMinioRawBucket, string.Empty);
+            return string.IsNullOrWhiteSpace(v) ? DefaultMinioRawBucket : v;
+        }
+        set => Preferences.Default.Set(KeyMinioRawBucket, value);
+    }
+
     public static string MinioAccessKey
     {
         get => Preferences.Default.Get(KeyMinioAccess, string.Empty);
@@ -305,6 +327,37 @@ public static class AppSettings
     {
         get => Preferences.Default.Get(KeyMinioEndpoint, string.Empty);
         set => Preferences.Default.Set(KeyMinioEndpoint, value);
+    }
+
+    // ── Cloudflare Access service token ────────────────────────────────────────
+    // Sent as CF-Access-Client-Id / CF-Access-Client-Secret on every backend request
+    // when present. Resolution order: the value saved in Settings (Preferences) first,
+    // then the CF_ACCESS_CLIENT_ID / CF_ACCESS_CLIENT_SECRET environment variables,
+    // otherwise empty. Empty means the header is simply not sent, so a backend that is
+    // not behind Cloudflare Access keeps working.
+
+    public static string CfAccessClientId
+    {
+        get
+        {
+            var stored = Preferences.Default.Get(KeyCfAccessClientId, string.Empty);
+            return !string.IsNullOrWhiteSpace(stored)
+                ? stored
+                : Environment.GetEnvironmentVariable("CF_ACCESS_CLIENT_ID") ?? string.Empty;
+        }
+        set => Preferences.Default.Set(KeyCfAccessClientId, value ?? string.Empty);
+    }
+
+    public static string CfAccessClientSecret
+    {
+        get
+        {
+            var stored = Preferences.Default.Get(KeyCfAccessClientSecret, string.Empty);
+            return !string.IsNullOrWhiteSpace(stored)
+                ? stored
+                : Environment.GetEnvironmentVariable("CF_ACCESS_CLIENT_SECRET") ?? string.Empty;
+        }
+        set => Preferences.Default.Set(KeyCfAccessClientSecret, value ?? string.Empty);
     }
 
     private const string KeySearchHistoryMax = "search.history.max";

@@ -221,4 +221,12 @@ minio/
 *.exe
 # Added by code-review-graph
 .code-review-graph/
+.worktrees/
 ui-ux-pro-max/
+.graphify/
+graphify-out/
+.graphify_*.json
+.graphify_python
+.claude/
+skills/
+docs/superpowers/

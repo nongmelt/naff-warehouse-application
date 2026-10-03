@@ -24,7 +24,7 @@ public partial class App : Application
 			if (id is not null)
 			{
 				Services.StationWsClient.Start(id.Value);
-				await Services.VideoWorkflowManager.RecoverAsync(id);
+				await RunRecoveryWithRetryAsync(id.Value);
 			}
 		});
 		InitializeComponent();
@@ -32,11 +32,30 @@ public partial class App : Application
 
 	protected override Window CreateWindow(IActivationState? activationState)
 	{
-		var window = new Window(new AppShell()) { Title = "Warehouse" };
+		var window = new Window(new AppShell()) { Title = "Warehouse", MinimumWidth = 800 };
 		window.Activated += (_, _) => _windowActive = true;
 		window.Deactivated += (_, _) => _windowActive = false;
 		window.Destroying += OnWindowDestroying;
 		return window;
+	}
+
+	private static async Task RunRecoveryWithRetryAsync(int stationId, int maxAttempts = 3)
+	{
+		for (var attempt = 1; attempt <= maxAttempts; attempt++)
+		{
+			try
+			{
+				await Services.VideoWorkflowManager.RecoverAsync(stationId);
+				return;
+			}
+			catch (Exception ex)
+			{
+				Services.Logger.LogError($"App: RecoverAsync attempt {attempt}/{maxAttempts} failed: {ex.Message}");
+				if (attempt < maxAttempts)
+					await Task.Delay(TimeSpan.FromSeconds(attempt * 10));
+			}
+		}
+		Services.Logger.LogError($"App: RecoverAsync gave up after {maxAttempts} attempts");
 	}
 
 	private static void OnWindowDestroying(object? sender, EventArgs e)

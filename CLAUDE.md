@@ -118,7 +118,7 @@ Backend (Rust / Axum)
 
 Frontend (Next.js App Router)
   → Fetches REST + subscribes to WebSocket for real-time updates
-  → Dashboards: /packing, /qc, /logs, /settings
+  → Routes: /, /packing, /qc, /logs, /settings, /stations, /products, /reports, /tracking
 ```
 
 ### Desktop App Internals (app/)
@@ -135,17 +135,28 @@ Frontend (Next.js App Router)
 
 - `main.rs` — Axum server init, state setup, router mount
 - `api/mod.rs` — all routes, CORS config
-- `api/packing.rs` / `api/videos.rs` — core domain handlers
+- `api/packing.rs` / `api/videos.rs` — core packing domain handlers
 - `api/events.rs` — WebSocket upgrade, broadcasts from `state.rs` channel
+- `api/products.rs` — product catalogue CRUD + category CRUD
+- `api/product_aliases.rs` / `api/product_bundles.rs` — SKU alias and bundle component management
+- `api/product_enrich.rs` — enrichment endpoint; matches tracking packing list to product data
+- `api/product_missing.rs` — reports SKUs seen in packing lists with no product match
+- `api/product_images.rs` / `api/category_images.rs` — image upload/download via MinIO
+- `api/reports.rs` — fulfillment report queries
+- `api/station_live.rs` / `api/station_ws.rs` — live station status and per-station WebSocket
 - `state.rs` — `AppState` struct: DB pool + broadcast sender + MinIO URL
 - `notifier.rs` — PostgreSQL LISTEN loop that feeds the broadcast channel
-- `migration/schema.sql` — authoritative schema; key tables: `packing_lists`, `packing_videos`, `stations`, `workflow_events`, `station_logs`, `upload_commands`
+- `migration/schema.sql` — authoritative schema; key tables: `packing_lists`, `packing_videos`, `stations`, `workflow_events`, `station_logs`, `upload_commands`, `products`, `product_platform_names`, `product_bundles`, `product_sku_aliases`, `categories`
 
 ### Frontend Internals (frontend/app/)
 
 - `hooks/usePackingSocket.ts` — WebSocket listener for real-time packing events
-- `hooks/useDashboard.ts`, `usePackingDashboard.ts` — data fetching + state
-- `types.ts` — shared TypeScript interfaces
+- `hooks/useDashboard.ts`, `usePackingDashboard.ts`, `useQcDashboard.ts` — data fetching + state per dashboard
+- `hooks/useProducts.ts` — product catalogue: CRUD, aliases, bundles, images, category/image filters
+- `hooks/useStationMonitor.ts` / `useTrackingTimeline.ts` — live station status and tracking lookup
+- `hooks/useFulfillmentReport.ts` / `useDownloadHistory.ts` — report generation and export history
+- `types.ts` — shared TypeScript interfaces (packing, products, categories, SKU aliases, WebSocket events)
+- Routes: `/`, `/packing`, `/qc`, `/logs`, `/settings`, `/stations`, `/products`, `/reports`, `/tracking`
 
 ## Configuration
 
@@ -161,3 +172,17 @@ Frontend (Next.js App Router)
 - Backend uses SQLx compile-time query checking — `DATABASE_URL` must be set or use `SQLX_OFFLINE=true` with a cached query file.
 - Next.js 16 has breaking changes vs 15; see `frontend/AGENTS.md` before upgrading dependencies.
 - The `backend/` and `frontend/` directories are git submodules — changes there need their own commits/pushes.
+
+## Agent skills
+
+### Issue tracker
+
+Issues tracked in GitHub Issues at `nongmelt/naff-warehouse-application`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default label vocabulary (needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Multi-context layout — per-submodule CONTEXT.md files mapped via root-level conventions. See `docs/agents/domain.md`.

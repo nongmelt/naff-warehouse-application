@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Runtime.Versioning;
 using System.Text;
@@ -7,15 +8,6 @@ using app.Workflows;
 
 namespace app.Services;
 
-/// <summary>
-/// Persistent WebSocket connection from this station to the backend.
-/// Replaces HTTP heartbeat (connection alive = online) and WorkflowEventSink
-/// (events sent immediately over the socket instead of batched HTTP).
-///
-/// On first connect: sends a startup/idle workflow_event.
-/// On reconnect: resends operator_login if an operator is currently active,
-/// so backend in-memory state is restored after backend restart.
-/// </summary>
 [SupportedOSPlatform("windows")]
 public static class StationWsClient
 {
@@ -27,6 +19,8 @@ public static class StationWsClient
     private static bool _hasConnected;
 
     private static readonly SemaphoreSlim _sendLock = new(1, 1);
+    private static readonly ConcurrentQueue<WsWorkflowEventMsg> _eventBuffer = new();
+    private static Timer? _batchTimer;
 
     private static readonly JsonSerializerOptions _json = new()
     {
@@ -37,18 +31,26 @@ public static class StationWsClient
     {
         _stationId = stationId;
         _cts = new CancellationTokenSource();
+        _batchTimer = new Timer(_ =>
+        {
+            var ct = _cts?.Token ?? CancellationToken.None;
+            if (!ct.IsCancellationRequested) _ = FlushEventBufferAsync(ct);
+        }, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
         _ = Task.Run(() => ConnectLoopAsync(_cts.Token));
     }
 
     public static void Stop()
     {
+        _batchTimer?.Dispose();
+        _batchTimer = null;
         _cts?.Cancel();
         _ws?.Dispose();
+        _eventBuffer.Clear();
     }
 
     public static void SendWorkflowEvent(WorkflowEventOut evt)
     {
-        var msg = new WsWorkflowEventMsg
+        _eventBuffer.Enqueue(new WsWorkflowEventMsg
         {
             WorkflowName = evt.WorkflowName,
             TrackingNumber = evt.TrackingNumber,
@@ -60,28 +62,88 @@ public static class StationWsClient
             SequenceInSession = evt.SequenceInSession,
             Payload = evt.Payload,
             OccurredAt = evt.OccurredAt,
-        };
-        FireAndForget(msg);
+        });
     }
 
     public static void SendOperatorLogin(string operatorCode, SessionKind kind = SessionKind.Packing)
     {
         _currentOperator = operatorCode;
         _currentOperatorKind = kind;
-        FireAndForget(new WsOperatorLoginMsg { Operator = operatorCode, StationKind = kind.ToString() });
+        var ct = _cts?.Token ?? CancellationToken.None;
+        _ = Task.Run(() => SendAsync(new WsOperatorLoginMsg { Operator = operatorCode, StationKind = kind.ToString() }, ct));
     }
 
     public static void SendOperatorLogout()
     {
         _currentOperator = null;
-        FireAndForget(new WsOperatorLogoutMsg());
+        var ct = _cts?.Token ?? CancellationToken.None;
+        _ = Task.Run(() => SendAsync(new WsOperatorLogoutMsg(), ct));
     }
 
-    private static void FireAndForget(object msg)
+    private static async Task FlushEventBufferAsync(CancellationToken ct)
     {
-        var ct = _cts?.Token ?? CancellationToken.None;
-        _ = Task.Run(() => SendAsync(msg, ct));
+        var ws = _ws;
+        if (ws?.State != WebSocketState.Open) return;
+
+        var events = new List<WsWorkflowEventMsg>();
+        while (_eventBuffer.TryDequeue(out var evt))
+            events.Add(evt);
+
+        if (events.Count == 0) return;
+
+        foreach (var msg in CoalesceEvents(events))
+            await SendAsync(msg, ct);
     }
+
+    private static List<WsWorkflowEventMsg> CoalesceEvents(List<WsWorkflowEventMsg> events)
+    {
+        var groups = events.GroupBy(e => (
+            e.WorkflowName, e.StepId, e.Trigger, e.FromState, e.ToState,
+            e.TrackingNumber, e.Operator, Sku: GetPayloadSku(e)));
+
+        var result = new List<WsWorkflowEventMsg>();
+        foreach (var group in groups)
+        {
+            var items = group.ToList();
+            if (items.Count == 1) { result.Add(items[0]); continue; }
+
+            var first = items[0];
+            var last = items[^1];
+            var merged = new Dictionary<string, object?>();
+
+            if (last.Payload != null)
+                foreach (var kv in last.Payload)
+                    merged[kv.Key] = kv.Value;
+
+            if (first.Payload?.TryGetValue("qtyBefore", out var qb) == true)
+                merged["qtyBefore"] = qb;
+
+            var totalDeducted = items
+                .Where(e => e.Payload?.ContainsKey("qtyDeducted") == true)
+                .Sum(e => Convert.ToInt32(e.Payload!["qtyDeducted"]));
+            if (totalDeducted > 0) merged["qtyDeducted"] = totalDeducted;
+
+            merged["eventCount"] = items.Count;
+
+            result.Add(new WsWorkflowEventMsg
+            {
+                WorkflowName = last.WorkflowName,
+                TrackingNumber = last.TrackingNumber,
+                StepId = last.StepId,
+                FromState = first.FromState,
+                ToState = last.ToState,
+                Trigger = last.Trigger,
+                Operator = last.Operator,
+                SequenceInSession = last.SequenceInSession,
+                Payload = merged,
+                OccurredAt = last.OccurredAt,
+            });
+        }
+        return result;
+    }
+
+    private static string? GetPayloadSku(WsWorkflowEventMsg e) =>
+        e.Payload?.TryGetValue("sku", out var v) == true ? v?.ToString() : null;
 
     private static async Task ConnectLoopAsync(CancellationToken ct)
     {
@@ -136,6 +198,8 @@ public static class StationWsClient
 
         if (_currentOperator is not null)
             await SendAsync(new WsOperatorLoginMsg { Operator = _currentOperator, StationKind = _currentOperatorKind.ToString() }, ct);
+
+        await FlushEventBufferAsync(ct);
     }
 
     private static async Task ReceiveLoopAsync(ClientWebSocket ws, CancellationToken ct)

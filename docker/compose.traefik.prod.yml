@@ -1,0 +1,20 @@
+# Production override for compose.traefik.yml.
+#
+# Use this when MinIO runs on a SEPARATE host (not via compose.minio.yml). It maps
+# the `minio` upstream name that dynamic.yml points at (http://minio:9000) to the
+# external host's IP, so /s3 proxies there. The frontend stays same-origin — the
+# browser still only ever talks to the server's :80; Traefik forwards to MinIO.
+#
+# Set MINIO_UPSTREAM_IP in .env to the external MinIO host (same box your backend's
+# MINIO_ENDPOINT points at). Compose errors out if it is unset.
+#
+# Run (note: NO compose.minio.yml — MinIO is external):
+#   docker compose -f compose.yml -f compose.db.yml \
+#                  -f compose.traefik.yml -f compose.traefik.prod.yml up -d
+#
+# If the external MinIO is not on port 9000, also change the minio-api service URL
+# in traefik/dynamic.yml from http://minio:9000 to http://minio:<port>.
+services:
+  traefik:
+    extra_hosts:
+      - "minio:${MINIO_UPSTREAM_IP:?set MINIO_UPSTREAM_IP to the external MinIO host IP}"

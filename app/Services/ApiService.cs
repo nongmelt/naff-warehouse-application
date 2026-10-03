@@ -20,13 +20,20 @@ public static class ApiService
 
     private static HttpClient? _http;
     private static string _httpBase = "";
+    private static string _httpCfId = "";
+    private static string _httpCfSecret = "";
 
     private static HttpClient Http
     {
         get
         {
             var url = (AppSettings.ApiUrl?.TrimEnd('/') ?? "http://localhost:8080") + "/";
-            if (_http is null || _httpBase != url)
+            var cfId = AppSettings.CfAccessClientId;
+            var cfSecret = AppSettings.CfAccessClientSecret;
+
+            // Rebuild when the URL or the Cloudflare Access token changes so edits made in
+            // Settings take effect without restarting the app.
+            if (_http is null || _httpBase != url || _httpCfId != cfId || _httpCfSecret != cfSecret)
             {
                 _http?.Dispose();
                 _http = new HttpClient
@@ -34,11 +41,24 @@ public static class ApiService
                     BaseAddress = new Uri(url),
                     Timeout = TimeSpan.FromSeconds(30),
                 };
+
+                // Cloudflare Access service-token headers — only added when present, so the
+                // app works fine against a backend with no Cloudflare Access in front of it
+                // (both values empty/null => no headers sent).
+                if (!string.IsNullOrWhiteSpace(cfId))
+                    _http.DefaultRequestHeaders.Add("CF-Access-Client-Id", cfId);
+                if (!string.IsNullOrWhiteSpace(cfSecret))
+                    _http.DefaultRequestHeaders.Add("CF-Access-Client-Secret", cfSecret);
+
                 _httpBase = url;
+                _httpCfId = cfId;
+                _httpCfSecret = cfSecret;
             }
             return _http;
         }
     }
+
+    internal static HttpClient GetHttpClient() => Http;
 
     // ── Operator lookup ───────────────────────────────────────────────────────
 
@@ -53,13 +73,43 @@ public static class ApiService
             var resp = await Http.GetAsync($"operator-lists/by-staff-code/{Uri.EscapeDataString(staffCode)}");
             if (!resp.IsSuccessStatusCode) return null;
             var node = await resp.Content.ReadFromJsonAsync<JsonNode>(JsonOpts);
-            return node?["firstName"]?.GetValue<string>();
+            return node?["nickname"]?.GetValue<string>()
+                ?? node?["firstName"]?.GetValue<string>();
         }
         catch (Exception ex)
         {
             Logger.Log($"ApiService.GetOperatorFirstNameAsync: {ex.Message}");
             return null;
         }
+    }
+
+    public static async Task<(string? FirstName, int? Id, string? Role)> GetOperatorInfoAsync(string staffCode)
+    {
+        try
+        {
+            var resp = await Http.GetAsync($"operator-lists/by-staff-code/{Uri.EscapeDataString(staffCode)}");
+            if (!resp.IsSuccessStatusCode) return (null, null, null);
+            var node = await resp.Content.ReadFromJsonAsync<JsonNode>(JsonOpts);
+            var name = node?["nickname"]?.GetValue<string>()
+                    ?? node?["firstName"]?.GetValue<string>();
+            return (name, node?["id"]?.GetValue<int>(), node?["role"]?.GetValue<string>());
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.GetOperatorInfoAsync: {ex.Message}");
+            return (null, null, null);
+        }
+    }
+
+    private static readonly Dictionary<string, string?> _nicknameCache = new(StringComparer.OrdinalIgnoreCase);
+
+    public static async Task<string?> ResolveOperatorNicknameAsync(string? staffCode)
+    {
+        if (string.IsNullOrWhiteSpace(staffCode)) return null;
+        if (_nicknameCache.TryGetValue(staffCode, out var cached)) return cached;
+        var name = await GetOperatorFirstNameAsync(staffCode);
+        _nicknameCache[staffCode] = name;
+        return name;
     }
 
     // ── Station resolution ────────────────────────────────────────────────────
@@ -120,18 +170,39 @@ public static class ApiService
 
     // ── Search ────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Outcome of a search that distinguishes a successful (possibly empty) response
+    /// from a failed call. <see cref="Succeeded"/> is false only when the HTTP call
+    /// itself errored (network/timeout/non-2xx) — never for a genuine empty match.
+    /// </summary>
+    public readonly record struct SearchOutcome(bool Succeeded, List<PackingList> Results);
+
     public static async Task<List<PackingList>> SearchAsync(string input)
+        => (await SearchResultAsync(input)).Results;
+
+    /// <summary>
+    /// Search variant for the orphan-recovery path: returns Succeeded=true with an
+    /// (empty) list only when the backend genuinely responded; Succeeded=false on
+    /// any error so the caller can leave the file on disk instead of orphaning it.
+    /// </summary>
+    public static async Task<SearchOutcome> SearchResultAsync(string input)
     {
         try
         {
             var url = $"packing-lists?q={Uri.EscapeDataString(input)}";
-            var list = await Http.GetFromJsonAsync<List<PackingList>>(url, JsonOpts);
-            return list ?? [];
+            var resp = await Http.GetAsync(url);
+            if (!resp.IsSuccessStatusCode)
+            {
+                Logger.Log($"ApiService.SearchResultAsync: HTTP {(int)resp.StatusCode}");
+                return new SearchOutcome(false, []);
+            }
+            var list = await resp.Content.ReadFromJsonAsync<List<PackingList>>(JsonOpts);
+            return new SearchOutcome(true, list ?? []);
         }
         catch (Exception ex)
         {
-            Logger.Log($"ApiService.SearchAsync: {ex.Message}");
-            return [];
+            Logger.Log($"ApiService.SearchResultAsync: {ex.Message}");
+            return new SearchOutcome(false, []);
         }
     }
 
@@ -179,10 +250,14 @@ public static class ApiService
     // ── Videos ────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Creates a video record in the backend (status = "recorded") and returns
-    /// the new record id, or -1 on failure.
+    /// Creates a video record in the backend and classifies the outcome:
+    /// Created (2xx, with id), NoPackingList (HTTP 404 = definitive: no packing_lists
+    /// row → caller routes to the orphan path), or Failed (any other code / network
+    /// error → caller leaves the file on disk and retries later). 404 is the ONLY
+    /// orphan signal; 422 (sqlx FK/constraint) and 5xx map to Failed so we never
+    /// orphan on an ambiguous failure.
     /// </summary>
-    public static async Task<int> CreateVideoRecordAsync(
+    public static async Task<CreateVideoResult> CreateVideoResultAsync(
         string trackingNumber, string filePath, int? stationId, string @operator)
     {
         try
@@ -191,19 +266,44 @@ public static class ApiService
             var json = JsonSerializer.Serialize(body, JsonOpts);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             var resp = await Http.PostAsync("videos", content);
-            if (!resp.IsSuccessStatusCode)
+
+            var kind = OrphanCapture.ClassifyCreateVideoStatus((int)resp.StatusCode);
+            if (kind == CreateVideoResultKind.Created)
             {
-                Logger.Log($"ApiService.CreateVideoRecordAsync: HTTP {(int)resp.StatusCode}");
-                return -1;
+                var result = await resp.Content.ReadFromJsonAsync<VideoRecord>(JsonOpts);
+                if (result is not null && result.Id > 0)
+                    return CreateVideoResult.Created(result.Id);
+                Logger.Log("ApiService.CreateVideoResultAsync: 2xx but missing/invalid id in body");
+                return CreateVideoResult.Failed;
             }
-            var result = await resp.Content.ReadFromJsonAsync<VideoRecord>(JsonOpts);
-            return result?.Id ?? -1;
+
+            if (kind == CreateVideoResultKind.NoPackingList)
+            {
+                Logger.Log($"ApiService.CreateVideoResultAsync: HTTP 404 for '{trackingNumber}' — no packing_lists row (orphan)");
+                return CreateVideoResult.NoPackingList;
+            }
+
+            Logger.Log($"ApiService.CreateVideoResultAsync: HTTP {(int)resp.StatusCode} — leaving on disk");
+            return CreateVideoResult.Failed;
         }
         catch (Exception ex)
         {
-            Logger.Log($"ApiService.CreateVideoRecordAsync: {ex.Message}");
-            return -1;
+            Logger.Log($"ApiService.CreateVideoResultAsync: {ex.Message}");
+            return CreateVideoResult.Failed;
         }
+    }
+
+    /// <summary>
+    /// Backwards-compatible wrapper: returns the new record id, or -1 on failure
+    /// (including 404). Existing call sites that only need ">0" keep working.
+    /// New callers that must distinguish a 404 should use
+    /// <see cref="CreateVideoResultAsync"/>.
+    /// </summary>
+    public static async Task<int> CreateVideoRecordAsync(
+        string trackingNumber, string filePath, int? stationId, string @operator)
+    {
+        var result = await CreateVideoResultAsync(trackingNumber, filePath, stationId, @operator);
+        return result.Kind == CreateVideoResultKind.Created ? result.VideoId : -1;
     }
 
     /// <summary>
@@ -231,6 +331,146 @@ public static class ApiService
         }
     }
 
+    public readonly record struct ShipResult(int Status, bool PackedBackfilled, bool AlreadyShipped);
+
+    public static async Task<ShipResult> ShipAsync(
+        string barcode, string? shippedBy = null, int? shippingStationId = null,
+        bool force = false, string? forcedBy = null)
+    {
+        try
+        {
+            var body = new { shippedBy = shippedBy?.Replace(' ', '-'), shippingStationId, force, forcedBy = forcedBy?.Replace(' ', '-') };
+            var json = JsonSerializer.Serialize(body, JsonOpts);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var resp = await Http.PatchAsync(
+                $"packing-lists/scan/{Uri.EscapeDataString(barcode)}/ship", content);
+            var status = (int)resp.StatusCode;
+            if (!resp.IsSuccessStatusCode)
+            {
+                Logger.Log($"ApiService.ShipAsync: HTTP {status}");
+                return new ShipResult(status, false, false);
+            }
+            var node = await resp.Content.ReadFromJsonAsync<JsonNode>(JsonOpts);
+            return new ShipResult(
+                status,
+                node?["packedBackfilled"]?.GetValue<bool>() ?? false,
+                node?["alreadyShipped"]?.GetValue<bool>() ?? false);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.ShipAsync: {ex.Message}");
+            return new ShipResult(0, false, false);
+        }
+    }
+
+    // ── Reissue duplicate (spec §13.6) ─────────────────────────────────────────
+
+    /// <summary>
+    /// GET packing-lists/{tracking} — single-parcel detail. Unlike the
+    /// search/list endpoint, this is the ONLY source of PossibleReissue /
+    /// ReissueExistingTracking (populated server-side only for a Shopee +
+    /// Instant Delivery parcel whose order's summed parcel qty overflows the
+    /// ordered qty). Returns null on 404 or any transport error.
+    /// </summary>
+    public static async Task<PackingList?> GetDetailAsync(string tracking)
+    {
+        try
+        {
+            var resp = await Http.GetAsync($"packing-lists/{Uri.EscapeDataString(tracking)}");
+            if (!resp.IsSuccessStatusCode)
+            {
+                Logger.Log($"ApiService.GetDetailAsync: HTTP {(int)resp.StatusCode} for '{tracking}'");
+                return null;
+            }
+            return await resp.Content.ReadFromJsonAsync<PackingList>(JsonOpts);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.GetDetailAsync: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>Outcome of a mark-duplicate call. Status is the raw HTTP code
+    /// (0 = transport error); 409 = the parcel is not 'To be packed'.</summary>
+    public readonly record struct MarkDuplicateResult(int Status, bool Marked, bool AlreadyMarked);
+
+    /// <summary>PATCH packing-lists/scan/{barcode}/duplicate — mark a scanned
+    /// parcel as a reissue duplicate ('Duplicate', QC-locked, not billed).
+    /// Only succeeds for a 'To be packed' parcel; 409 otherwise.</summary>
+    public static async Task<MarkDuplicateResult> MarkDuplicateAsync(
+        string barcode, string markedBy, int? stationId = null)
+    {
+        try
+        {
+            var body = new { markedBy = markedBy.Replace(' ', '-'), stationId };
+            var json = JsonSerializer.Serialize(body, JsonOpts);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var resp = await Http.PatchAsync(
+                $"packing-lists/scan/{Uri.EscapeDataString(barcode)}/duplicate", content);
+            var status = (int)resp.StatusCode;
+            if (!resp.IsSuccessStatusCode)
+            {
+                Logger.Log($"ApiService.MarkDuplicateAsync: HTTP {status}");
+                return new MarkDuplicateResult(status, false, false);
+            }
+            var node = await resp.Content.ReadFromJsonAsync<JsonNode>(JsonOpts);
+            return new MarkDuplicateResult(
+                status,
+                node?["marked"]?.GetValue<bool>() ?? false,
+                node?["alreadyMarked"]?.GetValue<bool>() ?? false);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.MarkDuplicateAsync: {ex.Message}");
+            return new MarkDuplicateResult(0, false, false);
+        }
+    }
+
+    /// <summary>PATCH packing-lists/scan/{barcode}/duplicate/undo — reverse a
+    /// mark-duplicate, restoring the prior status. Any operator. Returns the raw
+    /// HTTP status (0 = transport error; 409 = the parcel is not a Duplicate).</summary>
+    public static async Task<int> UndoDuplicateAsync(string barcode, string undoneBy, int? stationId = null)
+    {
+        try
+        {
+            var body = new { undoneBy = undoneBy.Replace(' ', '-'), stationId };
+            var json = JsonSerializer.Serialize(body, JsonOpts);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var resp = await Http.PatchAsync(
+                $"packing-lists/scan/{Uri.EscapeDataString(barcode)}/duplicate/undo", content);
+            if (!resp.IsSuccessStatusCode)
+                Logger.Log($"ApiService.UndoDuplicateAsync: HTTP {(int)resp.StatusCode}");
+            return (int)resp.StatusCode;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.UndoDuplicateAsync: {ex.Message}");
+            return 0;
+        }
+    }
+
+    public static async Task<(int Total, List<string?> Platforms)> GetShippedTodayAsync(int stationId)
+    {
+        try
+        {
+            var from = DateTime.Today.ToUniversalTime().ToString("o");
+            var resp = await Http.GetFromJsonAsync<PackedTodayResponse>(
+                $"packing-lists/list?status=Shipped&shippingStationId={stationId}" +
+                $"&from={Uri.EscapeDataString(from)}&limit=1000&offset=0", JsonOpts);
+
+            var platforms = new List<string?>();
+            if (resp?.Items is { } items)
+                foreach (var i in items) platforms.Add(i.Platform);
+            return (resp?.Total ?? platforms.Count, platforms);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.GetShippedTodayAsync: {ex.Message}");
+            return (0, []);
+        }
+    }
+
     public static async Task<bool> UpdateVideoStatusAsync(
         int videoId, string status, string? remoteFilePath = null,
         string? failureReason = null, int? uploadAttempts = null)
@@ -248,6 +488,68 @@ public static class ApiService
         catch (Exception ex)
         {
             Logger.Log($"ApiService.UpdateVideoStatusAsync: {ex.Message}");
+            return false;
+        }
+    }
+
+    // ── Orphan videos ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Registers an orphan video (no packing_lists row) via POST /orphan-videos.
+    /// Idempotent on objectKey server-side. Returns the new/existing row id, or
+    /// -1 on any failure (caller leaves the file on disk).
+    /// </summary>
+    public static async Task<int> CreateOrphanVideoAsync(
+        string objectKey, string bucket, string? scannedText, int? stationId,
+        string? @operator, string filePath, string fileName,
+        DateTime recordedAtUtc, long fileSize)
+    {
+        try
+        {
+            var body = new CreateOrphanRequest(
+                objectKey, bucket, scannedText, stationId,
+                @operator?.Replace(' ', '-'),
+                recordedAtUtc.ToUniversalTime().ToString("o"),
+                fileSize, filePath, fileName);
+            var json = JsonSerializer.Serialize(body, JsonOpts);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var resp = await Http.PostAsync("orphan-videos", content);
+            if (!resp.IsSuccessStatusCode)
+            {
+                Logger.Log($"ApiService.CreateOrphanVideoAsync: HTTP {(int)resp.StatusCode} for {objectKey}");
+                return -1;
+            }
+            var result = await resp.Content.ReadFromJsonAsync<OrphanVideoRecord>(JsonOpts);
+            return result?.Id ?? -1;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.CreateOrphanVideoAsync: {ex.Message}");
+            return -1;
+        }
+    }
+
+    /// <summary>
+    /// PATCH /orphan-videos/{id}/status — twin of UpdateVideoStatusAsync, used by
+    /// VideoWorkflowRunner when running an orphan capture.
+    /// </summary>
+    public static async Task<bool> UpdateOrphanVideoStatusAsync(
+        int id, string status, string? remoteFilePath = null,
+        string? failureReason = null, int? uploadAttempts = null)
+    {
+        try
+        {
+            var body = new UpdateVideoStatusRequest(status, remoteFilePath, failureReason, uploadAttempts);
+            var json = JsonSerializer.Serialize(body, JsonOpts);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var resp = await Http.PatchAsync($"orphan-videos/{id}/status", content);
+            if (!resp.IsSuccessStatusCode)
+                Logger.Log($"ApiService.UpdateOrphanVideoStatusAsync: HTTP {(int)resp.StatusCode}");
+            return resp.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.UpdateOrphanVideoStatusAsync: {ex.Message}");
             return false;
         }
     }
@@ -332,6 +634,7 @@ public static class ApiService
         }
     }
 
+
     // ── Manual upload notifications ──────────────────────────────────────────
 
     /// <summary>
@@ -400,6 +703,240 @@ public static class ApiService
         }
     }
 
+    // ── Products ──────────────────────────────────────────────────────────────
+
+    public static async Task<ProductInfo?> GetProductBySkuAsync(string sku)
+    {
+        try
+        {
+            return await Http.GetFromJsonAsync<ProductInfo>(
+                $"products/by-sku/{Uri.EscapeDataString(sku)}", JsonOpts);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.GetProductBySkuAsync: {ex.Message}");
+            return null;
+        }
+    }
+
+    public static async Task<byte[]?> GetProductImageAsync(int productId)
+    {
+        try
+        {
+            var resp = await Http.GetAsync($"products/{productId}/image");
+            if (!resp.IsSuccessStatusCode) return null;
+            return await resp.Content.ReadAsByteArrayAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.GetProductImageAsync: {ex.Message}");
+            return null;
+        }
+    }
+
+    public static async Task<List<BundleComponentInfo>> GetBundleComponentsAsync(int productId)
+    {
+        try
+        {
+            var list = await Http.GetFromJsonAsync<List<BundleComponentInfo>>(
+                $"products/{productId}/components", JsonOpts);
+            return list ?? [];
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.GetBundleComponentsAsync: {ex.Message}");
+            return [];
+        }
+    }
+
+    public static async Task<Dictionary<string, ProductEnrichment>> EnrichProductsAsync(List<string> skus)
+    {
+        if (skus.Count == 0) return [];
+        try
+        {
+            var body = new { skus };
+            var resp = await Http.PostAsJsonAsync("products/enrich", body, JsonOpts);
+            if (!resp.IsSuccessStatusCode)
+            {
+                Logger.Log($"ApiService.EnrichProductsAsync: HTTP {(int)resp.StatusCode}");
+                return [];
+            }
+            var list = await resp.Content.ReadFromJsonAsync<List<ProductEnrichment>>(JsonOpts);
+            return list?.ToDictionary(e => e.SellerSku, StringComparer.OrdinalIgnoreCase) ?? [];
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.EnrichProductsAsync: {ex.Message}");
+            return [];
+        }
+    }
+
+    // ── Returns ──────────────────────────────────────────────────────────────
+
+    public static async Task<bool> CreateReturnRecordAsync(
+        string trackingNumber, string recordType, string? reason,
+        string? notes, string? shippingOptions, string? platform,
+        int? operatorId, int? stationId)
+    {
+        try
+        {
+            var body = new { trackingNumber, recordType, reason, notes, shippingOptions, platform, operatorId, stationId };
+            var resp = await Http.PostAsJsonAsync("returns", body, JsonOpts);
+            if (!resp.IsSuccessStatusCode)
+                Logger.Log($"ApiService.CreateReturnRecordAsync: HTTP {(int)resp.StatusCode}");
+            return resp.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.CreateReturnRecordAsync: {ex.Message}");
+            return false;
+        }
+    }
+
+    public static async Task<bool> UpsertCarrierParcelCountAsync(string shippingOptions, int actualCount, int? operatorId)
+    {
+        try
+        {
+            var body = new { shippingOptions, actualCount, operatorId };
+            var json = JsonSerializer.Serialize(body, JsonOpts);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var resp = await Http.PutAsync("returns/carrier-counts", content);
+            if (!resp.IsSuccessStatusCode)
+                Logger.Log($"ApiService.UpsertCarrierParcelCountAsync: HTTP {(int)resp.StatusCode}");
+            return resp.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.UpsertCarrierParcelCountAsync: {ex.Message}");
+            return false;
+        }
+    }
+
+    public static async Task<bool> BackfillExpectedCarrierCountsAsync()
+    {
+        try
+        {
+            var resp = await Http.PostAsync("returns/carrier-counts/backfill", null);
+            if (!resp.IsSuccessStatusCode)
+                Logger.Log($"ApiService.BackfillExpectedCarrierCountsAsync: HTTP {(int)resp.StatusCode}");
+            return resp.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.BackfillExpectedCarrierCountsAsync: {ex.Message}");
+            return false;
+        }
+    }
+
+    public readonly record struct ReturnScanResult(int Status, bool AlreadyReturned);
+
+    /// <summary>PATCH packing-lists/scan/{barcode}/return — mark shipped parcel Returned.</summary>
+    public static async Task<ReturnScanResult> ReturnScanAsync(
+        string barcode, string? returnedBy, int? returnStationId,
+        int? operatorId, string reason, string? notes)
+    {
+        try
+        {
+            var body = new
+            {
+                returnedBy = returnedBy?.Replace(' ', '-'),
+                returnStationId,
+                operatorId,
+                reason,
+                notes,
+            };
+            var json = JsonSerializer.Serialize(body, JsonOpts);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var resp = await Http.PatchAsync(
+                $"packing-lists/scan/{Uri.EscapeDataString(barcode)}/return", content);
+            var status = (int)resp.StatusCode;
+            if (!resp.IsSuccessStatusCode)
+            {
+                Logger.Log($"ApiService.ReturnScanAsync: HTTP {status}");
+                return new ReturnScanResult(status, false);
+            }
+            var node = await resp.Content.ReadFromJsonAsync<JsonNode>(JsonOpts);
+            return new ReturnScanResult(status, node?["alreadyReturned"]?.GetValue<bool>() ?? false);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.ReturnScanAsync: {ex.Message}");
+            return new ReturnScanResult(0, false);
+        }
+    }
+
+    /// <summary>PATCH .../return/undo — supervisor-only. Returns raw HTTP status (0 = network error).</summary>
+    public static async Task<int> UndoReturnAsync(string barcode, string undoneBy, int? stationId)
+    {
+        try
+        {
+            var body = new { undoneBy = undoneBy.Replace(' ', '-'), stationId };
+            var json = JsonSerializer.Serialize(body, JsonOpts);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var resp = await Http.PatchAsync(
+                $"packing-lists/scan/{Uri.EscapeDataString(barcode)}/return/undo", content);
+            if (!resp.IsSuccessStatusCode)
+                Logger.Log($"ApiService.UndoReturnAsync: HTTP {(int)resp.StatusCode}");
+            return (int)resp.StatusCode;
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.UndoReturnAsync: {ex.Message}");
+            return 0;
+        }
+    }
+
+    public record ReturnItemDto(
+        [property: JsonPropertyName("sellerSku")] string SellerSku,
+        [property: JsonPropertyName("productName")] string? ProductName,
+        [property: JsonPropertyName("expectedQty")] int ExpectedQty,
+        [property: JsonPropertyName("sellableQty")] int SellableQty,
+        [property: JsonPropertyName("damagedQty")] int DamagedQty);
+
+    /// <summary>GET returns/{tracking}/items — expected contents + restock counts.</summary>
+    public static async Task<List<ReturnItemDto>> GetReturnItemsAsync(string tracking)
+    {
+        try
+        {
+            var resp = await Http.GetAsync($"returns/{Uri.EscapeDataString(tracking)}/items");
+            if (!resp.IsSuccessStatusCode)
+            {
+                Logger.Log($"ApiService.GetReturnItemsAsync: HTTP {(int)resp.StatusCode}");
+                return [];
+            }
+            return await resp.Content.ReadFromJsonAsync<List<ReturnItemDto>>(JsonOpts) ?? [];
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.GetReturnItemsAsync: {ex.Message}");
+            return [];
+        }
+    }
+
+    /// <summary>PUT returns/{tracking}/items — scan-increment one SKU. Null on failure.</summary>
+    public static async Task<ReturnItemDto?> UpsertReturnItemAsync(
+        string tracking, string sellerSku, int sellableDelta, int damagedDelta, int? operatorId)
+    {
+        try
+        {
+            var body = new { sellerSku, sellableDelta, damagedDelta, operatorId };
+            var json = JsonSerializer.Serialize(body, JsonOpts);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var resp = await Http.PutAsync($"returns/{Uri.EscapeDataString(tracking)}/items", content);
+            if (!resp.IsSuccessStatusCode)
+            {
+                Logger.Log($"ApiService.UpsertReturnItemAsync: HTTP {(int)resp.StatusCode}");
+                return null;
+            }
+            return await resp.Content.ReadFromJsonAsync<ReturnItemDto>(JsonOpts);
+        }
+        catch (Exception ex)
+        {
+            Logger.Log($"ApiService.UpsertReturnItemAsync: {ex.Message}");
+            return null;
+        }
+    }
+
     // ── Private DTOs ──────────────────────────────────────────────────────────
 
     private record StatusRequest(
@@ -433,6 +970,13 @@ public static class ApiService
         [property: JsonPropertyName("packedBy")] string? PackedBy,
         [property: JsonPropertyName("packingStationId")] int? PackingStationId);
 
+    private record PackedTodayResponse(
+        [property: JsonPropertyName("total")] int Total,
+        [property: JsonPropertyName("items")] List<PackedTodayItem>? Items);
+
+    private record PackedTodayItem(
+        [property: JsonPropertyName("platform")] string? Platform);
+
     private record VideoRecord(
         [property: JsonPropertyName("id")] int Id);
 
@@ -449,4 +993,39 @@ public static class ApiService
         [property: JsonPropertyName("operator")]        string? Operator,
         [property: JsonPropertyName("status")]          string? Status,
         [property: JsonPropertyName("remoteFilePath")]  string? RemoteFilePath = null);
+
+    public record ProductInfo(
+        [property: JsonPropertyName("id")] int Id,
+        [property: JsonPropertyName("productName")] string ProductName,
+        [property: JsonPropertyName("productType")] string ProductType,
+        [property: JsonPropertyName("imagePath")] string? ImagePath);
+
+    public record BundleComponentInfo(
+        [property: JsonPropertyName("id")] int Id,
+        [property: JsonPropertyName("componentProductId")] int ComponentProductId,
+        [property: JsonPropertyName("quantity")] int Quantity,
+        [property: JsonPropertyName("productName")] string ProductName,
+        [property: JsonPropertyName("productVariation")] string? ProductVariation,
+        [property: JsonPropertyName("sellerSku")] string SellerSku,
+        [property: JsonPropertyName("imagePath")] string? ImagePath,
+        [property: JsonPropertyName("qcNotes")] string? QcNotes = null);
+
+    // DTOs for the orphan create round-trip.
+    private record CreateOrphanRequest(
+        [property: JsonPropertyName("objectKey")]   string  ObjectKey,
+        [property: JsonPropertyName("bucket")]      string  Bucket,
+        [property: JsonPropertyName("scannedText")] string? ScannedText,
+        [property: JsonPropertyName("stationId")]   int?    StationId,
+        [property: JsonPropertyName("operator")]    string? Operator,
+        [property: JsonPropertyName("recordedAt")]  string  RecordedAt,
+        [property: JsonPropertyName("fileSize")]    long    FileSize,
+        [property: JsonPropertyName("filePath")]    string  FilePath,
+        [property: JsonPropertyName("fileName")]    string  FileName);
+
+    public sealed class OrphanVideoRecord
+    {
+        [JsonPropertyName("id")]          public int    Id          { get; set; }
+        [JsonPropertyName("status")]      public string? Status     { get; set; }
+        [JsonPropertyName("matchStatus")] public string? MatchStatus { get; set; }
+    }
 }

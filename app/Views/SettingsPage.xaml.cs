@@ -30,6 +30,8 @@ public partial class SettingsPage : ContentPage
         AutoDeleteSwitch.IsToggled  = AppSettings.AutoDeleteCompletedVideos;
         ApiUrlEntry.Text            = AppSettings.ApiUrl;
         SearchHistoryMaxEntry.Text  = AppSettings.SearchHistoryMaxItems.ToString();
+        CfAccessClientIdEntry.Text     = AppSettings.CfAccessClientId;
+        CfAccessClientSecretEntry.Text = AppSettings.CfAccessClientSecret;
         MinioBucketEntry.Text    = AppSettings.MinioBucket;
         MinioEndpointEntry.Text  = AppSettings.MinioEndpoint;
         MinioAccessKeyEntry.Text = AppSettings.MinioAccessKey;
@@ -215,6 +217,8 @@ public partial class SettingsPage : ContentPage
     private async void OnSaveApi(object sender, EventArgs e)
     {
         AppSettings.ApiUrl = ApiUrlEntry.Text?.Trim() ?? AppSettings.DefaultApiUrl;
+        AppSettings.CfAccessClientId     = CfAccessClientIdEntry.Text?.Trim() ?? string.Empty;
+        AppSettings.CfAccessClientSecret = CfAccessClientSecretEntry.Text?.Trim() ?? string.Empty;
         Logger.Log($"API URL saved — {AppSettings.ApiUrl}");
         await TestAndShowResultAsync();
     }
